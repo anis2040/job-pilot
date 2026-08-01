@@ -176,10 +176,38 @@ def _build_with_sdk(system_text: str, user_prompt: str, stage_fn=None) -> str:
     return response.content[0].text
 
 
+def _get_gemini_client():
+    """Return a configured Gemini client, or None if no credentials available."""
+    import os
+    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    if not api_key:
+        return None
+    try:
+        from google import genai
+        return genai.Client(api_key=api_key)
+    except Exception:
+        return None
+
+
 def _build_with_gemini(system_text: str, user_prompt: str, cwd: str, stage_fn=None) -> str:
-    """Fall back to gemini CLI subprocess. Returns response text."""
+    """Call Gemini via SDK. Falls back to CLI subprocess if SDK unavailable."""
     if stage_fn:
         stage_fn("Generating with Gemini…")
+
+    client = _get_gemini_client()
+    if client is not None:
+        from google.genai import types
+        response = client.models.generate_content(
+            model="gemini-2.5-pro",
+            contents=user_prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=system_text,
+                max_output_tokens=4096,
+            ),
+        )
+        return response.text
+
+    # Fallback: gemini CLI subprocess
     gemini_md = Path(cwd) / "GEMINI.md"
     gemini_md.write_text(system_text)
     extra = {}
@@ -197,11 +225,11 @@ def _build_with_gemini(system_text: str, user_prompt: str, cwd: str, stage_fn=No
 
 
 def _generate_content(system_text: str, user_prompt: str, cwd: str, stage_fn=None) -> str:
-    """Use SDK (with caching) if Anthropic creds available, else fall back to Gemini CLI."""
+    """Use best available AI: Anthropic SDK (cached) → Gemini SDK → Gemini CLI."""
     client = _get_anthropic_client()
     if client is not None:
         return _build_with_sdk(system_text, user_prompt, stage_fn=stage_fn)
-    if shutil.which("gemini"):
+    if _get_gemini_client() is not None or shutil.which("gemini"):
         return _build_with_gemini(system_text, user_prompt, cwd=cwd, stage_fn=stage_fn)
     raise RuntimeError(
         "No AI available. Install Claude Code and run 'claude login', "
