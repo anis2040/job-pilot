@@ -747,6 +747,10 @@ if __name__ == "__main__":
             if "=" in line and not line.startswith("#"):
                 k, v = line.split("=", 1)
                 os.environ.setdefault(k.strip(), v.strip())
-    if get_active_slug():
+    # Repair symlinks on startup in case a profile folder was deleted/moved
+    active_slug = get_active_slug()
+    if active_slug:
+        from job.profiles import _update_symlinks
+        _update_symlinks(PROFILES_DIR / active_slug)
         init_db()
     app.run(debug=False, port=5050)
