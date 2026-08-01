@@ -512,5 +512,103 @@ function setTableFetching(msg) {
 
 // ── Settings ──────────────────────────────────────────────────────────────────
 
+async function openSettings() {
+  const res = await fetch("/api/config");
+  const cfg = await res.json();
+  renderSearchRows(cfg.searches || [], "searches-list");
+  renderTags("title-filter-wrap", "title-filter-input", cfg.title_filter || []);
+  renderTags("blacklist-wrap", "blacklist-input", cfg.blacklist || []);
+  renderTags("company-blacklist-wrap", "company-blacklist-input", cfg.company_blacklist || []);
+  document.getElementById("save-notice").style.display = "none";
+  document.getElementById("settings-modal").classList.add("open");
+}
 
+function closeSettings() {
+  document.getElementById("settings-modal").classList.remove("open");
+}
 
+function closeSettingsOnBackdrop(e) {
+  if (e.target === document.getElementById("settings-modal")) closeSettings();
+}
+
+async function saveSettings() {
+  const searches = collectSearchRows(".search-row");
+  if (!searches.length) { alert("Add at least one search source."); return; }
+  const titleFilter = collectTags("title-filter-wrap");
+  const queryTerms = [...new Set(searches.map(s => s.query.toLowerCase()).filter(Boolean))];
+  const mergedFilter = titleFilter.length ? [...new Set([...titleFilter, ...queryTerms])] : queryTerms;
+  const cfg = {
+    searches,
+    title_filter: mergedFilter,
+    blacklist: collectTags("blacklist-wrap"),
+    company_blacklist: collectTags("company-blacklist-wrap"),
+  };
+  const res = await fetch("/api/config", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(cfg),
+  });
+  const data = await res.json();
+  if (data.ok) {
+    closeSettings();
+    const notice = document.getElementById("save-notice");
+    notice.style.display = "inline";
+    setTimeout(() => notice.style.display = "none", 2500);
+    await fetch("/api/jobs/clear", { method: "POST" });
+    setTableFetching("Fetching with new settings…");
+    runFetch();
+  } else {
+    alert("Save failed: " + (data.error || "unknown error"));
+  }
+}
+
+// ── Profile dropdown ─────────────────────────────────────────────────────────
+
+async function addNewProfile() {
+  const res = await fetch("/api/profiles/new", { method: "POST" });
+  const data = await res.json();
+  if (data.ok) window.location.href = "/setup";
+}
+
+async function toggleProfileMenu(e) {
+  e.stopPropagation();
+  const menu = document.getElementById("profile-menu");
+  const isOpen = menu.classList.contains("open");
+  menu.classList.toggle("open");
+  if (!isOpen) {
+    const res = await fetch("/api/profiles");
+    const data = await res.json();
+    const list = document.getElementById("profile-menu-list");
+    list.innerHTML = data.profiles.map(p => `
+      <button class="profile-menu-item ${p.active ? 'active-profile' : ''}" onclick="switchProfile('${p.slug}')">
+        <span class="mini-avatar" style="background:${p.color}">${p.initials}</span>
+        <span style="flex:1">${p.name}</span>
+        ${p.active ? `<a href="/profile-settings/${p.slug}" onclick="event.stopPropagation()" style="color:#64748b;font-size:0.72rem;text-decoration:none;padding:2px 6px;background:#0f1117;border-radius:4px">Settings</a>` : ''}
+        ${p.active ? '<span class="profile-check">✓</span>' : ''}
+      </button>`).join("");
+  }
+}
+
+document.addEventListener("click", () => {
+  document.getElementById("profile-menu")?.classList.remove("open");
+});
+
+async function switchProfile(slug) {
+  const res = await fetch(`/api/profiles/switch/${slug}`, { method: "POST" });
+  const data = await res.json();
+  window.location.href = data.empty ? "/?fetch=1" : "/";
+}
+
+// ── Sort init ─────────────────────────────────────────────────────────────────
+
+loadJobs();
+setInterval(loadJobs, 30000);
+
+if (new URLSearchParams(window.location.search).get("fetch") === "1") {
+  history.replaceState({}, "", "/");
+  setTableFetching("Starting fetch…");
+  runFetch();
+}
+</script>
+</body>
+</html>
