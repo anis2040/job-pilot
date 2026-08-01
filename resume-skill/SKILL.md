@@ -182,51 +182,9 @@ Use `latex_template.md` as the base. Produce a complete `.tex` file:
 - **pdflatex-safe syntax** — escape `&` → `\&`, `%` → `\%`, `#` → `\#`, `_` → `\_`
 - Standard TeX Live packages only: `geometry`, `enumitem`, `titlesec`, `xcolor`, `hyperref`, `microtype`
 
-**Output directory:** Infer the company name from the job description. Create the directory and save:
-- `../resumes/<CompanyName>/{{NAME_SLUG}}_Resume.tex`
-- `../resumes/<CompanyName>/job_description.txt`
+**Return the complete LaTeX as your response** — output nothing except the LaTeX, starting with `\documentclass` and ending with `\end{document}`. Do not include any explanation, cover note, or markdown — just the raw `.tex` content. The caller will handle file writing and compilation.
 
-Use the appropriate command for the platform:
-- macOS/Linux: `mkdir -p ../resumes/<CompanyName>`
-- Windows: `mkdir ..\resumes\<CompanyName>` (or `New-Item -ItemType Directory -Force`)
-
----
-
-## Step 5 — Compile to PDF
-
-Detect the platform and use the appropriate commands:
-
-**macOS/Linux:**
-```bash
-export PATH="/usr/local/texlive/2026basic/bin/universal-darwin:$PATH"
-cd ../resumes/<CompanyName>
-pdflatex -interaction=nonstopmode {{NAME_SLUG}}_Resume.tex
-find . -maxdepth 1 -type f ! -name "*.pdf" ! -name "*.tex" ! -name "*.txt" -delete
+Also include a JSON block at the very end (after `\end{document}`) with this exact format:
+```json
+{"company": "<CompanyName inferred from JD>", "gaps": ["gap1", "gap2"], "emphasis": "one sentence on what was emphasized"}
 ```
-
-**Windows:**
-```powershell
-cd ..\resumes\<CompanyName>
-pdflatex -interaction=nonstopmode {{NAME_SLUG}}_Resume.tex
-del *.aux, *.log, *.out, *.toc, *.fls, *.fdb_latexmk, *.synctex.gz 2>$null
-```
-
-If pdflatex is not found:
-- macOS: `brew install --cask basictex`
-- Windows: install [MiKTeX](https://miktex.org/download) — it installs missing packages automatically
-- Linux: `sudo apt-get install texlive-latex-extra`
-
-If compilation fails, fix LaTeX errors (unescaped `&`, `%`, `_`, `#`; missing packages; unclosed environments) and retry.
-
----
-
-## Step 6 — Deliver
-
-1. Confirm the PDF exists at `../resumes/<CompanyName>/{{NAME_SLUG}}_Resume.pdf`
-2. Report the output paths:
-   - `../resumes/<CompanyName>/{{NAME_SLUG}}_Resume.pdf`
-   - `../resumes/<CompanyName>/{{NAME_SLUG}}_Resume.tex`
-3. Write a **cover note** (3 bullets max):
-   - What you emphasized and why
-   - Any hard gaps (JD required something not in profile)
-   - One cover letter opening sentence in plain human voice
