@@ -135,27 +135,32 @@ def _inject_name(instructions: str, slug: str) -> str:
 
 
 def _get_anthropic_client():
-    """Return an Anthropic client using API key or OAuth token."""
+    """Return an Anthropic client, or None if no Anthropic credentials available."""
     try:
         import anthropic
         import os
-        # Try API key first, then auth token (OAuth via claude login)
         api_key = os.environ.get("ANTHROPIC_API_KEY")
         auth_token = os.environ.get("ANTHROPIC_AUTH_TOKEN")
         if api_key:
             return anthropic.Anthropic(api_key=api_key)
         if auth_token:
             return anthropic.Anthropic(auth_token=auth_token)
-        # No env var — SDK will try its own credential resolution (profile from claude login)
-        return anthropic.Anthropic()
-    except Exception as e:
-        raise RuntimeError(f"Failed to create Anthropic client: {e}. Make sure 'claude login' has been run.")
+        # Try OAuth profile from claude login — will raise if not logged in
+        client = anthropic.Anthropic()
+        # Quick check: if claude CLI exists, assume OAuth profile is valid
+        if shutil.which("claude"):
+            return client
+        return None
+    except Exception:
+        return None
 
 
 def _build_with_sdk(system_text: str, user_prompt: str, stage_fn=None) -> str:
-    """Call Claude via SDK with prompt caching on the system content. Returns response text."""
+    """Call Claude via SDK with prompt caching. Returns response text."""
     import anthropic
     client = _get_anthropic_client()
+    if client is None:
+        raise RuntimeError("No Anthropic client available")
     if stage_fn:
         stage_fn("Generating with Claude…")
     response = client.messages.create(
@@ -169,6 +174,39 @@ def _build_with_sdk(system_text: str, user_prompt: str, stage_fn=None) -> str:
         messages=[{"role": "user", "content": user_prompt}],
     )
     return response.content[0].text
+
+
+def _build_with_gemini(system_text: str, user_prompt: str, cwd: str, stage_fn=None) -> str:
+    """Fall back to gemini CLI subprocess. Returns response text."""
+    if stage_fn:
+        stage_fn("Generating with Gemini…")
+    gemini_md = Path(cwd) / "GEMINI.md"
+    gemini_md.write_text(system_text)
+    extra = {}
+    if sys.platform == "win32":
+        extra["creationflags"] = subprocess.CREATE_NO_WINDOW
+    result = subprocess.run(
+        ["gemini", "-p", user_prompt, "--yolo"],
+        capture_output=True, text=True, cwd=cwd, timeout=600, **extra,
+    )
+    if gemini_md.exists():
+        gemini_md.unlink()
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr or "gemini subprocess failed")
+    return result.stdout
+
+
+def _generate_content(system_text: str, user_prompt: str, cwd: str, stage_fn=None) -> str:
+    """Use SDK (with caching) if Anthropic creds available, else fall back to Gemini CLI."""
+    client = _get_anthropic_client()
+    if client is not None:
+        return _build_with_sdk(system_text, user_prompt, stage_fn=stage_fn)
+    if shutil.which("gemini"):
+        return _build_with_gemini(system_text, user_prompt, cwd=cwd, stage_fn=stage_fn)
+    raise RuntimeError(
+        "No AI available. Install Claude Code and run 'claude login', "
+        "or install Gemini CLI and set GEMINI_API_KEY."
+    )
 
 
 def _compile_latex(tex_path: Path) -> Path:
@@ -297,7 +335,7 @@ def _build_resume(job_id: str) -> None:
             f"{row['description']}"
         )
 
-        response_text = _build_with_sdk(skill_text, user_prompt,
+        response_text = _generate_content(skill_text, user_prompt, cwd=str(_skill_path()),
                                          stage_fn=lambda s: _set_stage(job_id, s))
 
         _set_stage(job_id, "Compiling PDF…")
@@ -373,7 +411,7 @@ def _build_cover_letter(job_id: str) -> None:
             f"{resume_tex_content}"
         )
 
-        response_text = _build_with_sdk(skill_text, user_prompt,
+        response_text = _generate_content(skill_text, user_prompt, cwd=str(_cl_skill_path()),
                                          stage_fn=lambda s: _set_cl_stage(job_id, s))
 
         _set_cl_stage(job_id, "Compiling PDF…")
