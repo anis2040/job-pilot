@@ -137,11 +137,11 @@ def _serialize_job(row, task_status: dict, cl_task_status: dict) -> dict:
         "source": _source_label(r.get("search_name") or ""),
         "resume_status": resume_status,
         "resume_stage": ts.get("stage", ""),
-        "pdf_url": f"/pdf/{Path(pdf_path).parent.name}" if pdf_path else None,
+        "pdf_url": f"/pdf/{Path(pdf_path).parent.name}/{Path(pdf_path).name}" if pdf_path else None,
         "resume_error": ts.get("error"),
         "cl_status": cl_status,
         "cl_stage": cl_ts.get("stage", ""),
-        "cl_pdf_url": f"/pdf/{Path(cl_pdf_path).parent.name}/cover" if cl_pdf_path else None,
+        "cl_pdf_url": f"/pdf/{Path(cl_pdf_path).parent.name}/{Path(cl_pdf_path).name}" if cl_pdf_path else None,
         "cl_error": cl_ts.get("error"),
     }
 
@@ -353,8 +353,8 @@ def api_resume_status(job_id):
     ts = get_task_status(job_id)
     pdf_url = None
     if ts.get("pdf_path"):
-        folder = Path(ts["pdf_path"]).parent.name
-        pdf_url = f"/pdf/{folder}"
+        p = Path(ts["pdf_path"])
+        pdf_url = f"/pdf/{p.parent.name}/{p.name}"
     return jsonify({"status": ts.get("status", "idle"), "stage": ts.get("stage", ""), "pdf_url": pdf_url, "error": ts.get("error")})
 
 
@@ -372,8 +372,8 @@ def api_cover_letter_status(job_id):
     ts = get_cl_task_status(job_id)
     pdf_url = None
     if ts.get("pdf_path"):
-        folder = Path(ts["pdf_path"]).parent.name
-        pdf_url = f"/pdf/{folder}/cover"
+        p = Path(ts["pdf_path"])
+        pdf_url = f"/pdf/{p.parent.name}/{p.name}"
     return jsonify({"status": ts.get("status", "idle"), "stage": ts.get("stage", ""), "pdf_url": pdf_url, "error": ts.get("error")})
 
 
@@ -431,19 +431,9 @@ def api_fetch_status():
     return jsonify(get_fetch_status())
 
 
-@app.route("/pdf/<company>")
-def serve_pdf(company):
-    name_slug = _candidate_name_slug()
-    pdf = _resumes_path() / company / f"{name_slug}_Resume.pdf"
-    if not pdf.exists():
-        abort(404)
-    return send_file(str(pdf), mimetype="application/pdf")
-
-
-@app.route("/pdf/<company>/cover")
-def serve_cover_letter(company):
-    name_slug = _candidate_name_slug()
-    pdf = _resumes_path() / company / f"{name_slug}_Cover_Letter.pdf"
+@app.route("/pdf/<company>/<filename>")
+def serve_pdf(company, filename):
+    pdf = _resumes_path() / company / filename
     if not pdf.exists():
         abort(404)
     return send_file(str(pdf), mimetype="application/pdf")
