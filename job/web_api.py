@@ -1,6 +1,7 @@
 import threading
 import subprocess
 import time
+import shutil
 from pathlib import Path
 
 from .db import get_job, update_description, init_db, already_seen, is_duplicate, insert_job, insert_filter_log, log_fetch
@@ -76,6 +77,35 @@ def _set_cl_stage(job_id: str, stage: str) -> None:
             _cl_task_status[job_id]["stage"] = stage
 
 
+def _run_ai(prompt: str, system_instructions: str, cwd: str) -> subprocess.Popen:
+    """Launch the configured AI CLI (claude or gemini) as a subprocess."""
+    if shutil.which("claude"):
+        return subprocess.Popen(
+            ["claude", "-p", prompt,
+             "--append-system-prompt", system_instructions,
+             "--allowedTools", "Bash,Edit,Write,Read"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            cwd=cwd,
+        )
+    if shutil.which("gemini"):
+        # Gemini uses GEMINI.md in the cwd for system context instead of a CLI flag
+        gemini_md = Path(cwd) / "GEMINI.md"
+        gemini_md.write_text(system_instructions)
+        return subprocess.Popen(
+            ["gemini", "-p", prompt, "--yolo"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            cwd=cwd,
+        )
+    raise RuntimeError(
+        "No AI CLI found. Install Claude Code (https://claude.ai/code) or "
+        "Gemini CLI (npm install -g @google/gemini-cli)."
+    )
+
+
 def _build_resume(job_id: str) -> None:
     try:
         init_db()
@@ -116,15 +146,7 @@ def _build_resume(job_id: str) -> None:
             if ref_path.exists():
                 skill_instructions += f"\n\n## {ref_name} (embedded)\n\n{ref_path.read_text()}"
 
-        proc = subprocess.Popen(
-            ["claude", "-p", prompt,
-             "--append-system-prompt", skill_instructions,
-             "--allowedTools", "Bash,Edit,Write,Read"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            cwd=str(_SKILL_PATH),
-        )
+        proc = _run_ai(prompt, skill_instructions, cwd=str(_SKILL_PATH))
 
         # Stream stdout and detect stages from Claude's output
         for line in proc.stdout:
@@ -227,15 +249,7 @@ def _build_cover_letter(job_id: str) -> None:
         if profile_path.exists():
             skill_instructions += f"\n\n## profile.md (embedded)\n\n{profile_path.read_text()}"
 
-        proc = subprocess.Popen(
-            ["claude", "-p", prompt,
-             "--append-system-prompt", skill_instructions,
-             "--allowedTools", "Bash,Edit,Write,Read"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            cwd=str(_CL_SKILL_PATH),
-        )
+        proc = _run_ai(prompt, skill_instructions, cwd=str(_CL_SKILL_PATH))
 
         for line in proc.stdout:
             line_lower = line.lower()

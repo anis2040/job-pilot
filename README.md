@@ -1,220 +1,167 @@
-# job-scraper — Job Hunt Automator
+# job-scraper
 
-Fetches job listings from LinkedIn, Jobicy, and Himalayas, filters out irrelevant roles, scores them by fit, and lets you generate tailored ATS-optimized resumes with one click. Includes both a web UI and a CLI.
-
-## Sources
-
-| Source | Coverage |
-|---|---|
-| `linkedin` | Large US job market, scrapes public search results |
-| `jobicy` | Remote-first US jobs, public JSON API |
-| `himalayas` | Remote US jobs, public JSON API |
-
-All sources return only US-based or US-remote jobs.
+Fetches job listings from LinkedIn, Jobicy, Himalayas, and Greenhouse, scores them by fit, and generates tailored ATS-optimized resumes and cover letters with one click using Claude or Gemini.
 
 ## Requirements
 
 - Python 3.11+
-- [Claude Code CLI](https://claude.ai/code) (`claude` command) — required for resume generation
+- Node.js (for AI CLI)
+- One of:
+  - [Claude Code CLI](https://claude.ai/code) — `npm install -g @anthropic-ai/claude-code`
+  - [Gemini CLI](https://github.com/google-gemini/gemini-cli) — `npm install -g @google/gemini-cli`
 
-## Setup (macOS/Linux)
+## Setup
 
-Run once:
+### 1. Clone and install
 
 ```bash
-cd ~/Downloads/job-scraper
+git clone https://github.com/anis2040/job-scraper.git
+cd job-scraper
+```
+
+**macOS / Linux:**
+```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Every new terminal session:
-
-```bash
-cd ~/Downloads/job-scraper
-source .venv/bin/activate
-```
-
-## Windows Setup
-
-**One-time setup:**
-
+**Windows (PowerShell):**
 ```powershell
-cd $HOME\Downloads\job-scraper
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-**Every new terminal session:**
-
-```powershell
-cd $HOME\Downloads\job-scraper
-.venv\Scripts\activate
-```
-
-> If you get a "running scripts is disabled" error, run this once in PowerShell as Administrator:
+> If you get a "running scripts is disabled" error on Windows, run once as Administrator:
 > `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`
+
+### 2. Set up your profile
+
+Copy the example profile and fill in your details:
+
+```bash
+cp resume-skill/references/profile.md.example resume-skill/references/profile.md
+```
+
+Edit `resume-skill/references/profile.md` with your experience, education, and certifications. This is the only source of truth the AI uses — it will never invent anything not listed here.
+
+### 3. Set up your AI CLI
+
+**Option A — Claude:**
+```bash
+npm install -g @anthropic-ai/claude-code
+claude login
+```
+
+**Option B — Gemini:**
+```bash
+npm install -g @google/gemini-cli
+```
+Then set your API key (get one free at [aistudio.google.com](https://aistudio.google.com/apikey)):
+```bash
+# macOS / Linux
+export GEMINI_API_KEY="your_key_here"
+
+# Windows (PowerShell)
+$env:GEMINI_API_KEY="your_key_here"
+```
+To make it permanent on Windows, add it via System Properties → Environment Variables.
+
+The app auto-detects which CLI is installed. Claude is tried first; Gemini is used if Claude is not found.
+
+### 4. Install BasicTeX (for PDF compilation)
+
+Resumes and cover letters are compiled from LaTeX to PDF.
+
+**macOS:**
+```bash
+brew install --cask basictex
+sudo /usr/local/texlive/2026basic/bin/universal-darwin/tlmgr install titlesec enumitem hyperref geometry parskip microtype
+```
+
+**Windows:** Download and install [MiKTeX](https://miktex.org/download). It installs missing packages automatically on first use.
+
+**Linux:**
+```bash
+sudo apt install texlive-latex-extra
+```
 
 ---
 
-## Web UI (recommended)
+## Run
 
-Start the server:
+Activate the virtualenv first (every new terminal session):
+
+```bash
+# macOS / Linux
+source .venv/bin/activate
+
+# Windows
+.venv\Scripts\activate
+```
+
+Start the web UI:
 
 ```bash
 python web.py
 ```
 
-Then open **http://localhost:5050** in your browser.
+Open **http://localhost:5050** in your browser.
 
-> Port 5050 is used because macOS reserves port 5000 for AirPlay Receiver.
+---
 
-### Web UI features
+## Usage
 
-**Jobs table** — shows all pending listings sorted by fit score, with columns for Score, Title, Company, Remote, Location, Salary, Experience, Age, and CV status.
+**Fetch new jobs** — click ⟳ Fetch new jobs in the header. Jobs are scored and deduplicated automatically.
 
-**Tabs** — switch between Pending, Applied, and Skipped listings.
+**Build CV** — click ▶ Build CV on any row. The AI generates a tailored resume for that job in the background. Once done, click 📄 Open CV to view the PDF.
 
-**▶ Build CV button** — click on any row to generate a tailored resume for that job:
-1. Fetches the full job description if not already available
-2. Runs the resume skill in the background using `claude -p`
-3. Button shows a spinner while building
-4. Once done, shows a **📄 Open CV** link — click to open the PDF in the browser
+**Write Letter** — appears once a CV is built. Generates a matching cover letter that reads the resume first for consistency.
 
-**✓ Applied / ✗ Skip buttons** — mark a job as applied or skipped; it moves to the relevant tab instantly.
-
-**↩ Restore** — undo an applied/skipped action from the Applied or Skipped tabs.
-
-**⟳ Fetch new jobs** button — triggers a fresh fetch from all sources with a live progress message. New rows appear automatically when done.
-
-**Auto-refresh** — the table refreshes every 30 seconds in the background.
+**Applied / Skip** — mark jobs to move them to the Applied or Skipped tabs.
 
 ---
 
 ## Configuration
 
-Edit `config.yaml`:
+Edit `config.yaml` to change what roles you're searching for:
 
 ```yaml
 searches:
   - name: "LinkedIn - Product Owner USA"
-    source: linkedin          # linkedin | jobicy | himalayas
+    source: linkedin          # linkedin | jobicy | himalayas | greenhouse
     query: "Product Owner"
     location: "United States"
     remote: true
     max_pages: 3
 
-title_filter:                 # only keep jobs whose title matches at least one keyword
+title_filter:                 # only keep jobs matching at least one of these
   - product owner
   - product manager
   - business analyst
 
-blacklist:                    # filter by keyword in title or description
+blacklist:                    # drop jobs containing these words
   - internship
   - junior
 
-company_blacklist:            # filter out specific companies entirely
+company_blacklist:            # ignore these companies entirely
   - Accentuate Staffing
 ```
 
-**To change the role:** update `query` in each search entry and add/update `title_filter` accordingly.
-
 ---
 
-## CLI Commands
+## Output
 
-All commands require the virtualenv to be activated first.
-
-### `fetch` — Pull new listings
-
-```bash
-python -m job.cli fetch
-```
-
-Scrapes all sources, applies filters, deduplicates across sources, scores each job, and saves new listings. Fires a macOS notification if new jobs are found. Warns if last fetch was more than 24h ago.
-
-### `list` — Show listings by status
-
-```bash
-python -m job.cli list                   # pending (default)
-python -m job.cli list --status applied
-python -m job.cli list --status skipped
-```
-
-### `unique` — Deduplicated view
-
-```bash
-python -m job.cli unique
-```
-
-Shows one listing per company+title, sorted by fit score. Useful when the same job appears on multiple sources.
-
-### `resume` — Generate tailored resumes
-
-```bash
-python -m job.cli resume              # top 5 pending jobs
-python -m job.cli resume --limit 10
-```
-
-For each job: fetches the description if missing, runs the resume skill, opens the job URL in your browser. Resumes are saved to `resumes/<CompanyName>/`.
-
-### `open` — Open a job in the browser
-
-```bash
-python -m job.cli open li_4432695491
-```
-
-### `done` / `skip` — Update status
-
-```bash
-python -m job.cli done li_4432695491   # mark as applied
-python -m job.cli skip li_4432695491   # dismiss
-```
-
-Job ID prefixes: `li_` = LinkedIn, `jc_` = Jobicy, `hi_` = Himalayas.
-
-### `stats` — View counts and fetch history
-
-```bash
-python -m job.cli stats
-```
-
-Shows counts per status and when each source was last fetched (warns if stale).
-
----
-
-## Fit Score
-
-Each job gets a score from 0–100 when fetched:
-
-| Signal | Points |
-|---|---|
-| Remote | +10 |
-| Hybrid | +5 |
-| PO/Agile keywords in description | up to +20 |
-| Senior/Lead title signals | +10 |
-| Salary ≥ $120k | +10 |
-| Salary ≥ $90k | +5 |
-| Has a description | +5 |
-| Exec/clearance signals | −20 |
-
-Jobs are displayed sorted by score (highest first) in both the web UI and `unique` command.
-
----
-
-## Resume output
-
-Resumes are saved inside the project:
+Generated files are saved per company:
 
 ```
 resumes/<CompanyName>/
 ├── Yassine_Helaoui_Resume.pdf
 ├── Yassine_Helaoui_Resume.tex
+├── Yassine_Helaoui_Cover_Letter.pdf   (if generated)
 └── job_description.txt
 ```
-
-The resume skill used is the local copy at `resume-skill/` — edit `resume-skill/SKILL.md` and `resume-skill/references/profile.md` to update your profile or instructions.
 
 ---
 
@@ -223,25 +170,9 @@ The resume skill used is the local copy at `resume-skill/` — edit `resume-skil
 Clear all saved listings and start fresh:
 
 ```bash
+# macOS / Linux
 sqlite3 state.db "DELETE FROM jobs; DELETE FROM filter_log; DELETE FROM fetch_log;"
+
+# Windows (PowerShell)
+python -c "import sqlite3; c=sqlite3.connect('state.db'); c.execute('DELETE FROM jobs'); c.execute('DELETE FROM filter_log'); c.execute('DELETE FROM fetch_log'); c.commit()"
 ```
-
----
-
-## Automation (optional)
-
-**macOS/Linux** — auto-fetch every 30 minutes via cron:
-
-```bash
-crontab -e
-# Add:
-*/30 * * * * cd ~/Downloads/job-scraper && .venv/bin/python -m job.cli fetch >> logs/fetch.log 2>&1
-```
-
-**Windows** — use Task Scheduler:
-1. Open Task Scheduler → Create Basic Task
-2. Trigger: repeat every 30 minutes
-3. Action: Start a program
-   - Program: `C:\Users\<you>\Downloads\job-scraper\.venv\Scripts\python.exe`
-   - Arguments: `-m job.cli fetch`
-   - Start in: `C:\Users\<you>\Downloads\job-scraper`
