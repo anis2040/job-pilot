@@ -465,9 +465,18 @@ function collectSearchRows() {
 async function saveSearchSettings() {
   const searches = collectSearchRows();
   if (!searches.length) { alert("Add at least one search source."); return; }
+
+  const titleFilter = collectTags("title-filter-wrap");
+  // Auto-add query terms to title_filter if it's empty or if queries changed,
+  // so jobs from the search actually pass the filter
+  const queryTerms = [...new Set(searches.map(s => s.query.toLowerCase()).filter(Boolean))];
+  const mergedFilter = titleFilter.length
+    ? [...new Set([...titleFilter, ...queryTerms])]
+    : queryTerms;
+
   const cfg = {
     searches,
-    title_filter: collectTags("title-filter-wrap"),
+    title_filter: mergedFilter,
     blacklist: collectTags("blacklist-wrap"),
     company_blacklist: collectTags("company-blacklist-wrap"),
   };
@@ -477,14 +486,13 @@ async function saveSearchSettings() {
   const data = await res.json();
   const alert = document.getElementById("search-save-alert");
   if (data.ok) {
-    alert.innerHTML = "";
-    const ok = document.getElementById("search-save-ok");
-    ok.style.display = "inline";
-    setTimeout(() => ok.style.display = "none", 2500);
     if (IS_ACTIVE) {
-      // Trigger a fresh fetch for the active profile
-      setTableFetchingIfPresent();
-      fetch("/api/fetch", { method: "POST" });
+      // Redirect to main page which will show the fetch in progress
+      window.location.href = "/?fetch=1";
+    } else {
+      const ok = document.getElementById("search-save-ok");
+      ok.style.display = "inline";
+      setTimeout(() => ok.style.display = "none", 2500);
     }
   } else {
     alert.innerHTML = `<div class="alert alert-error">${data.error}</div>`;

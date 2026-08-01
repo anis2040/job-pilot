@@ -612,9 +612,16 @@ function collectTags(wrapId) {
 async function saveSettings() {
   const searches = collectSearchRows();
   if (!searches.length) { alert("Add at least one search source."); return; }
+
+  const titleFilter = collectTags("title-filter-wrap");
+  const queryTerms = [...new Set(searches.map(s => s.query.toLowerCase()).filter(Boolean))];
+  const mergedFilter = titleFilter.length
+    ? [...new Set([...titleFilter, ...queryTerms])]
+    : queryTerms;
+
   const cfg = {
     searches,
-    title_filter: collectTags("title-filter-wrap"),
+    title_filter: mergedFilter,
     blacklist: collectTags("blacklist-wrap"),
     company_blacklist: collectTags("company-blacklist-wrap"),
   };
