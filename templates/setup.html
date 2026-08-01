@@ -431,6 +431,8 @@ async function init() {
   const res = await fetch("/api/setup/status");
   status = await res.json();
   renderChecks();
+  renderPdfStep();     // show install button immediately if pdflatex missing
+  renderNodeWarning(); // show node warning immediately if node missing
 }
 
 function renderChecks() {
