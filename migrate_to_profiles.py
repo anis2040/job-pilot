@@ -7,6 +7,7 @@ Run once after updating the code:
 """
 
 import re
+import sys
 import shutil
 from pathlib import Path
 
@@ -80,7 +81,7 @@ def migrate():
     (PROFILES_DIR / ".active").write_text(slug)
     print(f"  Set as active profile")
 
-    # Update symlinks
+    # Update symlinks (or copy on Windows)
     profile_md = profile_dir / "profile.md"
     for skill in ["resume-skill", "cover-letter-skill"]:
         refs = BASE / skill / "references"
@@ -88,8 +89,12 @@ def migrate():
         link = refs / "profile.md"
         if link.is_symlink() or link.exists():
             link.unlink()
-        link.symlink_to(profile_md)
-        print(f"  Updated {skill}/references/profile.md symlink")
+        if sys.platform == "win32":
+            if profile_md.exists():
+                shutil.copy2(profile_md, link)
+        else:
+            link.symlink_to(profile_md)
+        print(f"  Updated {skill}/references/profile.md")
 
     print(f"\nDone! Data is at: {profile_dir}")
     print("Restart the app: python web.py")

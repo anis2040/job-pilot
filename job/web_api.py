@@ -1,5 +1,6 @@
 import threading
 import subprocess
+import sys
 import time
 import shutil
 from pathlib import Path
@@ -138,6 +139,10 @@ def _inject_name(instructions: str, slug: str) -> str:
 
 def _run_ai(prompt: str, system_instructions: str, cwd: str) -> subprocess.Popen:
     """Launch the configured AI CLI (claude or gemini) as a subprocess."""
+    extra = {}
+    if sys.platform == "win32":
+        extra["creationflags"] = subprocess.CREATE_NO_WINDOW
+
     if shutil.which("claude"):
         return subprocess.Popen(
             ["claude", "-p", prompt,
@@ -147,9 +152,9 @@ def _run_ai(prompt: str, system_instructions: str, cwd: str) -> subprocess.Popen
             stderr=subprocess.PIPE,
             text=True,
             cwd=cwd,
+            **extra,
         )
     if shutil.which("gemini"):
-        # Gemini uses GEMINI.md in the cwd for system context instead of a CLI flag
         gemini_md = Path(cwd) / "GEMINI.md"
         gemini_md.write_text(system_instructions)
         return subprocess.Popen(
@@ -158,6 +163,7 @@ def _run_ai(prompt: str, system_instructions: str, cwd: str) -> subprocess.Popen
             stderr=subprocess.PIPE,
             text=True,
             cwd=cwd,
+            **extra,
         )
     raise RuntimeError(
         "No AI CLI found. Install Claude Code (https://claude.ai/code) or "

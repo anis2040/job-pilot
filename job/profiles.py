@@ -2,6 +2,7 @@
 Profile management for multi-profile support.
 """
 
+import sys
 import re
 import hashlib
 import shutil
@@ -111,7 +112,12 @@ def _update_symlinks(profile_dir: Path) -> None:
         link = refs / "profile.md"
         if link.is_symlink() or link.exists():
             link.unlink()
-        link.symlink_to(profile_md)
+        if sys.platform == "win32":
+            # Symlinks require admin/Developer Mode on Windows — copy instead
+            if profile_md.exists():
+                shutil.copy2(profile_md, link)
+        else:
+            link.symlink_to(profile_md)
 
 
 def create_profile(name: str) -> str:

@@ -98,15 +98,24 @@ Express genuine interest in this specific company/role — reference something r
 
 ## Compile to PDF
 
+Detect the platform and use the appropriate commands:
+
+**macOS/Linux:**
 ```bash
-export PATH="/usr/local/texlive/2026basic/bin/universal-darwin:$PATH" && \
-cd ../resumes/<CompanyName> && \
-pdflatex -interaction=nonstopmode {{NAME_SLUG}}_Cover_Letter.tex && \
-find . -maxdepth 1 -name "{{NAME_SLUG}}_Cover_Letter.*" ! -name "*.pdf" ! -name "*.tex" -delete && \
-ls {{NAME_SLUG}}_Cover_Letter.pdf
+export PATH="/usr/local/texlive/2026basic/bin/universal-darwin:$PATH"
+cd ../resumes/<CompanyName>
+pdflatex -interaction=nonstopmode {{NAME_SLUG}}_Cover_Letter.tex
+find . -maxdepth 1 -name "{{NAME_SLUG}}_Cover_Letter.*" ! -name "*.pdf" ! -name "*.tex" -delete
 ```
 
-If pdflatex is not found, it is already installed from the resume build — re-export the PATH and retry.
+**Windows:**
+```powershell
+cd ..\resumes\<CompanyName>
+pdflatex -interaction=nonstopmode {{NAME_SLUG}}_Cover_Letter.tex
+del {{NAME_SLUG}}_Cover_Letter.aux, {{NAME_SLUG}}_Cover_Letter.log, {{NAME_SLUG}}_Cover_Letter.out 2>$null
+```
+
+If pdflatex is not found, it should already be installed from the resume build. If not, install MiKTeX (Windows) or BasicTeX (macOS).
 
 If compilation fails, fix LaTeX errors (unescaped `&`, `%`, `_`, `#`; unclosed environments) and retry.
 

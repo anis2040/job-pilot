@@ -186,28 +186,35 @@ Use `latex_template.md` as the base. Produce a complete `.tex` file:
 - `../resumes/<CompanyName>/{{NAME_SLUG}}_Resume.tex`
 - `../resumes/<CompanyName>/job_description.txt`
 
-```bash
-mkdir -p ../resumes/<CompanyName>
-```
+Use the appropriate command for the platform:
+- macOS/Linux: `mkdir -p ../resumes/<CompanyName>`
+- Windows: `mkdir ..\resumes\<CompanyName>` (or `New-Item -ItemType Directory -Force`)
 
 ---
 
 ## Step 5 — Compile to PDF
 
+Detect the platform and use the appropriate commands:
+
+**macOS/Linux:**
 ```bash
-export PATH="/usr/local/texlive/2026basic/bin/universal-darwin:$PATH" && \
-cd ../resumes/<CompanyName> && \
-pdflatex -interaction=nonstopmode {{NAME_SLUG}}_Resume.tex && \
-find . -maxdepth 1 -type f ! -name "*.pdf" ! -name "*.tex" ! -name "*.txt" -delete && \
-ls {{NAME_SLUG}}_Resume.pdf
+export PATH="/usr/local/texlive/2026basic/bin/universal-darwin:$PATH"
+cd ../resumes/<CompanyName>
+pdflatex -interaction=nonstopmode {{NAME_SLUG}}_Resume.tex
+find . -maxdepth 1 -type f ! -name "*.pdf" ! -name "*.tex" ! -name "*.txt" -delete
 ```
 
-If pdflatex is not found, install BasicTeX first:
-```bash
-brew install --cask basictex
-sudo /usr/local/texlive/2026basic/bin/universal-darwin/tlmgr update --self
-sudo /usr/local/texlive/2026basic/bin/universal-darwin/tlmgr install titlesec enumitem hyperref geometry parskip microtype
+**Windows:**
+```powershell
+cd ..\resumes\<CompanyName>
+pdflatex -interaction=nonstopmode {{NAME_SLUG}}_Resume.tex
+del *.aux, *.log, *.out, *.toc, *.fls, *.fdb_latexmk, *.synctex.gz 2>$null
 ```
+
+If pdflatex is not found:
+- macOS: `brew install --cask basictex`
+- Windows: install [MiKTeX](https://miktex.org/download) — it installs missing packages automatically
+- Linux: `sudo apt-get install texlive-latex-extra`
 
 If compilation fails, fix LaTeX errors (unescaped `&`, `%`, `_`, `#`; missing packages; unclosed environments) and retry.
 

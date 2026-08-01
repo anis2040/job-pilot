@@ -553,13 +553,13 @@ def api_setup_claude_login():
         return jsonify({"error": "Claude Code is not installed yet."}), 400
     try:
         # Launch claude login — it opens a browser on the user's machine.
-        # Run detached so it doesn't block the server.
-        subprocess.Popen(
-            ["claude", "login"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-        )
+        # Use platform-appropriate flags to detach the process.
+        kwargs = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+        if sys.platform == "win32":
+            kwargs["creationflags"] = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+        else:
+            kwargs["start_new_session"] = True
+        subprocess.Popen(["claude", "login"], **kwargs)
         return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
