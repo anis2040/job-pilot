@@ -1,13 +1,13 @@
 ---
-name: yassine-resume-builder-ats
+name: resume-builder-ats
 description: >
-  Generates a tailored, ATS-optimized PDF resume for Yassine Helaoui based on a job description.
+  Generates a tailored, ATS-optimized PDF resume based on a job description.
   Use this skill ANY TIME the user provides a job description or job posting and wants a resume, CV,
   or application document generated. Also trigger when the user says things like "apply to this job",
   "tailor my resume", "create a resume for", "help me apply", or pastes a job listing.
 ---
 
-# Resume Builder — Yassine Helaoui
+# Resume Builder
 
 ## Your Persona
 
@@ -30,33 +30,21 @@ Mirror `latex_template.md` exactly:
 
 - **No additions:** do not add sections, columns, tables, icons, or layout elements not in the template
 
-**Key projects:** treat these as mini case studies, not labels. For each project, write 3–4 bullets covering: what the platform/product was, what Yassine's specific role was, the key delivery challenge or scope, and the measurable outcome. Do not compress to one sentence. Do not label geography or insurance type (e.g. avoid "French carrier", "global insurer").
+**Key projects:** treat these as mini case studies, not labels. For each project, write 3–4 bullets covering: what the platform/product was, what the candidate's specific role was, the key delivery challenge or scope, and the measurable outcome. Do not compress to one sentence.
 
 **Page length:** Default is one page. Use two pages only if content genuinely cannot fit without cutting something meaningful. To achieve one page:
 - Reduce margins to `0.75in` (from `1in`)
 - Tighten list spacing: `itemsep=0pt, topsep=2pt`
 - Tighten section spacing: `\titlespacing{\section}{0pt}{8pt}{3pt}`
-- Move tools (Jira, Confluence, Miro) into the header contact line, not a separate competency item
+- Move tools (Jira, Confluence, etc.) into the header contact line, not a separate competency item
 - Cap Core Competencies at 6 items (drop the weakest for this JD)
-- Cut filler words from bullets: "enterprise", "scalable", "high-availability", "digital", "robust", "seamless", "end-to-end" (unless end-to-end is the actual point), "throughout the product lifecycle", "at portfolio and team levels", "ensuring X" trailing clauses that just restate the verb
+- Cut filler words from bullets: "enterprise", "scalable", "high-availability", "digital", "robust", "seamless", "end-to-end" (unless end-to-end is the actual point), "throughout the product lifecycle", "ensuring X" trailing clauses that just restate the verb
 
-**Buzzword / filler audit (apply before generating LaTeX):** Every adjective and trailing clause must earn its place. Ask: does removing this word change the meaning? If no, cut it. Common offenders:
-- "enterprise" before platform/solution/system — cut
-- "scalable", "high-availability", "robust", "seamless" — cut unless a metric supports it
-- "ensuring [thing that is implied by the verb]" — cut the whole trailing clause
-- "throughout the product lifecycle" — cut
-- "at portfolio and team levels" — cut unless the distinction matters for this JD
-- "from discovery through release" — cut
+**Buzzword / filler audit (apply before generating LaTeX):** Every adjective and trailing clause must earn its place. Ask: does removing this word change the meaning? If no, cut it.
 
 ### Education Formatting Rule (ATS/Workday-critical — never abbreviate)
 
-US ATS systems parse degree fields against fixed enumerations. Always render education using full US-standard degree names from `profile.md` — never abbreviate:
-
-- **Master's:** `Master of Science in Information Systems Management` (not "M.S.", not "MS")
-- **Bachelor's:** `Bachelor of Science in Finance` (not "B.S.", not "BS Finance")
-- **Institution names:** use the full name as listed in `profile.md`
-
-The LaTeX template already reflects these full names. Do not revert to abbreviated forms under any circumstances.
+US ATS systems parse degree fields against fixed enumerations. Always render education using full US-standard degree names from `profile.md` — never abbreviate. The LaTeX template already reflects these full names. Do not revert to abbreviated forms under any circumstances.
 
 ---
 
@@ -75,12 +63,12 @@ When the JD asks for something not in `profile.md`, apply this decision tree:
 
 - **Hard requirement + missing from profile:** Flag as an honest gap in the cover note. Do not add it to the resume.
 - **Preferred / optional + missing from profile:** Do not add it to the resume. Flag in the cover note under "Prep for interviews" only if it's a tool likely to come up.
-- **Adjacent experience exists:** Reframe truthfully using what is in `profile.md`. Never imply direct experience with a tool or skill Yassine has not used.
+- **Adjacent experience exists:** Reframe truthfully using what is in `profile.md`. Never imply direct experience with a tool or skill the candidate has not used.
 
-The resume must only reflect what Yassine actually has. Before writing each bullet, ask: *"Can I point to specific evidence in profile.md for this claim?"* If the answer is "sort of" or "it's implied," rewrite with the specific evidence or cut.
+The resume must only reflect what the candidate actually has. Before writing each bullet, ask: *"Can I point to specific evidence in profile.md for this claim?"* If the answer is "sort of" or "it's implied," rewrite with the specific evidence or cut.
 
 Specific scope-inflation failures to avoid:
-- "Multiple global clients" when the profile lists two named clients
+- Claiming "multiple global clients" when the profile lists a specific number
 - "Led a team of X" when the profile doesn't specify team size
 - Any metric not explicitly stated in profile.md — even if directionally accurate
 
@@ -100,30 +88,24 @@ ATS systems weight keyword density by section. For Tier 1 keywords, engineer the
 
 ### Job Title Rule (authenticity-critical)
 
-**Use "Product Owner"** when the JD title or majority of responsibilities use PO language: backlog ownership, roadmap, sprint planning, PI Planning, product vision, release planning, voice of customer.
+Display the title that best matches the JD from among the titles listed in `profile.md`. Read the JD title first. If ambiguous, read the responsibilities — whichever function dominates determines the title. Never display a title not grounded in the candidate's actual experience.
 
-**Use "Business Analyst"** when the JD leans toward: requirements gathering, systems analysis, SDLC, process documentation, stakeholder liaison, use cases, UAT support.
-
-**Decision rule:** Read the JD title first. If ambiguous, read the responsibilities — whichever function dominates (backlog/roadmap vs. requirements/documentation) determines the title.
-
-**Never display any other title.** Recruiters verify titles. Background checks return the HR-of-record title. A mismatch kills candidacy even if the work genuinely overlapped.
+Recruiters verify titles. Background checks return the HR-of-record title. A mismatch kills candidacy even if the work genuinely overlapped.
 
 ### Summary Formula
 
 Structure the summary as:
-1. **Sentence 1 — Value proposition:** What Yassine does + for whom + at what scale. No title. No "proven track record." Write like a human, not a template.
-2. **Sentence 2 — Method:** How he works / what makes him effective. Mirror Tier 1 JD language here.
-3. **Sentence 3 — Domain/credential hook:** Domain expertise + PSPO I cert + any direct JD match.
+1. **Sentence 1 — Value proposition:** What the candidate does + for whom + at what scale. No title. No "proven track record." Write like a human, not a template.
+2. **Sentence 2 — Method:** How they work / what makes them effective. Mirror Tier 1 JD language here.
+3. **Sentence 3 — Domain/credential hook:** Domain expertise + any certifications + direct JD match.
 
-Keep it under 60 words. No bullet points. First-person implied (no "I"). **Do not open with Yassine's job title** — open with the function or value he brings.
+Keep it under 60 words. No bullet points. First-person implied (no "I"). **Do not open with the candidate's job title** — open with the function or value they bring.
 
-### Work Authorization (auto-insert — never skip)
+### Work Authorization (insert if present in profile.md)
 
-Insert this exact line in the header contact block, on its own line below the phone/email:
+If `profile.md` confirms US work authorization, insert this exact line in the header contact block:
 
 > Authorized to work in the US · No sponsorship required
-
-Do not skip it. Do not rely on a Chicago address to imply it.
 
 ### Redundancy Audit (apply before generating LaTeX)
 
@@ -131,21 +113,13 @@ A phrase that appears in the Summary, Core Competencies, AND bullets reads as pa
 
 ### Metrics-First Ordering
 
-Sort bullets: highest-impact, most specific numbers go first. A recruiter who stops reading after bullet 3 should have seen your best work.
+Sort bullets: highest-impact, most specific numbers go first. A recruiter who stops reading after bullet 3 should have seen the best work.
 
 ### Work Location Rule (never fabricate)
 
-Use the location exactly as stated in `profile.md`. Do not replace "Tunis, Tunisia" with "Chicago, IL (Remote)".
+Use the location exactly as stated in `profile.md`. Never infer, substitute, or reframe the work location.
 
 **Correct format:** `\textbf{[Title]}, \textit{[Employer]}, [Location from profile.md] \hfill \textit{[Dates]}`
-
-Yassine has one employer over nearly 5 years. Counteract single-employer optics proactively:
-
-- **Lead with the clients, not the employer.** MAIF Vie and AIG France are recognizable enterprise names.
-- **AIG is US-headquartered.** Frame it that way where the profile supports it.
-- **Frame by scale and complexity.** "Delivered across multiple enterprise insurance platforms for regulated global carriers" signals breadth.
-- **Never fabricate additional employers or engagements.**
-- **Surface English-language delivery.** If documentation or stakeholder communication was in English, say so.
 
 ### Bullet Selection (forced ranking)
 
@@ -181,11 +155,11 @@ Delivered · Executed · Implemented · Deployed · Streamlined · Improved · R
 **Tier 3 — Support/Participation (use sparingly — signal junior roles):**
 Facilitated · Coordinated · Supported · Assisted · Contributed · Participated · Helped
 
-Every bullet must start with a Tier 1 or Tier 2 verb. If the only honest verb is Tier 3, reframe to reflect Yassine's actual ownership.
+Every bullet must start with a Tier 1 or Tier 2 verb. If the only honest verb is Tier 3, reframe to reflect the candidate's actual ownership.
 
-**Metrics must include baseline or timeframe where the profile supports it.** "Increased velocity by 30%" becomes "increased team velocity by 30% over two program increments."
+**Metrics must include baseline or timeframe where the profile supports it.**
 
-### Anti-AI Rules (critical — US recruiters will notice)
+### Anti-AI Rules (critical — recruiters will notice)
 
 - **No em-dashes anywhere.** Never use `—`, ` -- `, or ` --- ` in resume content. Use a colon, comma, or parentheses instead.
 - **No compound bullets.** One idea per bullet. If a bullet has more than one "and", split it.
@@ -203,7 +177,7 @@ Use `latex_template.md` as the base. Produce a complete `.tex` file:
 - Standard TeX Live packages only: `geometry`, `enumitem`, `titlesec`, `xcolor`, `hyperref`, `microtype`
 
 **Output directory:** Infer the company name from the job description. Create the directory and save:
-- `../resumes/<CompanyName>/Yassine_Helaoui_Resume.tex`
+- `../resumes/<CompanyName>/{{NAME_SLUG}}_Resume.tex`
 - `../resumes/<CompanyName>/job_description.txt`
 
 ```bash
@@ -217,9 +191,9 @@ mkdir -p ../resumes/<CompanyName>
 ```bash
 export PATH="/usr/local/texlive/2026basic/bin/universal-darwin:$PATH" && \
 cd ../resumes/<CompanyName> && \
-pdflatex -interaction=nonstopmode Yassine_Helaoui_Resume.tex && \
+pdflatex -interaction=nonstopmode {{NAME_SLUG}}_Resume.tex && \
 find . -maxdepth 1 -type f ! -name "*.pdf" ! -name "*.tex" ! -name "*.txt" -delete && \
-ls Yassine_Helaoui_Resume.pdf
+ls {{NAME_SLUG}}_Resume.pdf
 ```
 
 If pdflatex is not found, install BasicTeX first:
@@ -235,10 +209,10 @@ If compilation fails, fix LaTeX errors (unescaped `&`, `%`, `_`, `#`; missing pa
 
 ## Step 6 — Deliver
 
-1. Confirm the PDF exists at `../resumes/<CompanyName>/Yassine_Helaoui_Resume.pdf`
+1. Confirm the PDF exists at `../resumes/<CompanyName>/{{NAME_SLUG}}_Resume.pdf`
 2. Report the output paths:
-   - `../resumes/<CompanyName>/Yassine_Helaoui_Resume.pdf`
-   - `../resumes/<CompanyName>/Yassine_Helaoui_Resume.tex`
+   - `../resumes/<CompanyName>/{{NAME_SLUG}}_Resume.pdf`
+   - `../resumes/<CompanyName>/{{NAME_SLUG}}_Resume.tex`
 3. Write a **cover note** (3 bullets max):
    - What you emphasized and why
    - Any hard gaps (JD required something not in profile)

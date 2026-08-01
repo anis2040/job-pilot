@@ -9,6 +9,7 @@ from flask import Flask, render_template, jsonify, request, send_file, abort, re
 
 from job.db import init_db, get_pending_deduped, get_jobs_by_status, update_status, get_job, stats, last_fetch_at
 from job.web_api import trigger_resume, get_task_status, trigger_cover_letter, get_cl_task_status, trigger_fetch, get_fetch_status
+from job.web_api import _candidate_name_slug
 
 BASE = Path(__file__).parent
 CONFIG_PATH = BASE / "config.yaml"
@@ -72,7 +73,8 @@ def _serialize_job(row, task_status: dict, cl_task_status: dict) -> dict:
     # Skill may sanitize the company name for the folder, so try a few variants then fall back to scanning.
     if resume_status == "idle" and not pdf_path:
         company = r.get("company") or ""
-        target = "Yassine_Helaoui_Resume.pdf"
+        name_slug = _candidate_name_slug()
+        target = f"{name_slug}_Resume.pdf"
         for candidate in [
             RESUMES_PATH / company / target,
             RESUMES_PATH / company.replace(" ", "") / target,
@@ -85,7 +87,8 @@ def _serialize_job(row, task_status: dict, cl_task_status: dict) -> dict:
 
     if cl_status == "idle" and not cl_pdf_path:
         company = r.get("company") or ""
-        cl_target = "Yassine_Helaoui_Cover_Letter.pdf"
+        name_slug = _candidate_name_slug()
+        cl_target = f"{name_slug}_Cover_Letter.pdf"
         for candidate in [
             RESUMES_PATH / company / cl_target,
             RESUMES_PATH / company.replace(" ", "") / cl_target,
@@ -260,7 +263,8 @@ def api_fetch_status():
 
 @app.route("/pdf/<company>")
 def serve_pdf(company):
-    pdf = RESUMES_PATH / company / "Yassine_Helaoui_Resume.pdf"
+    name_slug = _candidate_name_slug()
+    pdf = RESUMES_PATH / company / f"{name_slug}_Resume.pdf"
     if not pdf.exists():
         abort(404)
     return send_file(str(pdf), mimetype="application/pdf")
@@ -268,7 +272,8 @@ def serve_pdf(company):
 
 @app.route("/pdf/<company>/cover")
 def serve_cover_letter(company):
-    pdf = RESUMES_PATH / company / "Yassine_Helaoui_Cover_Letter.pdf"
+    name_slug = _candidate_name_slug()
+    pdf = RESUMES_PATH / company / f"{name_slug}_Cover_Letter.pdf"
     if not pdf.exists():
         abort(404)
     return send_file(str(pdf), mimetype="application/pdf")

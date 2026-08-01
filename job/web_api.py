@@ -77,6 +77,26 @@ def _set_cl_stage(job_id: str, stage: str) -> None:
             _cl_task_status[job_id]["stage"] = stage
 
 
+def _candidate_name_slug() -> str:
+    """Read the candidate's name from profile.md and return a filename-safe slug like 'John_Smith'."""
+    try:
+        text = (_SKILL_PATH / "references" / "profile.md").read_text()
+        for line in text.splitlines():
+            line = line.strip()
+            # Matches: "# John Smith — Full Profile" or "# John Smith"
+            if line.startswith("#"):
+                name = line.lstrip("#").split("—")[0].split("-")[0].strip()
+                if name:
+                    return name.replace(" ", "_")
+    except Exception:
+        pass
+    return "Candidate"
+
+
+def _inject_name(instructions: str, slug: str) -> str:
+    return instructions.replace("{{NAME_SLUG}}", slug).replace("{{CANDIDATE_NAME}}", slug.replace("_", " "))
+
+
 def _run_ai(prompt: str, system_instructions: str, cwd: str) -> subprocess.Popen:
     """Launch the configured AI CLI (claude or gemini) as a subprocess."""
     if shutil.which("claude"):
@@ -146,6 +166,9 @@ def _build_resume(job_id: str) -> None:
             if ref_path.exists():
                 skill_instructions += f"\n\n## {ref_name} (embedded)\n\n{ref_path.read_text()}"
 
+        name_slug = _candidate_name_slug()
+        skill_instructions = _inject_name(skill_instructions, name_slug)
+
         proc = _run_ai(prompt, skill_instructions, cwd=str(_SKILL_PATH))
 
         # Stream stdout and detect stages from Claude's output
@@ -174,9 +197,9 @@ def _build_resume(job_id: str) -> None:
 
         _set_stage(job_id, "Locating PDF…")
 
-        # Scan for the PDF — skill may sanitize the company name for the folder
+        name_slug = _candidate_name_slug()
         pdf_path = None
-        target = "Yassine_Helaoui_Resume.pdf"
+        target = f"{name_slug}_Resume.pdf"
         for candidate in [
             _RESUMES_PATH / company / target,
             _RESUMES_PATH / company.replace(" ", "") / target,
@@ -222,11 +245,12 @@ def _build_cover_letter(job_id: str) -> None:
         title = row.get("title") or "Job"
 
         # Find the resume tex for this job so the skill can read it
+        name_slug = _candidate_name_slug()
         resume_tex = None
         for candidate in [
-            _RESUMES_PATH / company / "Yassine_Helaoui_Resume.tex",
-            _RESUMES_PATH / company.replace(" ", "") / "Yassine_Helaoui_Resume.tex",
-            _RESUMES_PATH / company.replace(" ", "").replace("/", "") / "Yassine_Helaoui_Resume.tex",
+            _RESUMES_PATH / company / f"{name_slug}_Resume.tex",
+            _RESUMES_PATH / company.replace(" ", "") / f"{name_slug}_Resume.tex",
+            _RESUMES_PATH / company.replace(" ", "").replace("/", "") / f"{name_slug}_Resume.tex",
         ]:
             if candidate.exists():
                 resume_tex = str(candidate)
@@ -248,6 +272,7 @@ def _build_cover_letter(job_id: str) -> None:
         profile_path = _CL_SKILL_PATH / "references" / "profile.md"
         if profile_path.exists():
             skill_instructions += f"\n\n## profile.md (embedded)\n\n{profile_path.read_text()}"
+        skill_instructions = _inject_name(skill_instructions, name_slug)
 
         proc = _run_ai(prompt, skill_instructions, cwd=str(_CL_SKILL_PATH))
 
@@ -276,7 +301,7 @@ def _build_cover_letter(job_id: str) -> None:
 
         _set_cl_stage(job_id, "Locating PDF…")
 
-        target = "Yassine_Helaoui_Cover_Letter.pdf"
+        target = f"{name_slug}_Cover_Letter.pdf"
         pdf_path = None
         for candidate in [
             _RESUMES_PATH / company / target,

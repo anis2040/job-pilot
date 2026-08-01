@@ -1,6 +1,6 @@
-# LaTeX Template — Yassine Helaoui Resume
+# LaTeX Template — Resume
 
-This is the base LaTeX template extracted from profile.pdf. Copy this shell and replace the body
+This is the base LaTeX template. Copy this shell and replace the body
 content only — do not change the preamble, colors, or structural commands.
 
 ## Visual spec (from PDF)
@@ -51,11 +51,11 @@ content only — do not change the preamble, colors, or structural commands.
 
 % ── HEADER ──────────────────────────────────────────────────
 \begin{center}
-  {\LARGE\textbf{Yassine Helaoui}}\\[3pt]
+  {\LARGE\textbf{CANDIDATE\_NAME}}\\[3pt]
   {\small
-    Chicago, IL\ $\cdot$\ +1 312-351-4880\ $\cdot$\
-    \href{mailto:yassinehelaoui4@gmail.com}{\color{headerblue}yassinehelaoui4@gmail.com}\ $\cdot$\
-    \href{https://www.linkedin.com/in/yassinehelaoui}{\color{headerblue}LinkedIn}
+    CITY, STATE\ $\cdot$\ PHONE\ $\cdot$\
+    \href{mailto:EMAIL}{\color{headerblue}EMAIL}\ $\cdot$\
+    \href{LINKEDIN\_URL}{\color{headerblue}LinkedIn}
   }
 \end{center}
 
@@ -77,7 +77,7 @@ content only — do not change the preamble, colors, or structural commands.
 \section{Professional Experience}
 
 \noindent
-\textbf{Product Owner} -- \textit{Vermeg} -- \textit{Tunis, Tunisia} \hfill \textit{Oct 2020 -- Aug 2025}
+\textbf{ROLE\_TITLE} -- \textit{EMPLOYER} -- \textit{LOCATION} \hfill \textit{START\_DATE -- END\_DATE}
 
 \begin{itemize}
   \item % bullet 1
@@ -89,22 +89,22 @@ content only — do not change the preamble, colors, or structural commands.
 \noindent\textbf{Key Projects:}
 
 \begin{itemize}
-  \item \textbf{MAIF Vie:} % scope/objective + outcome
-  \item \textbf{AIG France:} % scope/objective + outcome
+  \item \textbf{PROJECT\_1:} % scope/objective + outcome
+  \item \textbf{PROJECT\_2:} % scope/objective + outcome
 \end{itemize}
 
 % ── EDUCATION ───────────────────────────────────────────────
 \section{Education}
 
 \noindent
-\textbf{Master of Science in Information Systems Management}, Esprit School of Engineering and Technologies \hfill 2024\\
-\textbf{Bachelor of Science in Finance}, University of Tunis \hfill 2020
+\textbf{DEGREE\_1}, INSTITUTION\_1 \hfill YEAR\_1\\
+\textbf{DEGREE\_2}, INSTITUTION\_2 \hfill YEAR\_2
 
 % ── CERTIFICATIONS ──────────────────────────────────────────
 \section{Certifications}
 
 \noindent
-\textbf{Professional Scrum Product Owner I (PSPO I)}, Scrum.org
+\textbf{CERTIFICATION\_NAME}, ISSUER
 
 \end{document}
 ```
@@ -113,7 +113,7 @@ content only — do not change the preamble, colors, or structural commands.
 
 ## Notes for the skill
 
-- Replace all `% REPLACE` and `% bullet N` comments with actual content from profile.md
+- Replace all `CANDIDATE_NAME`, `ROLE_TITLE`, `EMPLOYER`, etc. placeholders with actual content from profile.md
 - Escape special characters: `&` → `\&`, `%` → `\%`, `#` → `\#`, `_` → `\_`
 - Do not add any packages beyond those listed above
-- Compile with: `pdflatex -interaction=nonstopmode Yassine_Helaoui_Resume.tex` (run twice)
+- Compile with: `pdflatex -interaction=nonstopmode {{NAME_SLUG}}_Resume.tex`
