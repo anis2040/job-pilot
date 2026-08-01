@@ -15,7 +15,13 @@ Write a cover letter that sounds like a real person wrote it, not a template. Th
 
 ## Reference Data
 
-`profile.md` is embedded in the system prompt. Use it directly — do not read it from disk.
+`profile.md` is embedded in the system prompt below under the heading `## profile.md (embedded)`.
+
+**Before doing anything else, verify it is present:**
+- If `## profile.md (embedded)` is missing or empty: stop immediately and output "ERROR: profile.md is not set up. Please complete the setup wizard at http://localhost:5050/setup"
+- If profile.md contains only the example template (no real name, placeholder email): stop and output "ERROR: profile.md contains only the example template. Please fill in your real profile at http://localhost:5050/setup"
+
+When present, `profile.md` is the single source of truth. Never fabricate clients, projects, metrics, or tools not listed there.
 
 The resume for this role is at `../resumes/<CompanyName>/{{NAME_SLUG}}_Resume.tex`. Read it before writing — the cover letter must not repeat bullet points verbatim, but must be consistent with what was emphasized.
 

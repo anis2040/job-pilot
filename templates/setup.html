@@ -467,6 +467,10 @@ async function saveProfile() {
     alert.innerHTML = `<div class="alert alert-error">Please fill in your profile before continuing.</div>`;
     return;
   }
+  if (content.includes("you@example.com") || content.includes("City, State")) {
+    alert.innerHTML = `<div class="alert alert-error">Please replace the example placeholders with your real details before saving.</div>`;
+    return;
+  }
   const res = await fetch("/api/setup/save-profile", {
     method: "POST",
     headers: {"Content-Type": "application/json"},

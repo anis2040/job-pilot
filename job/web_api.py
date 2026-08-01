@@ -77,6 +77,26 @@ def _set_cl_stage(job_id: str, stage: str) -> None:
             _cl_task_status[job_id]["stage"] = stage
 
 
+def _validate_profile() -> None:
+    """Raise a clear error if profile.md is missing or still the example template."""
+    profile = _SKILL_PATH / "references" / "profile.md"
+    if not profile.exists():
+        raise ValueError(
+            "profile.md not found. Complete the setup wizard at http://localhost:5050/setup"
+        )
+    text = profile.read_text().strip()
+    if not text:
+        raise ValueError(
+            "profile.md is empty. Complete the setup wizard at http://localhost:5050/setup"
+        )
+    # Detect unedited example template by checking for the placeholder email
+    if "you@example.com" in text or "City, State" in text:
+        raise ValueError(
+            "profile.md still contains the example template. "
+            "Fill in your real profile at http://localhost:5050/setup"
+        )
+
+
 def _candidate_name_slug() -> str:
     """Read the candidate's name from profile.md and return a filename-safe slug like 'John_Smith'."""
     try:
@@ -128,6 +148,7 @@ def _run_ai(prompt: str, system_instructions: str, cwd: str) -> subprocess.Popen
 
 def _build_resume(job_id: str) -> None:
     try:
+        _validate_profile()
         init_db()
         row = get_job(job_id)
         if not row:
@@ -231,6 +252,7 @@ def _build_resume(job_id: str) -> None:
 
 def _build_cover_letter(job_id: str) -> None:
     try:
+        _validate_profile()
         init_db()
         row = get_job(job_id)
         if not row:

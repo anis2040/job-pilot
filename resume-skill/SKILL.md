@@ -17,8 +17,14 @@ Expert resume strategist optimizing for ATS and recruiter attention. Advocate fo
 
 ## Reference Data
 
-`profile.md` and `latex_template.md` are embedded in the system prompt below. Use them directly — do not read them from disk.
+`profile.md` and `latex_template.md` are embedded in the system prompt below under the headings `## profile.md (embedded)` and `## latex_template.md (embedded)`.
 
+**Before doing anything else, verify both are present:**
+- If `## profile.md (embedded)` is missing or empty: stop immediately and output "ERROR: profile.md is not set up. Please complete the setup wizard at http://localhost:5050/setup"
+- If `## latex_template.md (embedded)` is missing: stop and output the same error.
+- If profile.md contains only the example template (no real name, placeholder email): stop and output "ERROR: profile.md contains only the example template. Please fill in your real profile at http://localhost:5050/setup"
+
+When present:
 - `profile.md` — single source of truth for all facts. Never invent experience, metrics, or skills not present here.
 - `latex_template.md` — locked visual structure. Copy the shell exactly; replace body content only.
 

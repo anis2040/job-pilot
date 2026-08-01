@@ -37,9 +37,18 @@
   .tab { padding: 8px 16px; font-size: 0.82rem; font-weight: 600; border: none; background: none; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent; transition: color .15s; }
   .tab.active { color: #60a5fa; border-bottom-color: #3b82f6; }
 
+  .search-bar { padding: 12px 32px 0; }
+  .search-bar input { width: 100%; max-width: 420px; padding: 7px 12px; background: #1e2333; border: 1px solid #2d3748; border-radius: 6px; color: #e2e8f0; font-size: 0.82rem; outline: none; }
+  .search-bar input:focus { border-color: #3b82f6; }
+  .search-bar input::placeholder { color: #475569; }
+
   .table-wrap { overflow-x: auto; padding: 0 32px 32px; }
   table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 16px; }
   th { text-align: left; padding: 8px 10px; color: #60a5fa; font-weight: 700; border-bottom: 1px solid #1e2333; white-space: nowrap; }
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { color: #93c5fd; }
+  th .sort-icon { margin-left: 4px; opacity: 0.4; font-size: 0.65rem; }
+  th.sort-asc .sort-icon, th.sort-desc .sort-icon { opacity: 1; color: #fff; }
   td { padding: 8px 10px; border-bottom: 1px solid #1a1f2e; vertical-align: middle; }
   tr:hover td { background: #141824; }
 
@@ -65,6 +74,41 @@
   .error-dot { color: #f87171; font-size: 0.7rem; }
   .actions { display: flex; gap: 5px; flex-wrap: nowrap; }
   #fetch-progress { display: none; }
+
+  /* Settings modal */
+  .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 100; align-items: center; justify-content: center; }
+  .modal-backdrop.open { display: flex; }
+  .modal { background: #1a1f2e; border: 1px solid #2d3748; border-radius: 10px; width: 720px; max-width: 95vw; max-height: 88vh; display: flex; flex-direction: column; }
+  .modal-header { padding: 18px 24px 14px; border-bottom: 1px solid #2d3748; display: flex; align-items: center; justify-content: space-between; }
+  .modal-header h2 { font-size: 1rem; font-weight: 700; color: #fff; }
+  .modal-close { background: none; border: none; color: #64748b; font-size: 1.3rem; cursor: pointer; line-height: 1; }
+  .modal-close:hover { color: #e2e8f0; }
+  .modal-body { padding: 20px 24px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 24px; }
+  .modal-footer { padding: 14px 24px; border-top: 1px solid #2d3748; display: flex; justify-content: flex-end; gap: 10px; }
+
+  .settings-section h3 { font-size: 0.78rem; font-weight: 700; color: #60a5fa; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
+
+  /* Search rows */
+  .search-row { display: grid; grid-template-columns: 1fr 100px 1fr 80px 60px 32px; gap: 6px; align-items: center; margin-bottom: 6px; }
+  .search-row input, .search-row select { background: #0f1117; border: 1px solid #2d3748; border-radius: 5px; color: #e2e8f0; padding: 5px 8px; font-size: 0.78rem; width: 100%; }
+  .search-row input:focus, .search-row select:focus { outline: none; border-color: #3b82f6; }
+  .search-row-header { display: grid; grid-template-columns: 1fr 100px 1fr 80px 60px 32px; gap: 6px; margin-bottom: 4px; }
+  .search-row-header span { font-size: 0.7rem; color: #475569; font-weight: 600; text-transform: uppercase; padding: 0 8px; }
+  .toggle-remote { display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 0.72rem; cursor: pointer; }
+  .toggle-remote input[type=checkbox] { accent-color: #3b82f6; width: 14px; height: 14px; }
+  .btn-icon { background: none; border: none; color: #475569; cursor: pointer; font-size: 1rem; padding: 0; line-height: 1; }
+  .btn-icon:hover { color: #f87171; }
+  .btn-add { background: none; border: 1px dashed #2d3748; color: #60a5fa; border-radius: 5px; padding: 5px 12px; font-size: 0.78rem; cursor: pointer; width: 100%; margin-top: 4px; }
+  .btn-add:hover { border-color: #3b82f6; background: #1e2333; }
+
+  /* Tag inputs */
+  .tag-input-wrap { display: flex; flex-wrap: wrap; gap: 5px; background: #0f1117; border: 1px solid #2d3748; border-radius: 5px; padding: 6px 8px; min-height: 38px; cursor: text; }
+  .tag-input-wrap:focus-within { border-color: #3b82f6; }
+  .tag { display: inline-flex; align-items: center; gap: 4px; background: #1e2333; border-radius: 99px; padding: 2px 8px 2px 10px; font-size: 0.75rem; color: #e2e8f0; }
+  .tag button { background: none; border: none; color: #64748b; cursor: pointer; font-size: 0.75rem; padding: 0; line-height: 1; }
+  .tag button:hover { color: #f87171; }
+  .tag-input { background: none; border: none; outline: none; color: #e2e8f0; font-size: 0.78rem; min-width: 120px; flex: 1; padding: 1px 0; }
+  .save-notice { font-size: 0.75rem; color: #4ade80; display: none; }
 </style>
 </head>
 <body>
@@ -78,9 +122,59 @@
   <div class="spacer"></div>
   <div class="toolbar">
     <span id="fetch-progress" class="fetch-msg"></span>
+    <span class="save-notice" id="save-notice">✓ Settings saved</span>
+    <button class="btn btn-ghost" onclick="openSettings()">⚙ Settings</button>
     <button class="btn btn-primary" id="btn-fetch" onclick="runFetch()">⟳ Fetch new jobs</button>
   </div>
 </header>
+
+<!-- Settings modal -->
+<div class="modal-backdrop" id="settings-modal" onclick="closeSettingsOnBackdrop(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>⚙ Search Settings</h2>
+      <button class="modal-close" onclick="closeSettings()">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="settings-section">
+        <h3>Search Sources</h3>
+        <div class="search-row-header">
+          <span>Query (job title)</span><span>Source</span><span>Location</span><span>Max pages</span><span>Remote</span><span></span>
+        </div>
+        <div id="searches-list"></div>
+        <button class="btn-add" onclick="addSearchRow()">+ Add source</button>
+      </div>
+
+      <div class="settings-section">
+        <h3>Title Filter <small style="color:#475569;font-weight:400;text-transform:none;letter-spacing:0">(only keep jobs whose title matches one of these)</small></h3>
+        <div class="tag-input-wrap" id="title-filter-wrap" onclick="focusTagInput('title-filter-input')">
+          <input class="tag-input" id="title-filter-input" placeholder="add keyword, press Enter" onkeydown="tagKeydown(event,'title-filter-wrap','title-filter-input')">
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Blacklist <small style="color:#475569;font-weight:400;text-transform:none;letter-spacing:0">(drop jobs containing these words)</small></h3>
+        <div class="tag-input-wrap" id="blacklist-wrap" onclick="focusTagInput('blacklist-input')">
+          <input class="tag-input" id="blacklist-input" placeholder="add keyword, press Enter" onkeydown="tagKeydown(event,'blacklist-wrap','blacklist-input')">
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Company Blacklist</h3>
+        <div class="tag-input-wrap" id="company-blacklist-wrap" onclick="focusTagInput('company-blacklist-input')">
+          <input class="tag-input" id="company-blacklist-input" placeholder="add company name, press Enter" onkeydown="tagKeydown(event,'company-blacklist-wrap','company-blacklist-input')">
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <span class="save-notice" id="save-notice">✓ Saved</span>
+      <button class="btn btn-ghost" onclick="closeSettings()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveSettings()">Save</button>
+    </div>
+  </div>
+</div>
 
 <div class="tabs">
   <button class="tab active" data-status="pending" onclick="switchTab(this)">Pending</button>
@@ -88,17 +182,21 @@
   <button class="tab" data-status="skipped" onclick="switchTab(this)">Skipped</button>
 </div>
 
+<div class="search-bar">
+  <input type="text" id="search-input" placeholder="Search title, company, location…" oninput="applyFiltersAndSort()">
+</div>
+
 <div class="table-wrap">
   <table id="jobs-table">
     <thead>
       <tr>
-        <th>Score</th>
-        <th>Title</th>
-        <th>Company</th>
-        <th>Source</th>
-        <th>Remote</th>
+        <th class="sortable" data-key="score" onclick="sortBy('score')">Score <span class="sort-icon">↕</span></th>
+        <th class="sortable" data-key="title" onclick="sortBy('title')">Title <span class="sort-icon">↕</span></th>
+        <th class="sortable" data-key="company" onclick="sortBy('company')">Company <span class="sort-icon">↕</span></th>
+        <th class="sortable" data-key="source" onclick="sortBy('source')">Source <span class="sort-icon">↕</span></th>
+        <th class="sortable" data-key="remote" onclick="sortBy('remote')">Remote <span class="sort-icon">↕</span></th>
         <th>Location</th>
-        <th>Salary</th>
+        <th class="sortable" data-key="salary_raw" onclick="sortBy('salary_raw')">Salary <span class="sort-icon">↕</span></th>
         <th>Exp.</th>
         <th>Posted</th>
         <th>Age</th>
@@ -116,8 +214,8 @@
 <script>
 let currentStatus = "pending";
 let jobs = [];
-let pollTimer = null;
-let fetchPollTimer = null;
+let sortKey = "score";
+let sortDir = -1; // -1 = desc, 1 = asc
 
 function switchTab(el) {
   document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
@@ -139,6 +237,61 @@ function scoreClass(s) {
   return "score-low";
 }
 
+// ── Sort ──────────────────────────────────────────────────────────────────────
+
+function sortBy(key) {
+  if (sortKey === key) {
+    sortDir *= -1;
+  } else {
+    sortKey = key;
+    sortDir = key === "score" ? -1 : 1;
+  }
+  document.querySelectorAll("th.sortable").forEach(th => {
+    th.classList.remove("sort-asc", "sort-desc");
+    const icon = th.querySelector(".sort-icon");
+    if (icon) icon.textContent = "↕";
+  });
+  const active = document.querySelector(`th[data-key="${key}"]`);
+  if (active) {
+    active.classList.add(sortDir === 1 ? "sort-asc" : "sort-desc");
+    const icon = active.querySelector(".sort-icon");
+    if (icon) icon.textContent = sortDir === 1 ? "↑" : "↓";
+  }
+  applyFiltersAndSort();
+}
+
+function jobSortValue(job, key) {
+  if (key === "score") return job.score || 0;
+  if (key === "salary_raw") return job.salary_min || 0;
+  return (job[key] || "").toLowerCase();
+}
+
+// ── Search + render ───────────────────────────────────────────────────────────
+
+function applyFiltersAndSort() {
+  const q = (document.getElementById("search-input")?.value || "").toLowerCase().trim();
+  let filtered = jobs;
+  if (q) {
+    filtered = jobs.filter(j =>
+      (j.title || "").toLowerCase().includes(q) ||
+      (j.company || "").toLowerCase().includes(q) ||
+      (j.location || "").toLowerCase().includes(q) ||
+      (j.source || "").toLowerCase().includes(q) ||
+      (j.remote || "").toLowerCase().includes(q)
+    );
+  }
+  const sorted = [...filtered].sort((a, b) => {
+    const av = jobSortValue(a, sortKey);
+    const bv = jobSortValue(b, sortKey);
+    if (av < bv) return -sortDir;
+    if (av > bv) return sortDir;
+    return 0;
+  });
+  renderJobs(sorted);
+}
+
+// ── Cell renderers ────────────────────────────────────────────────────────────
+
 function resumeCell(job) {
   const rs = job.resume_status;
   if (rs === "building") {
@@ -149,7 +302,11 @@ function resumeCell(job) {
     return `<a href="${job.pdf_url}" target="_blank" class="btn btn-sm btn-resume-done">📄 Open CV</a>`;
   }
   if (rs === "error") {
-    return `<span class="error-dot" title="${job.resume_error || ''}">⚠ Error</span>
+    const isSetupError = (job.resume_error || "").includes("profile.md");
+    const errMsg = isSetupError
+      ? `<a href="/setup" style="color:#f87171">Profile not set up — click to fix</a>`
+      : `<span title="${job.resume_error || ''}">⚠ Error</span>`;
+    return `${errMsg}
             <button class="btn btn-sm btn-resume" onclick="buildResume('${job.job_id}')">Retry</button>`;
   }
   return `<button class="btn btn-sm btn-resume" onclick="buildResume('${job.job_id}')">▶ Build CV</button>`;
@@ -165,10 +322,13 @@ function clCell(job) {
     return `<a href="${job.cl_pdf_url}" target="_blank" class="btn btn-sm btn-cl-done">✉ Open Letter</a>`;
   }
   if (rs === "error") {
-    return `<span class="error-dot" title="${job.cl_error || ''}">⚠ Error</span>
+    const isSetupError = (job.cl_error || "").includes("profile.md");
+    const errMsg = isSetupError
+      ? `<a href="/setup" style="color:#f87171">Profile not set up — click to fix</a>`
+      : `<span title="${job.cl_error || ''}">⚠ Error</span>`;
+    return `${errMsg}
             <button class="btn btn-sm btn-cl" onclick="buildCL('${job.job_id}')">Retry</button>`;
   }
-  // Only show the button once a resume exists (cover letter reads the resume tex)
   if (job.resume_status === "done") {
     return `<button class="btn btn-sm btn-cl" onclick="buildCL('${job.job_id}')">✉ Write Letter</button>`;
   }
@@ -188,7 +348,7 @@ function actionsCell(job) {
 function renderJobs(data) {
   const tbody = document.getElementById("jobs-body");
   if (!data.length) {
-    tbody.innerHTML = `<tr><td colspan="12" class="empty">No ${currentStatus} listings.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="13" class="empty">No ${currentStatus} listings.</td></tr>`;
     return;
   }
   tbody.innerHTML = data.map(job => `
@@ -210,18 +370,18 @@ function renderJobs(data) {
   `).join("");
 }
 
+// ── Data loading ──────────────────────────────────────────────────────────────
+
 async function loadJobs() {
   const res = await fetch(`/api/jobs?status=${currentStatus}`);
   jobs = await res.json();
-  renderJobs(jobs);
+  applyFiltersAndSort();
   updateCounts();
   scheduleResumePolls();
   scheduleCLPolls();
 }
 
 function updateCounts() {
-  const pending = jobs.filter(j => j.status === "pending").length;
-  // Reload counts from server on tab switch
   fetch("/api/jobs?status=applied").then(r => r.json()).then(d => {
     document.getElementById("cnt-applied").textContent = d.length + " applied";
   });
@@ -231,59 +391,46 @@ function updateCounts() {
   document.getElementById("cnt-pending").textContent = jobs.filter(j => j.status === "pending").length + " pending";
 }
 
+// ── Polling ───────────────────────────────────────────────────────────────────
+
 function scheduleResumePolls() {
-  const building = jobs.filter(j => j.resume_status === "building");
-  if (building.length === 0) return;
-  building.forEach(job => pollResumeStatus(job.job_id));
+  jobs.filter(j => j.resume_status === "building").forEach(job => pollResumeStatus(job.job_id));
 }
 
 function scheduleCLPolls() {
-  const building = jobs.filter(j => j.cl_status === "building");
-  if (building.length === 0) return;
-  building.forEach(job => pollCLStatus(job.job_id));
+  jobs.filter(j => j.cl_status === "building").forEach(job => pollCLStatus(job.job_id));
 }
 
 async function pollResumeStatus(job_id) {
   const res = await fetch(`/api/resume-status/${job_id}`);
   const data = await res.json();
-  const cell = document.getElementById(`cv-${job_id}`);
-  if (!cell) return;
-
   const job = jobs.find(j => j.job_id === job_id);
   if (job) {
     job.resume_status = data.status;
     job.resume_stage = data.stage || "";
     job.pdf_url = data.pdf_url;
     job.resume_error = data.error;
-    cell.innerHTML = resumeCell(job);
-    // Refresh CL cell so "Write Letter" button appears once resume is done
+    const cell = document.getElementById(`cv-${job_id}`);
+    if (cell) cell.innerHTML = resumeCell(job);
     const cl = document.getElementById(`cl-${job_id}`);
     if (cl) cl.innerHTML = clCell(job);
   }
-
-  if (data.status === "building") {
-    setTimeout(() => pollResumeStatus(job_id), 2000);
-  }
+  if (data.status === "building") setTimeout(() => pollResumeStatus(job_id), 2000);
 }
 
 async function pollCLStatus(job_id) {
   const res = await fetch(`/api/cover-letter-status/${job_id}`);
   const data = await res.json();
-  const cell = document.getElementById(`cl-${job_id}`);
-  if (!cell) return;
-
   const job = jobs.find(j => j.job_id === job_id);
   if (job) {
     job.cl_status = data.status;
     job.cl_stage = data.stage || "";
     job.cl_pdf_url = data.pdf_url;
     job.cl_error = data.error;
-    cell.innerHTML = clCell(job);
+    const cell = document.getElementById(`cl-${job_id}`);
+    if (cell) cell.innerHTML = clCell(job);
   }
-
-  if (data.status === "building") {
-    setTimeout(() => pollCLStatus(job_id), 2000);
-  }
+  if (data.status === "building") setTimeout(() => pollCLStatus(job_id), 2000);
 }
 
 async function buildResume(job_id) {
@@ -329,15 +476,142 @@ async function pollFetch() {
     setTimeout(pollFetch, 1500);
   } else {
     btn.disabled = false;
-    setTimeout(() => {
-      prog.style.display = "none";
-      prog.textContent = "";
-    }, 3000);
+    setTimeout(() => { prog.style.display = "none"; prog.textContent = ""; }, 3000);
     loadJobs();
   }
 }
 
-// Initial load + auto-refresh every 30s
+// ── Settings ──────────────────────────────────────────────────────────────────
+
+const SOURCES = ["linkedin", "jobicy", "himalayas", "greenhouse"];
+
+async function openSettings() {
+  const res = await fetch("/api/config");
+  const cfg = await res.json();
+  renderSearchRows(cfg.searches || []);
+  renderTags("title-filter-wrap", "title-filter-input", cfg.title_filter || []);
+  renderTags("blacklist-wrap", "blacklist-input", cfg.blacklist || []);
+  renderTags("company-blacklist-wrap", "company-blacklist-input", cfg.company_blacklist || []);
+  document.getElementById("save-notice").style.display = "none";
+  document.getElementById("settings-modal").classList.add("open");
+}
+
+function closeSettings() {
+  document.getElementById("settings-modal").classList.remove("open");
+}
+
+function closeSettingsOnBackdrop(e) {
+  if (e.target === document.getElementById("settings-modal")) closeSettings();
+}
+
+function renderSearchRows(searches) {
+  const list = document.getElementById("searches-list");
+  list.innerHTML = "";
+  searches.forEach((s, i) => addSearchRow(s));
+}
+
+function addSearchRow(s = {}) {
+  const list = document.getElementById("searches-list");
+  const idx = list.children.length;
+  const row = document.createElement("div");
+  row.className = "search-row";
+  row.dataset.idx = idx;
+  const srcOptions = SOURCES.map(src =>
+    `<option value="${src}" ${s.source === src ? "selected" : ""}>${src}</option>`
+  ).join("");
+  row.innerHTML = `
+    <input type="text" placeholder="product owner" value="${s.query || ""}" data-field="query">
+    <select data-field="source">${srcOptions}</select>
+    <input type="text" placeholder="United States" value="${s.location || "United States"}" data-field="location">
+    <input type="number" min="1" max="10" value="${s.max_pages ?? 3}" data-field="max_pages" style="text-align:center">
+    <label class="toggle-remote"><input type="checkbox" data-field="remote" ${s.remote !== false ? "checked" : ""}> Remote</label>
+    <button class="btn-icon" title="Remove" onclick="this.closest('.search-row').remove()">✕</button>
+  `;
+  list.appendChild(row);
+}
+
+function collectSearchRows() {
+  return [...document.querySelectorAll(".search-row")].map((row, i) => {
+    const q = row.querySelector("[data-field=query]").value.trim();
+    const src = row.querySelector("[data-field=source]").value;
+    const loc = row.querySelector("[data-field=location]").value.trim();
+    const pages = parseInt(row.querySelector("[data-field=max_pages]").value) || 3;
+    const remote = row.querySelector("[data-field=remote]").checked;
+    return { name: `${src} - ${q}`, source: src, query: q, location: loc, max_pages: pages, remote };
+  }).filter(s => s.query);
+}
+
+// ── Tag inputs ────────────────────────────────────────────────────────────────
+
+function renderTags(wrapId, inputId, tags) {
+  const wrap = document.getElementById(wrapId);
+  const input = document.getElementById(inputId);
+  wrap.querySelectorAll(".tag").forEach(t => t.remove());
+  tags.forEach(tag => wrap.insertBefore(makeTag(tag, wrapId, inputId), input));
+}
+
+function makeTag(value, wrapId, inputId) {
+  const span = document.createElement("span");
+  span.className = "tag";
+  span.innerHTML = `${value} <button onclick="removeTag(this,'${wrapId}','${inputId}')" type="button">✕</button>`;
+  span.dataset.value = value;
+  return span;
+}
+
+function removeTag(btn, wrapId, inputId) {
+  btn.closest(".tag").remove();
+}
+
+function focusTagInput(inputId) {
+  document.getElementById(inputId).focus();
+}
+
+function tagKeydown(e, wrapId, inputId) {
+  if (e.key !== "Enter" && e.key !== ",") return;
+  e.preventDefault();
+  const input = document.getElementById(inputId);
+  const val = input.value.trim().toLowerCase().replace(/,$/, "");
+  if (!val) return;
+  const wrap = document.getElementById(wrapId);
+  if (!wrap.querySelector(`.tag[data-value="${val}"]`)) {
+    wrap.insertBefore(makeTag(val, wrapId, inputId), input);
+  }
+  input.value = "";
+}
+
+function collectTags(wrapId) {
+  return [...document.querySelectorAll(`#${wrapId} .tag`)].map(t => t.dataset.value);
+}
+
+async function saveSettings() {
+  const searches = collectSearchRows();
+  if (!searches.length) { alert("Add at least one search source."); return; }
+  const cfg = {
+    searches,
+    title_filter: collectTags("title-filter-wrap"),
+    blacklist: collectTags("blacklist-wrap"),
+    company_blacklist: collectTags("company-blacklist-wrap"),
+  };
+  const res = await fetch("/api/config", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(cfg),
+  });
+  const data = await res.json();
+  if (data.ok) {
+    closeSettings();
+    const notice = document.getElementById("save-notice");
+    notice.style.display = "inline";
+    setTimeout(() => notice.style.display = "none", 2500);
+  } else {
+    alert("Save failed: " + (data.error || "unknown error"));
+  }
+}
+
+// Set initial sort indicator on Score column
+document.querySelector('th[data-key="score"]').classList.add("sort-desc");
+document.querySelector('th[data-key="score"] .sort-icon').textContent = "↓";
+
 loadJobs();
 setInterval(loadJobs, 30000);
 </script>
