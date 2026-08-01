@@ -64,12 +64,16 @@ Verify: `node --version`
 
 ## Install & Run
 
-**1. Clone and install Python dependencies:**
+**1. Clone the repo:**
 
 ```bash
 git clone https://github.com/anis2040/job-scraper.git
 cd job-scraper
 ```
+
+**2. Create a virtual environment and install Python dependencies:**
+
+This installs Flask and all other required packages (`requirements.txt`). You must do this before running the app for the first time.
 
 **macOS / Linux:**
 ```bash
@@ -88,7 +92,7 @@ pip install -r requirements.txt
 > If you get a "running scripts is disabled" error on Windows, run once as Administrator:
 > `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`
 
-**2. Start the app** (activate the virtualenv first every session):
+**3. Start the app** (activate the virtualenv first — required every new terminal session):
 
 ```bash
 # macOS / Linux
@@ -101,6 +105,8 @@ python web.py
 ```
 
 Open **http://localhost:5050** — the setup wizard launches automatically and guides you through the AI CLI, pdflatex, and your profile.
+
+> There is no `package.json` or `npm install` — this is a Python app. All dependencies are Python packages managed by `pip` via `requirements.txt`.
 
 ---
 
