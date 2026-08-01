@@ -29,6 +29,7 @@ def parse_experience(text: str) -> str:
 # Country name → common signals that appear in job location strings
 _COUNTRY_SIGNALS: dict[str, list[str]] = {
     "united states": ["united states", "usa", " us,", ", us", "(us)", "u.s.",
+                      "remote us", "remote - us", "us remote", "remote-us",
                       ", al", ", ak", ", az", ", ar", ", ca", ", co", ", ct",
                       ", dc", ", fl", ", ga", ", hi", ", id", ", il", ", in",
                       ", ia", ", ks", ", ky", ", la", ", me", ", md", ", ma",
@@ -90,6 +91,9 @@ def location_matches(job_location: str, search_location: str) -> bool:
     if not jl or jl in ("remote", "worldwide", "anywhere", "global"):
         return True
 
+    # "Remote" with a country appended is NOT global — fall through to country matching
+    # e.g. "Remote US", "Remote - US", "US Remote" should be treated as US jobs
+
     # Find which canonical country the search_location maps to
     target_key = None
     for key in _COUNTRY_SIGNALS:
@@ -109,5 +113,6 @@ def location_matches(job_location: str, search_location: str) -> bool:
         if any(s in jl for s in other_signals):
             return False
 
-    # Check if job location contains any signal for the target country
-    return any(s in jl for s in signals) or "remote" in jl
+    # Check if job location contains any signal for the target country.
+    # Do NOT use bare "remote" as a wildcard here — that already passed above.
+    return any(s in jl for s in signals)

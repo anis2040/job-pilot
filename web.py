@@ -6,7 +6,7 @@ import shutil
 import subprocess
 from pathlib import Path
 from datetime import datetime, timezone
-from flask import Flask, render_template, jsonify, request, send_file, abort, redirect, url_for
+from flask import Flask, render_template, jsonify, request, send_file, abort, redirect, url_for, make_response
 
 from job.db import init_db, get_pending_deduped, get_jobs_by_status, update_status, get_job, stats, last_fetch_at, clear_all_jobs
 from job.web_api import trigger_resume, get_task_status, trigger_cover_letter, get_cl_task_status, trigger_fetch, get_fetch_status, clear_task_state
@@ -20,7 +20,8 @@ from job.profiles import (
 
 BASE = Path(__file__).parent
 
-app = Flask(__name__, template_folder="templates")
+app = Flask(__name__, template_folder="templates", static_folder="static")
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 
 
 def _config_path() -> Path:
@@ -55,11 +56,6 @@ def _source_label(search_name: str) -> str:
 
 def _serialize_job(row, task_status: dict, cl_task_status: dict) -> dict:
     r = dict(row)
-    salary = ""
-    if r.get("salary_min") and r.get("salary_max"):
-        salary = f"${r['salary_min']//1000}k–${r['salary_max']//1000}k"
-    elif r.get("salary_min"):
-        salary = f"${r['salary_min']//1000}k+"
 
     age = ""
     try:
@@ -133,9 +129,6 @@ def _serialize_job(row, task_status: dict, cl_task_status: dict) -> dict:
         "location": r.get("location") or "",
         "remote": r.get("remote") or "",
         "experience": r.get("experience") or "",
-        "salary": salary,
-        "salary_min": r.get("salary_min") or 0,
-        "score": r.get("score") or 0,
         "age": age,
         "posted": posted,
         "status": r.get("status") or "pending",
@@ -159,11 +152,14 @@ def index():
         return redirect(url_for("setup"))
     if not get_active_slug():
         return redirect(url_for("profile_picker"))
-    profile_md = get_profile_path()
-    if not profile_md or not profile_md.exists():
-        return redirect(url_for("setup"))
-    counts = stats()
-    last = last_fetch_at()
+    # Allow access even without a profile.md — user can browse/fetch without CV features
+    try:
+        init_db()
+        counts = stats()
+        last = last_fetch_at()
+    except Exception:
+        counts = {"pending": 0, "applied": 0, "skipped": 0}
+        last = None
     last_str = ""
     stale = False
     if last:
@@ -183,6 +179,38 @@ def profile_picker():
     if not profiles:
         return redirect(url_for("setup"))
     return render_template("profiles.html", profiles=profiles)
+
+
+@app.route("/api/profiles/<slug>/clear-jobs", methods=["POST"])
+def api_profile_clear_jobs(slug):
+    profile_dir = PROFILES_DIR / slug
+    if not profile_dir.is_dir():
+        return jsonify({"error": "Profile not found"}), 404
+    import sqlite3
+    db_path = str(profile_dir / "state.db")
+    try:
+        con = sqlite3.connect(db_path)
+        con.execute("DELETE FROM jobs")
+        con.execute("DELETE FROM filter_log")
+        con.execute("DELETE FROM fetch_log")
+        con.commit()
+        con.close()
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    if slug == get_active_slug():
+        clear_task_state()
+    return jsonify({"ok": True})
+
+
+@app.route("/profile-settings/<slug>")
+def profile_settings(slug):
+    from job.profiles import _profile_info
+    profile_dir = PROFILES_DIR / slug
+    if not profile_dir.is_dir():
+        return redirect(url_for("manage_profiles"))
+    profile = _profile_info(profile_dir)
+    active_slug = get_active_slug()
+    return render_template("profile_settings.html", profile=profile, active_slug=active_slug)
 
 
 @app.route("/manage-profiles")
@@ -213,13 +241,26 @@ def api_profiles_active():
     return jsonify({"active": {"slug": active.slug, "name": active.name, "initials": active.initials, "color": active.color}})
 
 
+@app.route("/api/profiles/new", methods=["POST"])
+def api_profiles_new():
+    """Create a blank profile, switch to it, and return the slug."""
+    import time as _time
+    slug = create_profile(f"new-profile-{int(_time.time())}")
+    profile_dir = PROFILES_DIR / slug
+    (profile_dir / "resumes").mkdir(exist_ok=True)
+    set_active(slug)
+    clear_task_state()
+    return jsonify({"ok": True, "slug": slug})
+
+
 @app.route("/api/profiles/switch/<slug>", methods=["POST"])
 def api_profiles_switch(slug):
     if not set_active(slug):
         return jsonify({"error": "Profile not found"}), 404
     clear_task_state()
     init_db()
-    return jsonify({"ok": True, "slug": slug})
+    job_count = stats().get("pending", 0) + stats().get("applied", 0) + stats().get("skipped", 0)
+    return jsonify({"ok": True, "slug": slug, "empty": job_count == 0})
 
 
 @app.route("/api/profiles/delete/<slug>", methods=["POST"])
@@ -228,6 +269,59 @@ def api_profiles_delete(slug):
         return jsonify({"error": "Cannot delete the active profile. Switch to another profile first."}), 400
     if not delete_profile(slug):
         return jsonify({"error": "Profile not found"}), 404
+    return jsonify({"ok": True})
+
+
+@app.route("/api/profiles/<slug>/profile-md", methods=["GET"])
+def api_profile_md_get(slug):
+    profile_dir = PROFILES_DIR / slug
+    if not profile_dir.is_dir():
+        return jsonify({"error": "Profile not found"}), 404
+    profile_md = profile_dir / "profile.md"
+    return jsonify({"content": profile_md.read_text() if profile_md.exists() else ""})
+
+
+@app.route("/api/profiles/<slug>/profile-md", methods=["POST"])
+def api_profile_md_save(slug):
+    profile_dir = PROFILES_DIR / slug
+    if not profile_dir.is_dir():
+        return jsonify({"error": "Profile not found"}), 404
+    data = request.get_json()
+    content = (data.get("content") or "").strip()
+    if not content:
+        return jsonify({"error": "Profile content is empty"}), 400
+    (profile_dir / "profile.md").write_text(content)
+    # Update symlinks if this is the active profile
+    if slug == get_active_slug():
+        from job.profiles import _update_symlinks
+        _update_symlinks(profile_dir)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/profiles/<slug>/config", methods=["GET"])
+def api_profile_config_get(slug):
+    config_p = PROFILES_DIR / slug / "config.yaml"
+    if not config_p.exists():
+        return jsonify({"searches": [], "title_filter": [], "blacklist": [], "company_blacklist": []})
+    with open(config_p) as f:
+        return jsonify(yaml.safe_load(f) or {})
+
+
+@app.route("/api/profiles/<slug>/config", methods=["POST"])
+def api_profile_config_save(slug):
+    profile_dir = PROFILES_DIR / slug
+    if not profile_dir.is_dir():
+        return jsonify({"error": "Profile not found"}), 404
+    data = request.get_json()
+    if not isinstance(data.get("searches"), list) or not data["searches"]:
+        return jsonify({"error": "At least one search entry required"}), 400
+    config_p = profile_dir / "config.yaml"
+    with open(config_p, "w") as f:
+        yaml.dump(data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    # If active profile, clear and re-fetch
+    if slug == get_active_slug():
+        clear_all_jobs()
+        clear_task_state()
     return jsonify({"ok": True})
 
 
@@ -316,6 +410,13 @@ def api_config_save():
     return jsonify({"ok": True})
 
 
+@app.route("/api/jobs/clear", methods=["POST"])
+def api_jobs_clear():
+    clear_all_jobs()
+    clear_task_state()
+    return jsonify({"ok": True})
+
+
 @app.route("/api/fetch", methods=["POST"])
 def api_fetch():
     trigger_fetch()
@@ -349,7 +450,9 @@ def serve_cover_letter(company):
 
 @app.route("/setup")
 def setup():
-    return render_template("setup.html")
+    resp = make_response(render_template("setup.html"))
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+    return resp
 
 
 @app.route("/api/setup/status")
@@ -573,27 +676,16 @@ def api_setup_save_profile():
     if not content:
         return jsonify({"error": "Profile content is empty"}), 400
 
-    # Extract name from H1 heading
-    name = "New Profile"
-    for line in content.splitlines():
-        line = line.strip()
-        if line.startswith("#"):
-            name = line.lstrip("#").split("—")[0].split("-")[0].strip() or name
-            break
-
-    existing_slug = get_active_slug()
-    if existing_slug:
-        profile_dir = active_profile_dir()
-    else:
-        slug = create_profile(name)
-        profile_dir = PROFILES_DIR / slug
-        set_active(slug)
+    profile_dir = active_profile_dir()
+    if not profile_dir:
+        return jsonify({"error": "No active profile. Start setup first."}), 400
 
     profile_dir.mkdir(parents=True, exist_ok=True)
     (profile_dir / "profile.md").write_text(content)
-    # Ensure resumes subdir exists
     (profile_dir / "resumes").mkdir(exist_ok=True)
-    # Initialize the DB for this profile
+    # Keep symlinks up to date
+    from job.profiles import _update_symlinks
+    _update_symlinks(profile_dir)
     init_db()
     return jsonify({"ok": True})
 

@@ -13,7 +13,8 @@
   .header h1 { font-size: 1.3rem; font-weight: 800; color: #fff; margin-bottom: 4px; }
   .header p { color: #64748b; font-size: 0.84rem; }
   .card { background: #1a1f2e; border: 1px solid #2d3748; border-radius: 12px; padding: 24px; }
-  .profile-row { display: flex; align-items: center; gap: 14px; padding: 12px 14px; background: #0f1117; border: 1px solid #2d3748; border-radius: 8px; margin-bottom: 8px; }
+  .profile-row { display: flex; align-items: center; gap: 14px; padding: 12px 14px; background: #0f1117; border: 1px solid #2d3748; border-radius: 8px; margin-bottom: 8px; transition: background .1s; }
+  .profile-row:hover { background: #141824; border-color: #3b82f6; }
   .avatar { width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; font-weight: 700; color: #fff; flex-shrink: 0; }
   .info { flex: 1; min-width: 0; }
   .info .name { font-weight: 600; color: #e2e8f0; font-size: 0.9rem; }
@@ -39,12 +40,18 @@
   <div class="card">
     <div id="list"></div>
     <div class="footer">
-      <a href="/setup" class="btn btn-primary">+ Add New Profile</a>
+      <button class="btn btn-primary" onclick="addNewProfile()">+ Add New Profile</button>
       <a href="/" class="btn btn-ghost">← Back to Jobs</a>
     </div>
   </div>
 </div>
 <script>
+async function addNewProfile() {
+  const res = await fetch("/api/profiles/new", { method: "POST" });
+  const data = await res.json();
+  if (data.ok) window.location.href = "/setup";
+}
+
 async function load() {
   const res = await fetch("/api/profiles");
   const { profiles, active_slug } = await res.json();
@@ -54,22 +61,20 @@ async function load() {
     return;
   }
   list.innerHTML = profiles.map(p => `
-    <div class="profile-row">
+    <div class="profile-row" onclick="window.location='/profile-settings/${p.slug}'" style="cursor:pointer">
       <div class="avatar" style="background:${p.color}">${p.initials}</div>
       <div class="info">
         <div class="name">${p.name}</div>
         <div class="path">profiles/${p.slug}/</div>
       </div>
-      ${p.slug === active_slug
-        ? '<span class="badge-active">Active</span>'
-        : `<button class="btn btn-ghost" onclick="switchTo('${p.slug}')">Switch</button>`}
-      <button class="btn btn-danger" onclick="del('${p.slug}', '${p.name}')" ${p.slug === active_slug ? 'disabled title="Switch away before deleting"' : ''}>Delete</button>
+      ${p.slug === active_slug ? '<span class="badge-active">Active</span>' : `<button class="btn btn-ghost" onclick="event.stopPropagation();switchTo('${p.slug}')">Switch</button>`}
+      <button class="btn btn-danger" onclick="event.stopPropagation();del('${p.slug}', '${p.name}')" ${p.slug === active_slug ? 'disabled title="Switch away before deleting"' : ''}>Delete</button>
     </div>`).join("");
 }
 
 async function switchTo(slug) {
   await fetch(`/api/profiles/switch/${slug}`, { method: "POST" });
-  load();
+  window.location.href = "/";
 }
 
 async function del(slug, name) {

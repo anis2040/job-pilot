@@ -61,8 +61,6 @@ def fetch_jobicy(search: SearchConfig) -> list[RawJob]:
             experience=experience,
             description=description[:2000],
             posted_at=item.get("pubDate"),
-            salary_min=None,
-            salary_max=None,
         ))
 
     return results

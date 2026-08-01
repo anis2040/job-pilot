@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ profile.name }} — Profile Settings</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  button { -webkit-appearance: none; appearance: none; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
+
+  /* Top bar */
+  .topbar { border-bottom: 1px solid #1e2333; padding: 14px 32px; display: flex; align-items: center; gap: 14px; }
+  .topbar-back { color: #64748b; text-decoration: none; font-size: 0.82rem; display: flex; align-items: center; gap: 6px; }
+  .topbar-back:hover { color: #e2e8f0; }
+  .topbar-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; color: #fff; flex-shrink: 0; }
+  .topbar-name { font-weight: 700; color: #fff; font-size: 0.95rem; }
+  .topbar-badge { background: #14532d; color: #4ade80; font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 99px; }
+
+  /* Layout */
+  .layout { display: flex; max-width: 960px; margin: 0 auto; padding: 32px 24px; gap: 40px; }
+
+  /* Sidebar nav */
+  .sidenav { width: 200px; flex-shrink: 0; }
+  .sidenav-section { font-size: 0.7rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: .06em; padding: 8px 12px 4px; }
+  .sidenav-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 6px; color: #94a3b8; font-size: 0.84rem; cursor: pointer; transition: all .1s; border: none; background: none; width: 100%; text-align: left; }
+  .sidenav-item:hover { background: #1e2333; color: #e2e8f0; }
+  .sidenav-item.active { background: #1e2a3a; color: #60a5fa; font-weight: 600; }
+  .sidenav-icon { font-size: 0.9rem; width: 18px; text-align: center; }
+  .sidenav-divider { height: 1px; background: #1e2333; margin: 8px 12px; }
+
+  /* Main content */
+  .main { flex: 1; min-width: 0; }
+  .section { display: none; }
+  .section.active { display: block; }
+
+  .section-title { font-size: 1.1rem; font-weight: 700; color: #fff; margin-bottom: 4px; }
+  .section-desc { font-size: 0.84rem; color: #64748b; margin-bottom: 24px; line-height: 1.5; }
+
+  /* Cards */
+  .settings-card { background: #1a1f2e; border: 1px solid #2d3748; border-radius: 10px; margin-bottom: 16px; overflow: hidden; }
+  .settings-card-header { padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; }
+  .settings-card-header h3 { font-size: 0.9rem; font-weight: 600; color: #e2e8f0; }
+  .settings-card-header p { font-size: 0.78rem; color: #64748b; margin-top: 2px; }
+  .settings-card-body { padding: 0 20px 20px; border-top: 1px solid #1e2333; padding-top: 20px; }
+  .settings-card-body.hidden { display: none; }
+
+  /* Form fields */
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 0.78rem; font-weight: 600; color: #94a3b8; margin-bottom: 5px; }
+  .field input, .field select, .field textarea { width: 100%; background: #0f1117; border: 1px solid #2d3748; border-radius: 6px; color: #e2e8f0; padding: 8px 11px; font-size: 0.82rem; font-family: inherit; outline: none; }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: #3b82f6; }
+  .field textarea { resize: vertical; min-height: 240px; font-family: "SF Mono", "Fira Code", monospace; font-size: 0.75rem; line-height: 1.5; }
+  .field-row { display: grid; gap: 12px; margin-bottom: 14px; }
+  .field-row.cols-2 { grid-template-columns: 1fr 1fr; }
+  .field-row.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+  /* Search rows */
+  .search-row { display: grid; grid-template-columns: 1fr 100px 1fr 70px 60px 28px; gap: 6px; align-items: center; margin-bottom: 6px; }
+  .search-row input, .search-row select { background: #0f1117; border: 1px solid #2d3748; border-radius: 5px; color: #e2e8f0; padding: 6px 8px; font-size: 0.78rem; width: 100%; outline: none; }
+  .search-row input:focus, .search-row select:focus { border-color: #3b82f6; }
+  .search-row-header { display: grid; grid-template-columns: 1fr 100px 1fr 70px 60px 28px; gap: 6px; margin-bottom: 4px; }
+  .search-row-header span { font-size: 0.68rem; color: #475569; font-weight: 600; text-transform: uppercase; padding: 0 8px; }
+  .toggle-remote { display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 0.72rem; cursor: pointer; }
+  .toggle-remote input { accent-color: #3b82f6; width: 14px; height: 14px; }
+  .btn-add-row { background: none; border: 1px dashed #2d3748; color: #60a5fa; border-radius: 5px; padding: 5px 12px; font-size: 0.76rem; cursor: pointer; width: 100%; margin-top: 4px; }
+  .btn-add-row:hover { border-color: #3b82f6; background: #1e2333; }
+
+  /* Tag inputs */
+  .tag-wrap { display: flex; flex-wrap: wrap; gap: 5px; background: #0f1117; border: 1px solid #2d3748; border-radius: 6px; padding: 6px 8px; min-height: 38px; cursor: text; }
+  .tag-wrap:focus-within { border-color: #3b82f6; }
+  .tag { display: inline-flex; align-items: center; gap: 4px; background: #1e2333; border-radius: 99px; padding: 2px 8px 2px 10px; font-size: 0.75rem; color: #e2e8f0; }
+  .tag button { background: none; border: none; color: #64748b; cursor: pointer; font-size: 0.75rem; padding: 0; }
+  .tag button:hover { color: #f87171; }
+  .tag-input { background: none; border: none; outline: none; color: #e2e8f0; font-size: 0.78rem; min-width: 100px; flex: 1; padding: 1px 0; }
+
+  /* Buttons */
+  .btn { padding: 8px 16px; border-radius: 6px; font-size: 0.82rem; font-weight: 600; border: none; cursor: pointer; transition: opacity .15s; }
+  .btn:hover { opacity: 0.85; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-primary { background: #3b82f6; color: #fff; }
+  .btn-ghost { background: #1e2333; color: #94a3b8; }
+  .btn-danger-outline { background: none; border: 1px solid #7f1d1d; color: #f87171; }
+  .btn-danger-outline:hover { background: #2d1b1b; }
+  .btn-icon { background: none; border: none; color: #475569; cursor: pointer; font-size: 0.85rem; padding: 0; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .btn-icon:hover { color: #f87171; }
+  .btn-sm { padding: 5px 10px; font-size: 0.76rem; }
+  .save-row { display: flex; align-items: center; gap: 10px; margin-top: 16px; }
+  .save-notice { font-size: 0.76rem; color: #4ade80; }
+
+  /* Danger zone */
+  .danger-card { background: #1a1f2e; border: 1px solid #7f1d1d; border-radius: 10px; padding: 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .danger-card .info h4 { font-size: 0.9rem; font-weight: 600; color: #e2e8f0; margin-bottom: 3px; }
+  .danger-card .info p { font-size: 0.78rem; color: #64748b; }
+
+  /* Alert */
+  .alert { padding: 10px 14px; border-radius: 6px; font-size: 0.8rem; margin-top: 10px; }
+  .alert-error { background: #2d1b1b; color: #f87171; border: 1px solid #7f1d1d; }
+  .alert-ok { background: #14532d; color: #4ade80; border: 1px solid #166534; }
+
+  .autofill-bar { display: flex; align-items: center; gap: 12px; background: #0f1117; border: 1px dashed #2d3748; border-radius: 8px; padding: 10px 14px; margin-bottom: 20px; }
+  .autofill-label { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .autofill-label span:first-child { font-size: 0.82rem; color: #94a3b8; }
+  .autofill-label input[type=file] { display: none; }
+  .autofill-btn { background: #1e2333; border: 1px solid #2d3748; border-radius: 5px; color: #60a5fa; padding: 4px 12px; font-size: 0.76rem; font-weight: 600; cursor: pointer; }
+  #autofill-status { font-size: 0.76rem; color: #64748b; }
+  .profile-section { border-bottom: 1px solid #1e2333; padding-bottom: 20px; margin-bottom: 20px; }
+  .profile-section:last-of-type { border-bottom: none; }
+  .profile-section h3 { font-size: 0.78rem; font-weight: 700; color: #60a5fa; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 14px; }
+  .dynamic-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
+  .dynamic-row { display: flex; gap: 6px; align-items: center; }
+  .dynamic-row input, .dynamic-row textarea { flex: 1; background: #0f1117; border: 1px solid #2d3748; border-radius: 5px; color: #e2e8f0; padding: 6px 10px; font-size: 0.8rem; font-family: inherit; outline: none; }
+  .dynamic-row input:focus { border-color: #3b82f6; }
+  .exp-block { background: #0f1117; border: 1px solid #2d3748; border-radius: 8px; padding: 14px; margin-bottom: 10px; }
+  .exp-block-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .exp-block-header span { font-size: 0.75rem; font-weight: 700; color: #475569; text-transform: uppercase; }
+  .sublabel { font-size: 0.72rem; font-weight: 600; color: #475569; margin: 10px 0 5px; }
+  .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-right: 4px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 640px) {
+    .layout { flex-direction: column; gap: 24px; }
+    .sidenav { width: 100%; display: flex; flex-wrap: wrap; gap: 4px; }
+    .sidenav-section, .sidenav-divider { display: none; }
+  }
+</style>
+<script src="/static/profile-form.js"></script>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="/manage-profiles" class="topbar-back">← Profiles</a>
+  <div class="topbar-avatar" style="background:{{ profile.color }}">{{ profile.initials }}</div>
+  <span class="topbar-name">{{ profile.name }}</span>
+  {% if profile.slug == active_slug %}<span class="topbar-badge">Active</span>{% endif %}
+</div>
+
+<div class="layout">
+
+  <!-- Sidebar -->
+  <nav class="sidenav">
+    <div class="sidenav-section">Profile</div>
+    <button class="sidenav-item active" onclick="showSection('profile')" id="nav-profile">
+      <span class="sidenav-icon">👤</span> Profile
+    </button>
+    <button class="sidenav-item" onclick="showSection('search')" id="nav-search">
+      <span class="sidenav-icon">🔍</span> Search Settings
+    </button>
+    <div class="sidenav-divider"></div>
+    <button class="sidenav-item" onclick="showSection('danger')" id="nav-danger" style="color:#f87171">
+      <span class="sidenav-icon">⚠</span> Danger Zone
+    </button>
+  </nav>
+
+  <!-- Main -->
+  <div class="main">
+
+    <!-- Profile section -->
+    <div class="section active" id="section-profile">
+      <div class="section-title">Profile</div>
+      <div class="section-desc">Your contact info, experience, and skills. The AI uses this exclusively to build resumes and cover letters.</div>
+
+      <div class="autofill-bar">
+        <label class="autofill-label">
+          <span>⚡ Autofill from resume</span>
+          <input type="file" id="resume-upload" accept=".pdf,.docx,.txt" onchange="autofillFromResume(this)">
+          <span class="autofill-btn">Upload PDF / DOCX</span>
+        </label>
+        <span id="autofill-status"></span>
+      </div>
+
+      <!-- Contact -->
+      <div class="profile-section">
+        <h3>Contact</h3>
+        <div class="field-row cols-2">
+          <div class="field"><label>Full Name *</label><input id="p-name" placeholder="Jane Smith"></div>
+          <div class="field"><label>City, State</label><input id="p-location" placeholder="Chicago, IL"></div>
+        </div>
+        <div class="field-row cols-2">
+          <div class="field"><label>Email *</label><input id="p-email" type="email" placeholder="jane@example.com"></div>
+          <div class="field"><label>Phone</label><input id="p-phone" placeholder="+1 312-555-0000"></div>
+        </div>
+        <div class="field-row cols-2">
+          <div class="field"><label>LinkedIn URL</label><input id="p-linkedin" placeholder="https://linkedin.com/in/..."></div>
+          <div class="field"><label>Work Authorization</label>
+            <select id="p-auth">
+              <option value="">Select…</option>
+              <option value="US Citizen — no sponsorship required">US Citizen</option>
+              <option value="Green Card holder — legally authorized to work in the U.S.">Green Card</option>
+              <option value="Requires H-1B sponsorship">Requires H-1B sponsorship</option>
+              <option value="Authorized to work in the US · No sponsorship required">Other — authorized, no sponsorship</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Summary -->
+      <div class="profile-section">
+        <h3>Professional Summary</h3>
+        <div class="field"><textarea id="p-summary" style="min-height:80px" placeholder="2–3 sentences: what you do, for whom, and what makes you effective."></textarea></div>
+      </div>
+
+      <!-- Competencies -->
+      <div class="profile-section">
+        <h3>Core Competencies</h3>
+        <p style="font-size:0.76rem;color:#64748b;margin-bottom:8px">Skills and methodologies to highlight (6–12 items).</p>
+        <div class="dynamic-list" id="competencies-list"></div>
+        <button class="btn-add-row" onclick="addRow('competencies-list','competency-row','Add a competency…')">+ Add competency</button>
+      </div>
+
+      <!-- Experience -->
+      <div class="profile-section">
+        <h3>Professional Experience</h3>
+        <div id="exp-list"></div>
+        <button class="btn-add-row" onclick="addExpBlock()">+ Add role</button>
+      </div>
+
+      <!-- Education -->
+      <div class="profile-section">
+        <h3>Education</h3>
+        <div id="edu-list"></div>
+        <button class="btn-add-row" onclick="addEduRow()">+ Add degree</button>
+      </div>
+
+      <!-- Certifications -->
+      <div class="profile-section">
+        <h3>Certifications <span style="font-weight:400;color:#475569;font-size:0.75rem">(optional)</span></h3>
+        <div class="dynamic-list" id="certs-list"></div>
+        <button class="btn-add-row" onclick="addRow('certs-list','cert-row','e.g. Professional Scrum Product Owner I (PSPO I), Scrum.org')">+ Add certification</button>
+      </div>
+
+      <div id="profile-save-alert"></div>
+      <div class="save-row" style="margin-top:16px">
+        <button class="btn btn-primary" onclick="saveProfileForm()">Save profile</button>
+        <span class="save-notice" id="profile-save-ok" style="display:none">✓ Saved</span>
+      </div>
+
+      <div class="settings-card" style="margin-top:24px">
+        <div class="settings-card-header" onclick="toggleCard('auto-config-body')">
+          <div>
+            <h3>Auto-configure searches</h3>
+            <p>Let the AI read your profile and set up search queries automatically</p>
+          </div>
+          <span id="toggle-auto-config-body" style="color:#64748b;font-size:0.8rem">▼</span>
+        </div>
+        <div class="settings-card-body hidden" id="auto-config-body">
+          <p style="font-size:0.84rem;color:#94a3b8;margin-bottom:12px">Analyzes your profile to extract job titles, location, and remote preference, then rewrites your search config.</p>
+          <button class="btn btn-primary" id="btn-auto-config" onclick="autoConfig()">⚡ Configure from profile</button>
+          <div id="auto-config-alert" style="margin-top:10px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search section -->
+    <div class="section" id="section-search">
+      <div class="section-title">Search Settings</div>
+      <div class="section-desc">Configure which job sources, queries, and locations to search.</div>
+
+      <div class="settings-card">
+        <div class="settings-card-header">
+          <div><h3>Search Sources</h3><p>One entry per source</p></div>
+        </div>
+        <div class="settings-card-body">
+          <div class="search-row-header">
+            <span>Query</span><span>Source</span><span>Location</span><span>Pages</span><span>Remote</span><span></span>
+          </div>
+          <div id="search-rows"></div>
+          <button class="btn-add-row" onclick="addSearchRow()">+ Add source</button>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <div class="settings-card-header" onclick="toggleCard('filter-body')">
+          <div><h3>Filters</h3><p>Title filter, blacklist, company blacklist</p></div>
+          <span id="toggle-filter-body" style="color:#64748b;font-size:0.8rem">▼</span>
+        </div>
+        <div class="settings-card-body hidden" id="filter-body">
+          <div class="field">
+            <label>Title Filter <span style="color:#475569;font-weight:400">(keep jobs matching at least one)</span></label>
+            <div class="tag-wrap" id="title-filter-wrap" onclick="document.getElementById('title-filter-input').focus()">
+              <input class="tag-input" id="title-filter-input" placeholder="add keyword, Enter" onkeydown="tagKeydown(event,'title-filter-wrap','title-filter-input')">
+            </div>
+          </div>
+          <div class="field">
+            <label>Blacklist <span style="color:#475569;font-weight:400">(drop jobs containing these words)</span></label>
+            <div class="tag-wrap" id="blacklist-wrap" onclick="document.getElementById('blacklist-input').focus()">
+              <input class="tag-input" id="blacklist-input" placeholder="add keyword, Enter" onkeydown="tagKeydown(event,'blacklist-wrap','blacklist-input')">
+            </div>
+          </div>
+          <div class="field">
+            <label>Company Blacklist</label>
+            <div class="tag-wrap" id="company-blacklist-wrap" onclick="document.getElementById('company-blacklist-input').focus()">
+              <input class="tag-input" id="company-blacklist-input" placeholder="add company, Enter" onkeydown="tagKeydown(event,'company-blacklist-wrap','company-blacklist-input')">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="search-save-alert"></div>
+      <div class="save-row">
+        <button class="btn btn-primary" onclick="saveSearchSettings()">Save search settings</button>
+        <span class="save-notice" id="search-save-ok" style="display:none">✓ Saved</span>
+      </div>
+    </div>
+
+    <!-- Danger section -->
+    <div class="section" id="section-danger">
+      <div class="section-title">Danger Zone</div>
+      <div class="section-desc">Irreversible actions for this profile.</div>
+
+      {% if profile.slug != active_slug %}
+      <div class="danger-card" style="margin-bottom:12px">
+        <div class="info">
+          <h4>Delete this profile</h4>
+          <p>Permanently deletes all jobs, resumes, and settings for this profile.</p>
+        </div>
+        <button class="btn btn-danger-outline" onclick="deleteProfile()">Delete profile</button>
+      </div>
+      {% else %}
+      <div class="danger-card" style="margin-bottom:12px;border-color:#2d3748">
+        <div class="info">
+          <h4>Delete this profile</h4>
+          <p>Switch to another profile first before deleting this one.</p>
+        </div>
+        <button class="btn btn-danger-outline" disabled>Delete profile</button>
+      </div>
+      {% endif %}
+
+      <div class="danger-card">
+        <div class="info">
+          <h4>Clear all jobs</h4>
+          <p>Wipe this profile's job database. Resumes on disk are kept.</p>
+        </div>
+        <button class="btn btn-danger-outline" onclick="clearJobs()">Clear jobs</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const SLUG = "{{ profile.slug }}";
+const IS_ACTIVE = {{ 'true' if profile.slug == active_slug else 'false' }};
+const SOURCES = ["linkedin", "jobicy", "himalayas", "greenhouse"];
+
+// ── Nav ───────────────────────────────────────────────────────────────────────
+
+function showSection(name) {
+  document.querySelectorAll(".section").forEach(s => s.classList.remove("active"));
+  document.querySelectorAll(".sidenav-item").forEach(n => n.classList.remove("active"));
+  document.getElementById(`section-${name}`).classList.add("active");
+  document.getElementById(`nav-${name}`).classList.add("active");
+}
+
+function toggleCard(bodyId) {
+  const body = document.getElementById(bodyId);
+  const icon = document.getElementById(`toggle-${bodyId}`);
+  body.classList.toggle("hidden");
+  if (icon) icon.textContent = body.classList.contains("hidden") ? "▼" : "▲";
+}
+
+// ── Profile form ──────────────────────────────────────────────────────────────
+
+async function loadProfileForm() {
+  const res = await fetch(`/api/profiles/${SLUG}/profile-md`);
+  const data = await res.json();
+  initProfileForm();
+  if (data.content) parseProfileMdIntoForm(data.content);
+}
+
+async function saveProfileForm() {
+  const name  = (document.getElementById("p-name")?.value || "").trim();
+  const email = (document.getElementById("p-email")?.value || "").trim();
+  const alert = document.getElementById("profile-save-alert");
+  if (!name) {
+    alert.innerHTML = `<div class="alert alert-error" style="margin-top:8px">Please enter your full name.</div>`;
+    document.getElementById("p-name").focus(); return;
+  }
+  if (!email) {
+    alert.innerHTML = `<div class="alert alert-error" style="margin-top:8px">Please enter your email address.</div>`;
+    document.getElementById("p-email").focus(); return;
+  }
+  const content = buildProfileMd();
+  const res = await fetch(`/api/profiles/${SLUG}/profile-md`, {
+    method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({content})
+  });
+  const data2 = await res.json();
+  if (data2.ok) {
+    alert.innerHTML = "";
+    const ok = document.getElementById("profile-save-ok");
+    ok.style.display = "inline";
+    setTimeout(() => ok.style.display = "none", 2500);
+  } else {
+    alert.innerHTML = `<div class="alert alert-error" style="margin-top:8px">${data2.error}</div>`;
+  }
+}
+
+// ── Auto-config ───────────────────────────────────────────────────────────────
+
+async function autoConfig() {
+  if (!IS_ACTIVE) {
+    document.getElementById("auto-config-alert").innerHTML = `<div class="alert alert-error">Switch to this profile first to auto-configure searches.</div>`;
+    return;
+  }
+  const btn = document.getElementById("btn-auto-config");
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span> Analyzing…`;
+  const res = await fetch("/api/setup/suggest-config", { method: "POST" });
+  const data = await res.json();
+  if (data.ok) {
+    document.getElementById("auto-config-alert").innerHTML = `<div class="alert alert-ok">✓ Searches configured for <strong>${data.title_filter.join(", ")}</strong> in <strong>${data.location}</strong></div>`;
+    btn.innerHTML = "⚡ Configure from profile";
+    btn.disabled = false;
+    await loadSearchSettings();
+    showSection("search");
+  } else {
+    document.getElementById("auto-config-alert").innerHTML = `<div class="alert alert-error">${data.error}</div>`;
+    btn.innerHTML = "⚡ Configure from profile";
+    btn.disabled = false;
+  }
+}
+
+// ── Search settings ───────────────────────────────────────────────────────────
+
+async function loadSearchSettings() {
+  const res = await fetch(`/api/profiles/${SLUG}/config`);
+  const cfg = await res.json();
+  renderSearchRows(cfg.searches || []);
+  renderTags("title-filter-wrap", "title-filter-input", cfg.title_filter || []);
+  renderTags("blacklist-wrap", "blacklist-input", cfg.blacklist || []);
+  renderTags("company-blacklist-wrap", "company-blacklist-input", cfg.company_blacklist || []);
+}
+
+function renderSearchRows(searches) {
+  document.getElementById("search-rows").innerHTML = "";
+  searches.forEach(s => addSearchRow(s));
+}
+
+function addSearchRow(s = {}) {
+  const list = document.getElementById("search-rows");
+  const row = document.createElement("div");
+  row.className = "search-row";
+  const opts = SOURCES.map(src => `<option value="${src}" ${s.source===src?"selected":""}>${src}</option>`).join("");
+  row.innerHTML = `
+    <input type="text" value="${s.query||""}" placeholder="Product Owner" data-field="query">
+    <select data-field="source">${opts}</select>
+    <input type="text" value="${s.location||"United States"}" placeholder="United States" data-field="location">
+    <input type="number" value="${s.max_pages??3}" min="1" max="10" data-field="max_pages" style="text-align:center">
+    <label class="toggle-remote"><input type="checkbox" data-field="remote" ${s.remote!==false?"checked":""}> Remote</label>
+    <button class="btn-icon" onclick="this.closest('.search-row').remove()">✕</button>`;
+  list.appendChild(row);
+}
+
+function collectSearchRows() {
+  return [...document.querySelectorAll(".search-row")].map(row => ({
+    name: `${row.querySelector("[data-field=source]").value} - ${row.querySelector("[data-field=query]").value}`,
+    source: row.querySelector("[data-field=source]").value,
+    query: row.querySelector("[data-field=query]").value.trim(),
+    location: row.querySelector("[data-field=location]").value.trim(),
+    max_pages: parseInt(row.querySelector("[data-field=max_pages]").value) || 3,
+    remote: row.querySelector("[data-field=remote]").checked,
+  })).filter(s => s.query);
+}
+
+async function saveSearchSettings() {
+  const searches = collectSearchRows();
+  if (!searches.length) { alert("Add at least one search source."); return; }
+  const cfg = {
+    searches,
+    title_filter: collectTags("title-filter-wrap"),
+    blacklist: collectTags("blacklist-wrap"),
+    company_blacklist: collectTags("company-blacklist-wrap"),
+  };
+  const res = await fetch(`/api/profiles/${SLUG}/config`, {
+    method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(cfg)
+  });
+  const data = await res.json();
+  const alert = document.getElementById("search-save-alert");
+  if (data.ok) {
+    alert.innerHTML = "";
+    const ok = document.getElementById("search-save-ok");
+    ok.style.display = "inline";
+    setTimeout(() => ok.style.display = "none", 2500);
+    if (IS_ACTIVE) {
+      // Trigger a fresh fetch for the active profile
+      setTableFetchingIfPresent();
+      fetch("/api/fetch", { method: "POST" });
+    }
+  } else {
+    alert.innerHTML = `<div class="alert alert-error">${data.error}</div>`;
+  }
+}
+
+function setTableFetchingIfPresent() {
+  // No-op here — fetch triggered from the settings page, main page will auto-refresh
+}
+
+// ── Tag inputs ────────────────────────────────────────────────────────────────
+
+function renderTags(wrapId, inputId, tags) {
+  const wrap = document.getElementById(wrapId);
+  const input = document.getElementById(inputId);
+  wrap.querySelectorAll(".tag").forEach(t => t.remove());
+  tags.forEach(tag => wrap.insertBefore(makeTag(tag, wrapId, inputId), input));
+}
+
+function makeTag(value, wrapId, inputId) {
+  const span = document.createElement("span");
+  span.className = "tag";
+  span.dataset.value = value;
+  span.innerHTML = `${value} <button onclick="this.closest('.tag').remove()" type="button">✕</button>`;
+  return span;
+}
+
+function tagKeydown(e, wrapId, inputId) {
+  if (e.key !== "Enter" && e.key !== ",") return;
+  e.preventDefault();
+  const input = document.getElementById(inputId);
+  const val = input.value.trim().toLowerCase().replace(/,$/, "");
+  if (!val) return;
+  const wrap = document.getElementById(wrapId);
+  if (!wrap.querySelector(`.tag[data-value="${val}"]`))
+    wrap.insertBefore(makeTag(val, wrapId, inputId), input);
+  input.value = "";
+}
+
+function collectTags(wrapId) {
+  return [...document.querySelectorAll(`#${wrapId} .tag`)].map(t => t.dataset.value);
+}
+
+// ── Danger ────────────────────────────────────────────────────────────────────
+
+async function deleteProfile() {
+  if (!confirm(`Delete "${SLUG}" and all its data? This cannot be undone.`)) return;
+  const res = await fetch(`/api/profiles/delete/${SLUG}`, { method: "POST" });
+  const data = await res.json();
+  if (data.ok) window.location.href = "/manage-profiles";
+  else alert(data.error);
+}
+
+async function clearJobs() {
+  if (!confirm("Clear all jobs for this profile? Resumes on disk are kept.")) return;
+  if (IS_ACTIVE) {
+    await fetch("/api/jobs/clear", { method: "POST" });
+    alert("Jobs cleared.");
+  } else {
+    // Clear the specific profile's DB directly
+    const res = await fetch(`/api/profiles/${SLUG}/clear-jobs`, { method: "POST" });
+    const data = await res.json();
+    if (data.ok) alert("Jobs cleared.");
+    else alert(data.error || "Failed.");
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+loadProfileForm();
+loadSearchSettings();
+</script>
+</body>
+</html>

@@ -17,14 +17,15 @@ from .db import (
 )
 from .fetcher import fetch_search
 from .linkedin_fetcher import fetch_description as li_fetch_description
-from .scorer import score_job
 from .profiles import get_resumes_path
 
 app = typer.Typer(help="Job hunt automator — fetch, track, and manage job listings.")
 console = Console()
 
 
-# ── helpers ──────────────────────────────────────────────────────────────────def _age(iso: str) -> str:
+# ── helpers ──────────────────────────────────────────────────────────────────
+
+def _age(iso: str) -> str:
     try:
         dt = datetime.fromisoformat(iso)
         if dt.tzinfo is None:
@@ -53,27 +54,6 @@ def _remote_color(remote: str) -> str:
     colors = {"Remote": "green", "Hybrid": "yellow", "On-site": "red"}
     color = colors.get(remote, "white")
     return f"[{color}]{remote}[/{color}]"
-
-
-def _fmt_salary(row) -> str:
-    lo = row["salary_min"]
-    hi = row["salary_max"]
-    if lo and hi:
-        return f"${lo//1000}k–${hi//1000}k"
-    if lo:
-        return f"${lo//1000}k+"
-    return ""
-
-
-def _score_bar(score: int | None) -> str:
-    if score is None:
-        return ""
-    s = score or 0
-    if s >= 80:
-        return f"[green]{s}[/green]"
-    if s >= 60:
-        return f"[yellow]{s}[/yellow]"
-    return f"[dim]{s}[/dim]"
 
 
 def _resume_exists(company: str) -> bool:
@@ -110,12 +90,10 @@ def _notify(title: str, message: str) -> None:
 
 def _print_jobs_table(rows) -> None:
     table = Table(box=box.SIMPLE_HEAD, show_edge=False, header_style="bold cyan")
-    table.add_column("Score", no_wrap=True, justify="right")
     table.add_column("Title", max_width=34)
     table.add_column("Company", max_width=20)
     table.add_column("Remote", no_wrap=True)
     table.add_column("Location", max_width=18)
-    table.add_column("Salary", max_width=12, no_wrap=True)
     table.add_column("Exp.", max_width=12)
     table.add_column("Posted", no_wrap=True)
     table.add_column("Age", no_wrap=True)
@@ -131,12 +109,10 @@ def _print_jobs_table(rows) -> None:
         resume_cell = "[green]✓[/green]" if _resume_exists(company) else "[dim]—[/dim]"
         posted = _age(row["posted_at"]) if row["posted_at"] else "[dim]—[/dim]"
         table.add_row(
-            _score_bar(row["score"]),
             title_cell,
             company,
             _remote_color(row["remote"] or "Unknown"),
             row["location"] or "",
-            _fmt_salary(row),
             row["experience"] or "",
             posted,
             _age(row["first_seen_at"]),
@@ -195,7 +171,6 @@ def fetch() -> None:
             if is_duplicate(job.title, job.company):
                 continue
 
-            job_score = score_job(job)
             insert_job(
                 job_id=job.job_id,
                 url=job.url,
@@ -207,9 +182,6 @@ def fetch() -> None:
                 description=job.description,
                 posted_at=job.posted_at,
                 search_name=search.name,
-                salary_min=job.salary_min,
-                salary_max=job.salary_max,
-                score=job_score,
             )
             new_count += 1
 
@@ -243,7 +215,7 @@ def list_jobs(
 
 @app.command()
 def unique() -> None:
-    """Show pending listings deduplicated by company + title, sorted by fit score."""
+    """Show pending listings deduplicated by company + title."""
     init_db()
     rows = get_pending_deduped()
     if not rows:

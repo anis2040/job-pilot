@@ -67,8 +67,6 @@ def fetch_himalayas(search: SearchConfig) -> list[RawJob]:
                 experience=experience,
                 description=description[:2000],
                 posted_at=str(item["pubDate"]) if item.get("pubDate") else None,
-                salary_min=item.get("minSalary"),
-                salary_max=item.get("maxSalary"),
             ))
 
         offset += limit

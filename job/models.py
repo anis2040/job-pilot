@@ -12,5 +12,3 @@ class RawJob:
     experience: str      # e.g. "3-5 years" or ""
     description: str
     posted_at: str | None = None
-    salary_min: int | None = None
-    salary_max: int | None = None

@@ -8,7 +8,6 @@ from .db import get_job, update_description, init_db, already_seen, is_duplicate
 from .linkedin_fetcher import fetch_description as li_fetch_description
 from .config import load_config
 from .fetcher import fetch_search
-from .scorer import score_job
 from .profiles import get_profile_path, get_resumes_path
 
 _BASE = Path(__file__).parent.parent
@@ -404,14 +403,11 @@ def _run_fetch() -> None:
                     continue
                 if is_duplicate(job.title, job.company):
                     continue
-                job_score = score_job(job)
                 insert_job(
                     job_id=job.job_id, url=job.url, title=job.title,
                     company=job.company, location=job.location, remote=job.remote,
                     experience=job.experience, description=job.description,
                     posted_at=job.posted_at, search_name=search.name,
-                    salary_min=job.salary_min, salary_max=job.salary_max,
-                    score=job_score,
                 )
                 new_count += 1
 

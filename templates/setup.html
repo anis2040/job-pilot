@@ -134,25 +134,51 @@
     <div class="step-dot" id="dot-2" onclick="goStep(2)">2</div>
     <div class="step-line" id="line-2-3"></div>
     <div class="step-dot" id="dot-3" onclick="goStep(3)">3</div>
-    <div class="step-line" id="line-3-4"></div>
-    <div class="step-dot" id="dot-4" onclick="goStep(4)">4</div>
-    <div class="step-line" id="line-4-5"></div>
-    <div class="step-dot" id="dot-5" onclick="goStep(5)">5</div>
   </div>
 
-  <!-- Step 1: System check -->
+  <!-- Step 1: Prerequisites -->
   <div id="step-1" class="card">
-    <h2>System Check</h2>
-    <p class="subtitle">Checking what's already installed on your machine.</p>
-    <div id="check-list">
+    <h2>Prerequisites</h2>
+    <p class="subtitle">Let's make sure everything needed is installed on your machine.</p>
+
+    <!-- System check -->
+    <div id="check-list" style="margin-bottom:20px">
       <div class="check-row"><div class="check-icon loading" id="chk-python">…</div><div class="check-label"><strong>Python</strong><span id="chk-python-label">Required to run the app</span></div></div>
       <div class="check-row"><div class="check-icon loading" id="chk-node">…</div><div class="check-label"><strong>Node.js</strong><span id="chk-node-label">Required to install the AI CLI</span></div></div>
       <div id="node-install-block"></div>
       <div class="check-row"><div class="check-icon loading" id="chk-ai">…</div><div class="check-label"><strong>AI CLI</strong><span id="chk-ai-label">Claude Code or Gemini CLI</span></div></div>
       <div class="check-row"><div class="check-icon loading" id="chk-pdf">…</div><div class="check-label"><strong>pdflatex</strong><span id="chk-pdf-label">Required to compile resumes to PDF</span></div></div>
     </div>
+
+    <!-- AI Provider -->
+    <div style="border-top:1px solid #1e2333;padding-top:20px;margin-bottom:20px">
+      <p style="font-size:0.84rem;font-weight:600;color:#e2e8f0;margin-bottom:6px">Choose Your AI</p>
+      <p style="font-size:0.78rem;color:#64748b;margin-bottom:12px">The AI generates your tailored resumes and cover letters.</p>
+      <div id="node-warning"></div>
+      <div class="provider-grid">
+        <div class="provider-card" id="card-claude" onclick="selectProvider('claude')">
+          <span class="badge-login">Login required</span>
+          <h3>Claude</h3>
+          <p>By Anthropic. Free tier available. Login with your Anthropic account — no API key needed.</p>
+        </div>
+        <div class="provider-card" id="card-gemini" onclick="selectProvider('gemini')">
+          <span class="badge-free">Free API key</span>
+          <h3>Gemini</h3>
+          <p>By Google. Free API key from Google AI Studio. No credit card required.</p>
+        </div>
+      </div>
+      <div id="provider-action" style="margin-top:12px;display:none"></div>
+    </div>
+
+    <!-- PDF Compiler -->
+    <div style="border-top:1px solid #1e2333;padding-top:20px">
+      <p style="font-size:0.84rem;font-weight:600;color:#e2e8f0;margin-bottom:6px">PDF Compiler</p>
+      <p style="font-size:0.78rem;color:#64748b;margin-bottom:12px">Resumes are generated as LaTeX and compiled to PDF — <strong style="color:#e2e8f0">pdflatex</strong> handles this.</p>
+      <div id="pdf-status"></div>
+    </div>
+
     <div class="footer-nav">
-      <span class="step-hint">Step 1 of 5</span>
+      <span class="step-hint">Step 1 of 3</span>
       <div style="display:flex;gap:8px">
         <button class="btn btn-ghost" onclick="goStep(2)">Skip →</button>
         <button class="btn btn-primary" id="btn-next-1" onclick="goStep(2)" disabled>Continue →</button>
@@ -160,48 +186,8 @@
     </div>
   </div>
 
-  <!-- Step 2: AI provider -->
+  <!-- Step 2: Profile -->
   <div id="step-2" class="card" style="display:none">
-    <h2>Choose Your AI</h2>
-    <p class="subtitle">The AI generates your tailored resumes and cover letters. Both work great — pick the one you prefer.</p>
-    <div id="node-warning"></div>
-    <div class="provider-grid">
-      <div class="provider-card" id="card-claude" onclick="selectProvider('claude')">
-        <span class="badge-login">Login required</span>
-        <h3>Claude</h3>
-        <p>By Anthropic. Free tier available. Login with your Anthropic account — no API key needed.</p>
-      </div>
-      <div class="provider-card" id="card-gemini" onclick="selectProvider('gemini')">
-        <span class="badge-free">Free API key</span>
-        <h3>Gemini</h3>
-        <p>By Google. Free API key from Google AI Studio. No credit card required.</p>
-      </div>
-    </div>
-    <div id="provider-action" style="margin-top:16px;display:none"></div>
-    <div class="footer-nav">
-      <button class="btn btn-ghost" onclick="goStep(1)">← Back</button>
-      <span class="step-hint">Step 2 of 5</span>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-ghost" onclick="goStep(3)">Skip →</button>
-        <button class="btn btn-primary" id="btn-next-2" onclick="goStep(3)" disabled>Continue →</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Step 3: pdflatex -->
-  <div id="step-3" class="card" style="display:none">
-    <h2>PDF Compiler</h2>
-    <p class="subtitle">Resumes and cover letters are generated as LaTeX and compiled to PDF. <strong style="color:#e2e8f0">pdflatex</strong> handles the compilation.</p>
-    <div id="pdf-status"></div>
-    <div class="footer-nav">
-      <button class="btn btn-ghost" onclick="goStep(2)">← Back</button>
-      <span class="step-hint">Step 3 of 5</span>
-      <button class="btn btn-primary" id="btn-next-3" onclick="goStep(4)">Continue →</button>
-    </div>
-  </div>
-
-  <!-- Step 4: Profile -->
-  <div id="step-4" class="card" style="display:none">
     <h2>Your Profile</h2>
     <p class="subtitle">Fill in your details below, or upload your existing resume to autofill the form.</p>
 
@@ -277,17 +263,81 @@
 
     <div id="profile-alert"></div>
     <div class="footer-nav" style="margin-top:14px">
-      <button class="btn btn-ghost" onclick="goStep(3)">← Back</button>
-      <span class="step-hint">Step 4 of 5</span>
+      <button class="btn btn-ghost" onclick="goStep(1)">← Back</button>
+      <span class="step-hint">Step 2 of 3</span>
       <div style="display:flex;gap:8px">
-        <button class="btn btn-ghost" onclick="goStep(5)">Skip →</button>
-        <button class="btn btn-primary" id="btn-next-4" onclick="saveProfile()">Save & Continue →</button>
+        <button class="btn btn-ghost" onclick="goStep(3)">Skip →</button>
+        <button class="btn btn-primary" id="btn-next-2" onclick="saveProfile()">Save & Continue →</button>
       </div>
     </div>
   </div>
 
-  <!-- Step 5: Done -->
-  <div id="step-5" class="card" style="display:none">
+  <!-- Step 3: Done -->
+  <div id="step-3" class="card" style="display:none">
+    <div style="text-align:center;padding:24px;color:#475569">Loading…</div>
+  </div>
+</div>
+
+<script src="/static/profile-form.js"></script>
+<script>
+let status = {};
+let selectedProvider = null;
+let providerReady = false;
+async function refreshAndRenderDoneStep() {
+  try {
+    const res = await fetch("/api/setup/status");
+    const fresh = await res.json();
+    status.has_profile = fresh.has_profile;
+  } catch (e) {
+    // Network error — fall back to cached status
+  }
+  renderDoneStep();
+}
+
+function renderDoneStep() {
+  const card = document.getElementById("step-3");
+  const profileReady = status.has_profile;
+  if (!profileReady) {
+    card.innerHTML = `
+      <div class="success-icon">👋</div>
+      <h2 style="text-align:center">Almost there!</h2>
+      <p class="subtitle" style="text-align:center;margin-bottom:20px">You can start browsing jobs right now. Just tell us what you're looking for.</p>
+
+      <div style="background:#0f1117;border:1px solid #2d3748;border-radius:8px;padding:16px;margin-bottom:16px">
+        <div class="field-row cols-2" style="margin-bottom:10px">
+          <div class="field">
+            <label>Job Title</label>
+            <input id="quick-title" placeholder="e.g. Software Engineer" value="">
+          </div>
+          <div class="field">
+            <label>Location</label>
+            <input id="quick-location" placeholder="e.g. Germany, United States" value="">
+          </div>
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400;color:#e2e8f0">
+            <input type="checkbox" id="quick-remote" checked style="accent-color:#3b82f6;width:14px;height:14px">
+            Remote jobs only
+          </label>
+        </div>
+      </div>
+
+      <div style="background:#1e2333;border-radius:8px;padding:12px 14px;margin-bottom:16px">
+        <p style="font-size:0.78rem;color:#64748b;margin-bottom:6px">Without a profile:</p>
+        <ul style="list-style:none;display:flex;flex-direction:column;gap:4px">
+          <li style="font-size:0.78rem;color:#4ade80">✓ Fetch and browse job listings</li>
+          <li style="font-size:0.78rem;color:#475569">✗ Build CV or cover letter (needs profile)</li>
+        </ul>
+      </div>
+
+      <div id="quick-alert"></div>
+      <div style="text-align:center;display:flex;flex-direction:column;gap:10px;align-items:center">
+        <button class="btn btn-primary" onclick="quickFetchJobs()">Fetch jobs →</button>
+        <button class="btn btn-ghost" onclick="goStep(2)">← Set up my full profile instead</button>
+      </div>`;
+    return;
+  }
+  card.innerHTML = `
     <div class="success-icon">🎉</div>
     <h2 style="text-align:center">You're all set!</h2>
     <p class="subtitle" style="text-align:center">Everything is configured. Here's what you can do now:</p>
@@ -303,144 +353,49 @@
     <div style="text-align:center;margin-top:10px">
       <button class="btn btn-ghost" onclick="window.location='/?fetch=1'">Skip — I'll configure manually →</button>
     </div>
-    <div id="configure-status" style="margin-top:14px;text-align:center"></div>
-  </div>
-</div>
-
-<script>
-let status = {};
-let selectedProvider = null;
-let providerReady = false;
-
-// ── Autofill ──────────────────────────────────────────────────────────────────
-
-async function autofillFromResume(input) {
-  const file = input.files[0];
-  if (!file) return;
-  const status = document.getElementById("autofill-status");
-  status.innerHTML = `<span class="spinner" style="border-color:#60a5fa;border-top-color:transparent"></span> Extracting…`;
-
-  const fd = new FormData();
-  fd.append("file", file);
-
-  try {
-    const res = await fetch("/api/setup/parse-resume", { method: "POST", body: fd });
-    const data = await res.json();
-    if (!data.ok) {
-      status.innerHTML = `<span style="color:#f87171">⚠ ${data.error}</span>`;
-      return;
-    }
-    fillForm(data.data);
-    status.innerHTML = `<span style="color:#4ade80">✓ Form filled from ${file.name}</span>`;
-  } catch (e) {
-    status.innerHTML = `<span style="color:#f87171">⚠ Upload failed. Try again.</span>`;
-  }
-  input.value = "";
+    <div id="configure-status" style="margin-top:14px;text-align:center"></div>`;
 }
 
-function fillForm(d) {
-  const set = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
-  set("p-name",     d.name);
-  set("p-email",    d.email);
-  set("p-phone",    d.phone);
-  set("p-location", d.location);
-  set("p-linkedin", d.linkedin);
-  set("p-summary",  d.summary);
+async function quickFetchJobs() {
+  const title = (document.getElementById("quick-title")?.value || "").trim();
+  const location = (document.getElementById("quick-location")?.value || "").trim();
+  const remote = document.getElementById("quick-remote")?.checked ?? true;
+  const alertEl = document.getElementById("quick-alert");
 
-  // Work auth — match to dropdown options
-  if (d.auth) {
-    const sel = document.getElementById("p-auth");
-    if (sel) {
-      const lower = d.auth.toLowerCase();
-      if (lower.includes("citizen"))     sel.value = "US Citizen — no sponsorship required";
-      else if (lower.includes("green"))  sel.value = "Green Card holder — legally authorized to work in the U.S.";
-      else if (lower.includes("h-1b") || lower.includes("sponsor")) sel.value = "Requires H-1B sponsorship";
-      else sel.value = "Authorized to work in the US · No sponsorship required";
-    }
+  if (!title) {
+    if (alertEl) alertEl.innerHTML = `<div class="alert alert-error" style="margin-bottom:10px">Please enter a job title.</div>`;
+    document.getElementById("quick-title")?.focus();
+    return;
+  }
+  if (!location) {
+    if (alertEl) alertEl.innerHTML = `<div class="alert alert-error" style="margin-bottom:10px">Please enter a location.</div>`;
+    document.getElementById("quick-location")?.focus();
+    return;
   }
 
-  // Competencies
-  const compList = document.getElementById("competencies-list");
-  if (compList && d.competencies?.length) {
-    compList.innerHTML = "";
-    d.competencies.forEach(c => addRow("competencies-list", "competency-row", "e.g. Agile / SAFe Methodologies", c));
-  }
+  const config = {
+    searches: [
+      { name: `LinkedIn - ${title}`, source: "linkedin", query: title, location, max_pages: 3, remote },
+      { name: `Jobicy - ${title}`, source: "jobicy", query: title, location, max_pages: 3, remote },
+      { name: `Himalayas - ${title}`, source: "himalayas", query: title, location, max_pages: 2, remote },
+      { name: `Greenhouse - ${title}`, source: "greenhouse", query: title, location, max_pages: 3, remote },
+    ],
+    title_filter: [title.toLowerCase()],
+    blacklist: ["internship", "junior", "unpaid"],
+    company_blacklist: [],
+  };
 
-  // Experience
-  const expList = document.getElementById("exp-list");
-  if (expList && d.experience?.length) {
-    expList.innerHTML = "";
-    d.experience.forEach(exp => {
-      addExpBlock();
-      const block = expList.lastElementChild;
-      const q = (cls) => block.querySelector(cls);
-      if (q(".exp-title"))    q(".exp-title").value    = exp.title    || "";
-      if (q(".exp-company"))  q(".exp-company").value  = exp.company  || "";
-      if (q(".exp-location")) q(".exp-location").value = exp.location || "";
-      if (q(".exp-start"))    q(".exp-start").value    = exp.start    || "";
-      if (q(".exp-end"))      q(".exp-end").value      = exp.end      || "";
-      // Bullets
-      const bulletList = block.querySelector(".exp-bullets");
-      const bulletBtn  = block.querySelectorAll(".btn-add-row")[0];
-      if (bulletList && exp.bullets?.length) {
-        bulletList.innerHTML = "";
-        exp.bullets.forEach(b => {
-          const row = document.createElement("div");
-          row.className = "dynamic-row";
-          row.innerHTML = `<input type="text" value="${b.replace(/"/g,'&quot;')}"><button class="btn-icon" onclick="this.closest('.dynamic-row').remove()">✕</button>`;
-          bulletList.appendChild(row);
-        });
-      }
-      // Projects
-      const projList = block.querySelector(".exp-projects");
-      if (projList && exp.projects?.length) {
-        projList.innerHTML = "";
-        exp.projects.forEach(p => {
-          const row = document.createElement("div");
-          row.className = "dynamic-row";
-          row.innerHTML = `<div style="flex:1;display:flex;gap:6px">
-            <input style="width:140px;flex-shrink:0" type="text" value="${(p.name||'').replace(/"/g,'&quot;')}">
-            <input type="text" value="${(p.desc||'').replace(/"/g,'&quot;')}">
-          </div><button class="btn-icon" onclick="this.closest('.dynamic-row').remove()">✕</button>`;
-          projList.appendChild(row);
-        });
-      }
-    });
+  const res = await fetch("/api/config", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(config),
+  });
+  const data = await res.json();
+  if (data.ok) {
+    window.location.href = "/?fetch=1";
+  } else {
+    if (alertEl) alertEl.innerHTML = `<div class="alert alert-error" style="margin-bottom:10px">${data.error}</div>`;
   }
-
-  // Education
-  const eduList = document.getElementById("edu-list");
-  if (eduList && d.education?.length) {
-    eduList.innerHTML = "";
-    d.education.forEach(edu => {
-      addEduRow();
-      const block = eduList.lastElementChild;
-      const q = (cls) => block.querySelector(cls);
-      if (q(".edu-degree")) q(".edu-degree").value = edu.degree || "";
-      if (q(".edu-school")) q(".edu-school").value = edu.school || "";
-      if (q(".edu-year"))   q(".edu-year").value   = edu.year   || "";
-      if (q(".edu-loc"))    q(".edu-loc").value    = edu.location || "";
-    });
-  }
-
-  // Certifications
-  const certList = document.getElementById("certs-list");
-  if (certList && d.certifications?.length) {
-    certList.innerHTML = "";
-    d.certifications.forEach(c => addRow("certs-list", "cert-row", "e.g. PSPO I, Scrum.org", c));
-  }
-}
-
-// Patched addRow to support initial value
-const _origAddRow = addRow;
-function addRow(listId, cls, placeholder, value = "") {
-  const list = document.getElementById(listId);
-  const row = document.createElement("div");
-  row.className = "dynamic-row " + cls;
-  row.innerHTML = `<input type="text" placeholder="${placeholder}" value="${value.replace(/"/g,'&quot;')}">
-    <button class="btn-icon" onclick="this.closest('.dynamic-row').remove()" title="Remove">✕</button>`;
-  list.appendChild(row);
-  if (!value) row.querySelector("input").focus();
 }
 
 async function configureSearches() {
@@ -559,18 +514,18 @@ async function installNode(cmd) {
 }
 
 function goStep(n) {
-  for (let i = 1; i <= 5; i++) {
+  for (let i = 1; i <= 3; i++) {
     document.getElementById(`step-${i}`).style.display = i === n ? "block" : "none";
     const dot = document.getElementById(`dot-${i}`);
     dot.className = "step-dot" + (i < n ? " done" : i === n ? " active" : "");
-    if (i < 5) {
+    if (i < 3) {
       const line = document.getElementById(`line-${i}-${i+1}`);
-      line.className = "step-line" + (i < n ? " done" : "");
+      if (line) line.className = "step-line" + (i < n ? " done" : "");
     }
   }
-  if (n === 2) renderNodeWarning();
-  if (n === 3) renderPdfStep();
-  if (n === 4) initProfileForm();
+  if (n === 1) renderPdfStep();
+  if (n === 2) initProfileForm();
+  if (n === 3) refreshAndRenderDoneStep();
 }
 
 // ── Step 2: Provider ──────────────────────────────────────────────────────────
@@ -589,7 +544,7 @@ function renderNodeWarning() {
 function selectProvider(p) {
   selectedProvider = p;
   providerReady = false;
-  document.getElementById("btn-next-2").disabled = true;
+  document.getElementById("btn-next-1").disabled = true;
   document.getElementById("card-claude").classList.toggle("selected", p === "claude");
   document.getElementById("card-gemini").classList.toggle("selected", p === "gemini");
 
@@ -663,27 +618,41 @@ async function installCLI(provider) {
 }
 
 async function saveGeminiKey() {
-  const key = document.getElementById("gemini-key-input").value.trim();
-  if (!key || key.startsWith("•")) { markProviderReady(); return; }
-  const res = await fetch("/api/setup/save-gemini-key", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({key})
-  });
-  const data = await res.json();
-  const alert = document.getElementById("key-alert");
-  if (data.ok) {
-    alert.innerHTML = `<div class="alert alert-ok" style="margin-top:8px">✓ API key saved.</div>`;
-    status.gemini_key_set = true;
-    if (status.has_gemini) markProviderReady();
-  } else {
-    alert.innerHTML = `<div class="alert alert-error" style="margin-top:8px">${data.error}</div>`;
+  const input = document.getElementById("gemini-key-input");
+  const key = input ? input.value.trim() : "";
+  const alertEl = document.getElementById("key-alert");
+
+  // Already saved (placeholder dots shown) — just mark ready
+  if (!key || key.startsWith("•")) {
+    if (alertEl) alertEl.innerHTML = `<div class="alert alert-ok" style="margin-top:8px">✓ Using previously saved API key.</div>`;
+    markProviderReady();
+    return;
+  }
+
+  if (alertEl) alertEl.innerHTML = `<span class="spinner"></span> Saving…`;
+
+  try {
+    const res = await fetch("/api/setup/save-gemini-key", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({key})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      if (alertEl) alertEl.innerHTML = `<div class="alert alert-ok" style="margin-top:8px">✓ API key saved.</div>`;
+      status.gemini_key_set = true;
+      markProviderReady();
+    } else {
+      if (alertEl) alertEl.innerHTML = `<div class="alert alert-error" style="margin-top:8px">${data.error}</div>`;
+    }
+  } catch (e) {
+    if (alertEl) alertEl.innerHTML = `<div class="alert alert-error" style="margin-top:8px">Request failed. Try again.</div>`;
   }
 }
 
 function markProviderReady() {
   providerReady = true;
-  document.getElementById("btn-next-2").disabled = false;
+  document.getElementById("btn-next-1").disabled = false;
 }
 
 // ── Step 3: pdflatex ──────────────────────────────────────────────────────────
@@ -757,187 +726,6 @@ async function installPdflatex() {
   }
 }
 
-// ── Step 4: Profile form ──────────────────────────────────────────────────────
-
-function addRow(listId, cls, placeholder) {
-  const list = document.getElementById(listId);
-  const row = document.createElement("div");
-  row.className = "dynamic-row " + cls;
-  row.innerHTML = `<input type="text" placeholder="${placeholder}">
-    <button class="btn-icon" onclick="this.closest('.dynamic-row').remove()" title="Remove">✕</button>`;
-  list.appendChild(row);
-  row.querySelector("input").focus();
-}
-
-function addExpBlock() {
-  const list = document.getElementById("exp-list");
-  const idx = list.children.length + 1;
-  const block = document.createElement("div");
-  block.className = "exp-block";
-  block.innerHTML = `
-    <div class="exp-block-header">
-      <span>Role ${idx}</span>
-      <button class="btn-icon" onclick="this.closest('.exp-block').remove()">✕</button>
-    </div>
-    <div class="field-row cols-2">
-      <div class="field"><label>Job Title *</label><input class="exp-title" placeholder="Product Owner"></div>
-      <div class="field"><label>Company *</label><input class="exp-company" placeholder="Acme Corp"></div>
-    </div>
-    <div class="field-row cols-3">
-      <div class="field"><label>Location</label><input class="exp-location" placeholder="Tunis, Tunisia"></div>
-      <div class="field"><label>Start Date</label><input class="exp-start" placeholder="Oct 2020"></div>
-      <div class="field"><label>End Date</label><input class="exp-end" placeholder="Present"></div>
-    </div>
-    <div class="sublabel">Key bullets (what you did and the outcome)</div>
-    <div class="dynamic-list exp-bullets"></div>
-    <button class="btn-add-row" onclick="addBullet(this)" style="margin-bottom:10px">+ Add bullet</button>
-    <div class="sublabel">Key Projects (optional)</div>
-    <div class="dynamic-list exp-projects"></div>
-    <button class="btn-add-row" onclick="addProject(this)">+ Add project</button>
-  `;
-  list.appendChild(block);
-  addBullet(block.querySelectorAll(".btn-add-row")[0]);
-}
-
-function addBullet(btn) {
-  const list = btn.previousElementSibling;
-  const row = document.createElement("div");
-  row.className = "dynamic-row";
-  row.innerHTML = `<input type="text" placeholder="Led delivery of X, resulting in Y">
-    <button class="btn-icon" onclick="this.closest('.dynamic-row').remove()">✕</button>`;
-  list.appendChild(row);
-}
-
-function addProject(btn) {
-  const list = btn.previousElementSibling;
-  const row = document.createElement("div");
-  row.className = "dynamic-row";
-  row.innerHTML = `
-    <div style="flex:1;display:flex;gap:6px">
-      <input style="width:140px;flex-shrink:0" type="text" placeholder="Project Name">
-      <input type="text" placeholder="What it was, your role, and the outcome">
-    </div>
-    <button class="btn-icon" onclick="this.closest('.dynamic-row').remove()">✕</button>`;
-  list.appendChild(row);
-}
-
-function addEduRow() {
-  const list = document.getElementById("edu-list");
-  const row = document.createElement("div");
-  row.className = "exp-block";
-  row.innerHTML = `
-    <div class="exp-block-header">
-      <span>Degree</span>
-      <button class="btn-icon" onclick="this.closest('.exp-block').remove()">✕</button>
-    </div>
-    <div class="field-row cols-2">
-      <div class="field"><label>Full Degree Name</label><input class="edu-degree" placeholder="Master of Science in Information Systems Management"></div>
-      <div class="field"><label>Institution</label><input class="edu-school" placeholder="University Name"></div>
-    </div>
-    <div class="field-row cols-2">
-      <div class="field"><label>Year</label><input class="edu-year" placeholder="2024"></div>
-      <div class="field"><label>Location</label><input class="edu-loc" placeholder="City, Country"></div>
-    </div>`;
-  list.appendChild(row);
-}
-
-function initProfileForm() {
-  if (!document.getElementById("competencies-list").children.length) {
-    for (let i = 0; i < 3; i++) addRow("competencies-list", "competency-row", "e.g. Agile / SAFe Methodologies");
-  }
-  if (!document.getElementById("exp-list").children.length) addExpBlock();
-  if (!document.getElementById("edu-list").children.length) addEduRow();
-}
-
-function buildProfileMd() {
-  const v = id => (document.getElementById(id)?.value || "").trim();
-  const name = v("p-name");
-  const lines = [];
-
-  lines.push(`# ${name || "Your Name"} — Full Profile`, "");
-  lines.push("## Contact");
-  if (v("p-location")) lines.push(`- Location: ${v("p-location")}`);
-  if (v("p-phone"))    lines.push(`- Phone: ${v("p-phone")}`);
-  if (v("p-email"))    lines.push(`- Email: ${v("p-email")}`);
-  if (v("p-linkedin")) lines.push(`- LinkedIn: ${v("p-linkedin")}`);
-  if (v("p-auth"))     lines.push(`- Work authorization: ${v("p-auth")}`);
-  lines.push("", "---", "");
-
-  const summary = v("p-summary");
-  if (summary) { lines.push("## Professional Summary", "", summary, "", "---", ""); }
-
-  const competencies = [...document.querySelectorAll(".competency-row input")]
-    .map(i => i.value.trim()).filter(Boolean);
-  if (competencies.length) {
-    lines.push("## Core Competencies", "");
-    competencies.forEach(c => lines.push(`- ${c}`));
-    lines.push("", "---", "");
-  }
-
-  const expBlocks = document.querySelectorAll("#exp-list .exp-block");
-  if (expBlocks.length) {
-    lines.push("## Professional Experience", "");
-    expBlocks.forEach(b => {
-      const title    = b.querySelector(".exp-title")?.value.trim() || "";
-      const company  = b.querySelector(".exp-company")?.value.trim() || "";
-      const location = b.querySelector(".exp-location")?.value.trim() || "";
-      const start    = b.querySelector(".exp-start")?.value.trim() || "";
-      const end      = b.querySelector(".exp-end")?.value.trim() || "";
-      if (!title && !company) return;
-      lines.push(`### ${title} — ${company}`);
-      if (location) lines.push(`**Location:** ${location}`);
-      if (start)    lines.push(`**Dates:** ${start} – ${end || "Present"}`);
-      lines.push("");
-      const bullets = [...b.querySelectorAll(".exp-bullets .dynamic-row input")]
-        .map(i => i.value.trim()).filter(Boolean);
-      if (bullets.length) {
-        lines.push("**Bullets:**");
-        bullets.forEach(bl => lines.push(`- ${bl}`));
-        lines.push("");
-      }
-      const projects = [...b.querySelectorAll(".exp-projects .dynamic-row")];
-      if (projects.length) {
-        lines.push("**Key Projects:**");
-        projects.forEach(p => {
-          const inputs = p.querySelectorAll("input");
-          const pname = inputs[0]?.value.trim();
-          const pdesc = inputs[1]?.value.trim();
-          if (pname || pdesc) lines.push(`- **${pname || "Project"}:** ${pdesc || ""}`);
-        });
-        lines.push("");
-      }
-    });
-    lines.push("---", "");
-  }
-
-  const eduBlocks = document.querySelectorAll("#edu-list .exp-block");
-  if (eduBlocks.length) {
-    lines.push("## Education", "");
-    eduBlocks.forEach(b => {
-      const degree = b.querySelector(".edu-degree")?.value.trim() || "";
-      const school = b.querySelector(".edu-school")?.value.trim() || "";
-      const year   = b.querySelector(".edu-year")?.value.trim() || "";
-      const loc    = b.querySelector(".edu-loc")?.value.trim() || "";
-      if (!degree) return;
-      lines.push(`### ${degree}`);
-      if (school) lines.push(`- **Institution:** ${school}`);
-      if (loc)    lines.push(`- **Location:** ${loc}`);
-      if (year)   lines.push(`- **Year conferred:** ${year}`);
-      lines.push("");
-    });
-    lines.push("---", "");
-  }
-
-  const certs = [...document.querySelectorAll(".cert-row input")]
-    .map(i => i.value.trim()).filter(Boolean);
-  if (certs.length) {
-    lines.push("## Certifications", "");
-    certs.forEach(c => lines.push(`- ${c}`));
-  }
-
-  return lines.join("\n");
-}
-
 async function saveProfile() {
   const alert = document.getElementById("profile-alert");
   const name  = (document.getElementById("p-name")?.value || "").trim();
@@ -962,7 +750,8 @@ async function saveProfile() {
   });
   const data = await res.json();
   if (data.ok) {
-    goStep(5);
+    status.has_profile = true;
+    goStep(3);
   } else {
     alert.innerHTML = `<div class="alert alert-error" style="margin-top:8px">${data.error}</div>`;
   }

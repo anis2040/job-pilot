@@ -28,10 +28,7 @@ def init_db() -> None:
                 first_seen_at     TEXT NOT NULL,
                 status            TEXT NOT NULL DEFAULT 'pending',
                 status_updated_at TEXT,
-                search_name       TEXT,
-                salary_min        INTEGER,
-                salary_max        INTEGER,
-                score             INTEGER DEFAULT 0
+                search_name       TEXT
             )
         """)
         con.execute("""
@@ -50,16 +47,6 @@ def init_db() -> None:
                 new_count    INTEGER DEFAULT 0
             )
         """)
-        # Migrations for existing DBs
-        for col, definition in [
-            ("salary_min", "INTEGER"),
-            ("salary_max", "INTEGER"),
-            ("score",      "INTEGER DEFAULT 0"),
-        ]:
-            try:
-                con.execute(f"ALTER TABLE jobs ADD COLUMN {col} {definition}")
-            except Exception:
-                pass
         con.commit()
 
 
@@ -97,9 +84,6 @@ def insert_job(
     description: str,
     posted_at: str | None,
     search_name: str,
-    salary_min: int | None = None,
-    salary_max: int | None = None,
-    score: int = 0,
 ) -> None:
     now = datetime.now(timezone.utc).isoformat()
     with _connect() as con:
@@ -107,13 +91,11 @@ def insert_job(
             """
             INSERT OR IGNORE INTO jobs
                 (job_id, url, title, company, location, remote, experience,
-                 description, posted_at, first_seen_at, status, search_name,
-                 salary_min, salary_max, score)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)
+                 description, posted_at, first_seen_at, status, search_name)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
             """,
             (job_id, url, title, company, location, remote, experience,
-             description, posted_at, now, search_name,
-             salary_min, salary_max, score),
+             description, posted_at, now, search_name),
         )
         con.commit()
 

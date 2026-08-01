@@ -52,11 +52,6 @@
   td { padding: 8px 10px; border-bottom: 1px solid #1a1f2e; vertical-align: middle; }
   tr:hover td { background: #141824; }
 
-  .score { font-weight: 700; text-align: center; border-radius: 4px; padding: 2px 6px; font-size: 0.75rem; }
-  .score-high { color: #4ade80; }
-  .score-mid  { color: #fbbf24; }
-  .score-low  { color: #64748b; }
-
   .remote-remote  { color: #4ade80; }
   .remote-hybrid  { color: #fbbf24; }
   .remote-onsite  { color: #f87171; }
@@ -64,7 +59,6 @@
   .title-link { color: #e2e8f0; text-decoration: none; }
   .title-link:hover { color: #60a5fa; text-decoration: underline; }
 
-  .salary { color: #a78bfa; font-weight: 600; }
   .source-badge { font-size: 0.7rem; font-weight: 600; color: #94a3b8; background: #1e2333; padding: 2px 7px; border-radius: 99px; white-space: nowrap; }
   .empty { text-align: center; color: #475569; padding: 48px; }
 
@@ -147,7 +141,7 @@
         <div class="profile-menu-header">Switch profile</div>
         <div id="profile-menu-list"></div>
         <div class="profile-menu-divider"></div>
-        <a href="/setup" class="profile-menu-item">+ Add new profile</a>
+        <button class="profile-menu-item" onclick="addNewProfile()">+ Add new profile</button>
         <a href="/manage-profiles" class="profile-menu-item">Manage profiles</a>
       </div>
     </div>
@@ -217,13 +211,11 @@
   <table id="jobs-table">
     <thead>
       <tr>
-        <th class="sortable" data-key="score" onclick="sortBy('score')">Score <span class="sort-icon">↕</span></th>
         <th class="sortable" data-key="title" onclick="sortBy('title')">Title <span class="sort-icon">↕</span></th>
         <th class="sortable" data-key="company" onclick="sortBy('company')">Company <span class="sort-icon">↕</span></th>
         <th class="sortable" data-key="source" onclick="sortBy('source')">Source <span class="sort-icon">↕</span></th>
         <th class="sortable" data-key="remote" onclick="sortBy('remote')">Remote <span class="sort-icon">↕</span></th>
         <th>Location</th>
-        <th class="sortable" data-key="salary_raw" onclick="sortBy('salary_raw')">Salary <span class="sort-icon">↕</span></th>
         <th>Exp.</th>
         <th>Posted</th>
         <th>Age</th>
@@ -233,7 +225,7 @@
       </tr>
     </thead>
     <tbody id="jobs-body">
-      <tr><td colspan="12" class="empty">Loading…</td></tr>
+      <tr><td colspan="11" class="empty">Loading…</td></tr>
     </tbody>
   </table>
 </div>
@@ -241,8 +233,8 @@
 <script>
 let currentStatus = "pending";
 let jobs = [];
-let sortKey = "score";
-let sortDir = -1; // -1 = desc, 1 = asc
+let sortKey = "title";
+let sortDir = 1;
 
 function switchTab(el) {
   document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
@@ -258,12 +250,6 @@ function remoteClass(r) {
   return "remote-onsite";
 }
 
-function scoreClass(s) {
-  if (s >= 80) return "score-high";
-  if (s >= 60) return "score-mid";
-  return "score-low";
-}
-
 // ── Sort ──────────────────────────────────────────────────────────────────────
 
 function sortBy(key) {
@@ -271,7 +257,7 @@ function sortBy(key) {
     sortDir *= -1;
   } else {
     sortKey = key;
-    sortDir = key === "score" ? -1 : 1;
+    sortDir = 1;
   }
   document.querySelectorAll("th.sortable").forEach(th => {
     th.classList.remove("sort-asc", "sort-desc");
@@ -288,8 +274,6 @@ function sortBy(key) {
 }
 
 function jobSortValue(job, key) {
-  if (key === "score") return job.score || 0;
-  if (key === "salary_raw") return job.salary_min || 0;
   return (job[key] || "").toLowerCase();
 }
 
@@ -375,18 +359,16 @@ function actionsCell(job) {
 function renderJobs(data) {
   const tbody = document.getElementById("jobs-body");
   if (!data.length) {
-    tbody.innerHTML = `<tr><td colspan="13" class="empty">No ${currentStatus} listings.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="empty">No ${currentStatus} listings.</td></tr>`;
     return;
   }
   tbody.innerHTML = data.map(job => `
     <tr id="row-${job.job_id}">
-      <td><span class="score ${scoreClass(job.score)}">${job.score}</span></td>
       <td><a class="title-link" href="${job.url}" target="_blank" title="${job.title}">${job.title.length > 42 ? job.title.slice(0,42)+'…' : job.title}</a></td>
       <td>${job.company}</td>
       <td><span class="source-badge">${job.source}</span></td>
       <td><span class="${remoteClass(job.remote)}">${job.remote}</span></td>
       <td>${job.location}</td>
-      <td class="salary">${job.salary}</td>
       <td>${job.experience}</td>
       <td>${job.posted || '<span style="color:#475569">—</span>'}</td>
       <td>${job.age}</td>
@@ -515,7 +497,7 @@ function setTableFetching(msg) {
   const tbody = document.getElementById("jobs-body");
   // Only replace if the table is currently empty or already showing a fetch indicator
   if (!tbody.querySelector("tr[data-fetch]") && tbody.querySelectorAll("tr[id^='row-']").length === 0) {
-    tbody.innerHTML = `<tr data-fetch="1"><td colspan="13" class="empty">
+    tbody.innerHTML = `<tr data-fetch="1"><td colspan="11" class="empty">
       <span class="spinner" style="border-color:#3b82f6;border-top-color:transparent;width:16px;height:16px;margin-right:8px"></span>
       <span id="fetch-table-msg">${msg}</span>
     </td></tr>`;
@@ -647,12 +629,22 @@ async function saveSettings() {
     const notice = document.getElementById("save-notice");
     notice.style.display = "inline";
     setTimeout(() => notice.style.display = "none", 2500);
+    // Clear stale jobs and fetch with the new settings
+    await fetch("/api/jobs/clear", { method: "POST" });
+    setTableFetching("Fetching with new settings…");
+    runFetch();
   } else {
     alert("Save failed: " + (data.error || "unknown error"));
   }
 }
 
 // ── Profile dropdown ─────────────────────────────────────────────────────────
+
+async function addNewProfile() {
+  const res = await fetch("/api/profiles/new", { method: "POST" });
+  const data = await res.json();
+  if (data.ok) window.location.href = "/setup";
+}
 
 async function toggleProfileMenu(e) {
   e.stopPropagation();
@@ -677,14 +669,12 @@ document.addEventListener("click", () => {
 });
 
 async function switchProfile(slug) {
-  await fetch(`/api/profiles/switch/${slug}`, { method: "POST" });
-  window.location.reload();
+  const res = await fetch(`/api/profiles/switch/${slug}`, { method: "POST" });
+  const data = await res.json();
+  window.location.href = data.empty ? "/?fetch=1" : "/";
 }
 
 // ── Sort init ─────────────────────────────────────────────────────────────────
-document.querySelector('th[data-key="score"]').classList.add("sort-desc");
-document.querySelector('th[data-key="score"] .sort-icon').textContent = "↓";
-
 loadJobs();
 setInterval(loadJobs, 30000);
 
