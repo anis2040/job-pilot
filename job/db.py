@@ -227,3 +227,10 @@ def stats() -> dict[str, int]:
             "SELECT status, COUNT(*) as cnt FROM jobs GROUP BY status"
         ).fetchall()
         return {r["status"]: r["cnt"] for r in rows}
+
+
+def clear_all_jobs() -> None:
+    with _connect() as con:
+        con.execute("DELETE FROM jobs")
+        con.execute("DELETE FROM filter_log")
+        con.execute("DELETE FROM fetch_log")

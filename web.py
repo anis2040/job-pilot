@@ -7,8 +7,8 @@ from pathlib import Path
 from datetime import datetime, timezone
 from flask import Flask, render_template, jsonify, request, send_file, abort, redirect, url_for
 
-from job.db import init_db, get_pending_deduped, get_jobs_by_status, update_status, get_job, stats, last_fetch_at
-from job.web_api import trigger_resume, get_task_status, trigger_cover_letter, get_cl_task_status, trigger_fetch, get_fetch_status
+from job.db import init_db, get_pending_deduped, get_jobs_by_status, update_status, get_job, stats, last_fetch_at, clear_all_jobs
+from job.web_api import trigger_resume, get_task_status, trigger_cover_letter, get_cl_task_status, trigger_fetch, get_fetch_status, clear_task_state
 from job.web_api import _candidate_name_slug
 
 BASE = Path(__file__).parent
@@ -305,6 +305,124 @@ def api_setup_status():
     })
 
 
+@app.route("/api/setup/suggest-config", methods=["POST"])
+def api_setup_suggest_config():
+    if not PROFILE_PATH.exists():
+        return jsonify({"ok": False, "error": "Profile not found. Complete Step 4 first."})
+
+    profile_text = PROFILE_PATH.read_text()
+
+    prompt = """Analyze this professional profile and extract job search preferences. Return ONLY valid JSON with this exact structure (no markdown, no explanation):
+
+{
+  "titles": ["Primary Job Title", "Secondary Title"],
+  "location": "Country or City, Country",
+  "remote": true
+}
+
+Rules:
+- titles: Extract 1-3 job titles the person is qualified for based on their experience
+- location: Use the person's current location. If in US, use "United States". If elsewhere, use the country name.
+- remote: Set to true if the person seems open to remote work, otherwise false (default to true for tech roles)
+- Return ONLY the JSON object, nothing else
+
+Profile:
+""" + profile_text[:6000]
+
+    ai_cmd = None
+    if shutil.which("claude"):
+        ai_cmd = ["claude", "-p", prompt, "--output-format", "text"]
+    elif shutil.which("gemini"):
+        ai_cmd = ["gemini", "-p", prompt]
+
+    if not ai_cmd:
+        return jsonify({"ok": False, "error": "No AI CLI installed. Complete Step 2 first."})
+
+    try:
+        result = subprocess.run(ai_cmd, capture_output=True, text=True, timeout=60)
+        output = result.stdout.strip()
+        if output.startswith("```"):
+            output = "\n".join(output.split("\n")[1:])
+            output = output.rsplit("```", 1)[0].strip()
+        import json as _json
+        extracted = _json.loads(output)
+
+        titles = extracted.get("titles", [])
+        location = extracted.get("location", "United States")
+        remote = extracted.get("remote", True)
+
+        if not titles:
+            return jsonify({"ok": False, "error": "Could not extract job titles from profile."})
+
+        primary_title = titles[0]
+
+        existing = {}
+        if CONFIG_PATH.exists():
+            with open(CONFIG_PATH) as f:
+                existing = yaml.safe_load(f) or {}
+
+        searches = []
+        for source, max_pages in [("linkedin", 3), ("jobicy", 3), ("himalayas", 2), ("greenhouse", 3)]:
+            searches.append({
+                "name": f"{source.capitalize()} - {primary_title}",
+                "source": source,
+                "query": primary_title,
+                "location": location,
+                "max_pages": max_pages,
+                "remote": remote,
+            })
+
+        title_filter = [t.lower() for t in titles]
+        blacklist = existing.get("blacklist", ["internship", "junior", "unpaid", "staffing"])
+        company_blacklist = existing.get("company_blacklist", [])
+
+        new_config = {
+            "searches": searches,
+            "title_filter": title_filter,
+            "blacklist": blacklist,
+            "company_blacklist": company_blacklist,
+        }
+
+        # Clear old jobs and in-memory state so the list only shows results for the new profile
+        clear_all_jobs()
+        clear_task_state()
+
+        with open(CONFIG_PATH, "w") as f:
+            yaml.dump(new_config, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+
+        return jsonify({"ok": True, "searches": searches, "title_filter": title_filter, "location": location})
+
+    except subprocess.TimeoutExpired:
+        return jsonify({"ok": False, "error": "AI extraction timed out. Try again."})
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Could not parse AI response: {e}"})
+
+
+@app.route("/api/setup/install-node", methods=["POST"])
+def api_setup_install_node():
+    platform = sys.platform
+    try:
+        if platform == "darwin":
+            result = subprocess.run(
+                ["brew", "install", "node"],
+                capture_output=True, text=True, timeout=300
+            )
+        elif platform == "linux":
+            result = subprocess.run(
+                ["sudo", "apt-get", "install", "-y", "nodejs", "npm"],
+                capture_output=True, text=True, timeout=300
+            )
+        else:
+            return jsonify({"ok": False, "output": "Auto-install not supported on Windows. Please download Node.js from https://nodejs.org/en/download and run the installer."})
+        if result.returncode == 0:
+            return jsonify({"ok": True, "output": result.stdout[-500:]})
+        return jsonify({"ok": False, "output": (result.stderr or result.stdout)[-500:]})
+    except subprocess.TimeoutExpired:
+        return jsonify({"ok": False, "output": "Install timed out."})
+    except Exception as e:
+        return jsonify({"ok": False, "output": str(e)})
+
+
 @app.route("/api/setup/install-cli", methods=["POST"])
 def api_setup_install_cli():
     data = request.get_json()
@@ -366,6 +484,108 @@ def api_setup_install_pdflatex():
         return jsonify({"ok": False, "output": "Install timed out."})
     except Exception as e:
         return jsonify({"ok": False, "output": str(e)})
+
+
+@app.route("/api/setup/parse-resume", methods=["POST"])
+def api_setup_parse_resume():
+    f = request.files.get("file")
+    if not f:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    filename = f.filename.lower()
+    raw_text = ""
+
+    try:
+        if filename.endswith(".pdf"):
+            import pypdf, io
+            reader = pypdf.PdfReader(io.BytesIO(f.read()))
+            raw_text = "\n".join(page.extract_text() or "" for page in reader.pages)
+        elif filename.endswith(".docx"):
+            import zipfile, io
+            from xml.etree import ElementTree as ET
+            zf = zipfile.ZipFile(io.BytesIO(f.read()))
+            xml = zf.read("word/document.xml")
+            root = ET.fromstring(xml)
+            ns = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+            raw_text = "\n".join(
+                "".join(t.text or "" for t in para.iter(f"{ns}t"))
+                for para in root.iter(f"{ns}p")
+            )
+        elif filename.endswith(".txt"):
+            raw_text = f.read().decode("utf-8", errors="ignore")
+        else:
+            return jsonify({"error": "Unsupported file type. Upload a PDF, DOCX, or TXT file."}), 400
+    except Exception as e:
+        return jsonify({"error": f"Could not read file: {e}"}), 400
+
+    if not raw_text.strip():
+        return jsonify({"error": "Could not extract text from the file. Try a different format."}), 400
+
+    prompt = f"""Extract structured information from this resume text and return ONLY valid JSON with exactly this structure (no markdown, no explanation):
+
+{{
+  "name": "Full Name",
+  "email": "email@example.com",
+  "phone": "+1 555-000-0000",
+  "location": "City, State",
+  "linkedin": "https://linkedin.com/in/...",
+  "auth": "",
+  "summary": "2-3 sentence professional summary",
+  "competencies": ["skill 1", "skill 2"],
+  "experience": [
+    {{
+      "title": "Job Title",
+      "company": "Company Name",
+      "location": "City, Country",
+      "start": "Mon Year",
+      "end": "Mon Year or Present",
+      "bullets": ["achievement 1", "achievement 2"],
+      "projects": [{{"name": "Project", "desc": "description and outcome"}}]
+    }}
+  ],
+  "education": [
+    {{
+      "degree": "Full Degree Name",
+      "school": "Institution Name",
+      "year": "2024",
+      "location": "City, Country"
+    }}
+  ],
+  "certifications": ["Cert Name, Issuer (Year)"]
+}}
+
+Rules:
+- Use empty string "" for missing text fields, empty array [] for missing lists
+- Keep bullets concise and outcome-focused
+- For auth: if US work authorization is mentioned use that text, otherwise leave empty
+- Return ONLY the JSON object, nothing else
+
+Resume text:
+{raw_text[:8000]}"""
+
+    ai_cmd = None
+    if shutil.which("claude"):
+        ai_cmd = ["claude", "-p", prompt, "--output-format", "text"]
+    elif shutil.which("gemini"):
+        ai_cmd = ["gemini", "-p", prompt]
+
+    if not ai_cmd:
+        return jsonify({"error": "No AI CLI installed. Complete Step 2 first."}), 400
+
+    try:
+        result = subprocess.run(ai_cmd, capture_output=True, text=True, timeout=60)
+        output = result.stdout.strip()
+        # Strip markdown code fences if present
+        if output.startswith("```"):
+            output = "\n".join(output.split("\n")[1:])
+            output = output.rsplit("```", 1)[0].strip()
+        import json as _json
+        data = _json.loads(output)
+        return jsonify({"ok": True, "data": data})
+    except subprocess.TimeoutExpired:
+        return jsonify({"error": "AI extraction timed out. Try again."}), 500
+    except Exception as e:
+        return jsonify({"error": f"Could not parse AI response: {e}"}), 500
 
 
 @app.route("/api/setup/save-profile", methods=["POST"])

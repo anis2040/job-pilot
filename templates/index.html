@@ -37,8 +37,8 @@
   .tab { padding: 8px 16px; font-size: 0.82rem; font-weight: 600; border: none; background: none; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent; transition: color .15s; }
   .tab.active { color: #60a5fa; border-bottom-color: #3b82f6; }
 
-  .search-bar { padding: 12px 32px 0; }
-  .search-bar input { width: 100%; max-width: 420px; padding: 7px 12px; background: #1e2333; border: 1px solid #2d3748; border-radius: 6px; color: #e2e8f0; font-size: 0.82rem; outline: none; }
+  .search-bar { padding: 12px 32px 0; display: flex; align-items: center; gap: 10px; }
+  .search-bar input { flex: 1; max-width: 420px; padding: 7px 12px; background: #1e2333; border: 1px solid #2d3748; border-radius: 6px; color: #e2e8f0; font-size: 0.82rem; outline: none; }
   .search-bar input:focus { border-color: #3b82f6; }
   .search-bar input::placeholder { color: #475569; }
 
@@ -123,7 +123,7 @@
   <div class="toolbar">
     <span id="fetch-progress" class="fetch-msg"></span>
     <span class="save-notice" id="save-notice">✓ Settings saved</span>
-    <button class="btn btn-ghost" onclick="openSettings()">⚙ Settings</button>
+    <a href="/setup" class="btn btn-ghost" style="text-decoration:none">⚙ Setup</a>
     <button class="btn btn-primary" id="btn-fetch" onclick="runFetch()">⟳ Fetch new jobs</button>
   </div>
 </header>
@@ -184,6 +184,7 @@
 
 <div class="search-bar">
   <input type="text" id="search-input" placeholder="Search title, company, location…" oninput="applyFiltersAndSort()">
+  <button class="btn btn-ghost btn-sm" onclick="openSettings()" style="white-space:nowrap">⚙ Search Settings</button>
 </div>
 
 <div class="table-wrap">
@@ -614,6 +615,11 @@ document.querySelector('th[data-key="score"] .sort-icon').textContent = "↓";
 
 loadJobs();
 setInterval(loadJobs, 30000);
+
+if (new URLSearchParams(window.location.search).get("fetch") === "1") {
+  history.replaceState({}, "", "/");
+  runFetch();
+}
 </script>
 </body>
 </html>

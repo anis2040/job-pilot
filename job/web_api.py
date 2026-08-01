@@ -22,6 +22,12 @@ _fetch_status: dict = {"status": "idle", "message": ""}
 _lock = threading.Lock()
 
 
+def clear_task_state() -> None:
+    with _lock:
+        _task_status.clear()
+        _cl_task_status.clear()
+
+
 def get_task_status(job_id: str) -> dict:
     with _lock:
         return dict(_task_status.get(job_id, {"status": "idle", "pdf_path": None, "error": None, "stage": ""}))

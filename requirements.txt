@@ -5,3 +5,5 @@ pyyaml>=6
 beautifulsoup4>=4.12
 lxml>=5
 flask>=3
+pypdf>=4
+

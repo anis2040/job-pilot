@@ -6,24 +6,27 @@
 <title>Job Scraper — Setup</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  button { -webkit-appearance: none; appearance: none; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; padding: 32px 16px; }
 
-  .wizard { width: 600px; max-width: 100%; }
+  .wizard { width: 640px; max-width: 100%; margin: 0 auto; }
 
-  .wizard-header { text-align: center; margin-bottom: 32px; }
-  .wizard-header h1 { font-size: 1.6rem; font-weight: 800; color: #fff; margin-bottom: 6px; }
-  .wizard-header p { color: #64748b; font-size: 0.9rem; }
+  .wizard-header { text-align: center; margin-bottom: 24px; }
+  .wizard-header h1 { font-size: 1.5rem; font-weight: 800; color: #fff; margin-bottom: 4px; }
+  .wizard-header p { color: #64748b; font-size: 0.88rem; }
 
-  .steps { display: flex; align-items: center; justify-content: center; gap: 0; margin-bottom: 32px; }
-  .step-dot { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #2d3748; color: #475569; font-size: 0.72rem; font-weight: 700; display: flex; align-items: center; justify-content: center; transition: all .2s; flex-shrink: 0; }
-  .step-dot.active { border-color: #3b82f6; background: #3b82f6; color: #fff; }
+  .steps { display: flex; align-items: center; justify-content: center; margin-bottom: 24px; }
+  .step-dot { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #2d3748; color: #475569; font-size: 0.72rem; font-weight: 700; display: flex; align-items: center; justify-content: center; transition: all .2s; flex-shrink: 0; cursor: pointer; }
+  .step-dot:hover { border-color: #60a5fa; color: #60a5fa; }
+  .step-dot.active { border-color: #3b82f6; background: #3b82f6; color: #fff; cursor: default; }
   .step-dot.done { border-color: #16a34a; background: #16a34a; color: #fff; }
   .step-line { flex: 1; height: 2px; background: #2d3748; max-width: 48px; }
   .step-line.done { background: #16a34a; }
 
-  .card { background: #1a1f2e; border: 1px solid #2d3748; border-radius: 12px; padding: 28px 32px; }
+  .card { background: #1a1f2e; border: 1px solid #2d3748; border-radius: 12px; padding: 24px 28px; }
   .card h2 { font-size: 1.1rem; font-weight: 700; color: #fff; margin-bottom: 6px; }
-  .card .subtitle { font-size: 0.84rem; color: #64748b; margin-bottom: 22px; line-height: 1.5; }
+  .card .subtitle { font-size: 0.84rem; color: #64748b; margin-bottom: 16px; line-height: 1.5; }
+  .card .subtitle { font-size: 0.84rem; color: #64748b; margin-bottom: 16px; line-height: 1.5; }
 
   .check-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #1e2333; }
   .check-row:last-child { border-bottom: none; }
@@ -82,8 +85,39 @@
   .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-right: 6px; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  .profile-example-btn { background: none; border: 1px dashed #2d3748; color: #60a5fa; border-radius: 5px; padding: 5px 12px; font-size: 0.76rem; cursor: pointer; margin-bottom: 10px; }
-  .profile-example-btn:hover { background: #1e2333; }
+  .profile-section { border-bottom: 1px solid #1e2333; padding-bottom: 20px; margin-bottom: 20px; }
+  .profile-section:last-child { border-bottom: none; margin-bottom: 0; }
+  .profile-section h3 { font-size: 0.8rem; font-weight: 700; color: #60a5fa; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 14px; }
+  .field-row { display: grid; gap: 10px; margin-bottom: 10px; }
+  .field-row.cols-2 { grid-template-columns: 1fr 1fr; }
+  .field-row.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 0.72rem; font-weight: 600; color: #64748b; }
+  .field input, .field select, .field textarea { background: #0f1117; border: 1px solid #2d3748; border-radius: 5px; color: #e2e8f0; padding: 7px 10px; font-size: 0.82rem; font-family: inherit; outline: none; }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: #3b82f6; }
+  .field select option { background: #1a1f2e; }
+  .field textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
+  .dynamic-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
+  .dynamic-row { display: flex; gap: 6px; align-items: center; }
+  .dynamic-row input, .dynamic-row textarea { flex: 1; background: #0f1117; border: 1px solid #2d3748; border-radius: 5px; color: #e2e8f0; padding: 6px 10px; font-size: 0.8rem; font-family: inherit; outline: none; }
+  .dynamic-row input:focus, .dynamic-row textarea:focus { border-color: #3b82f6; }
+  .dynamic-row .btn-icon { flex-shrink: 0; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; }
+  .btn-add-row { background: none; border: 1px dashed #2d3748; color: #60a5fa; border-radius: 5px; padding: 4px 12px; font-size: 0.75rem; cursor: pointer; width: 100%; }
+  .btn-add-row:hover { border-color: #3b82f6; background: #1e2333; }
+  .exp-block { background: #0f1117; border: 1px solid #2d3748; border-radius: 8px; padding: 14px; margin-bottom: 10px; }
+  .exp-block-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .exp-block-header span { font-size: 0.75rem; font-weight: 700; color: #475569; text-transform: uppercase; }
+  .sublabel { font-size: 0.72rem; font-weight: 600; color: #475569; margin: 10px 0 5px; }
+  .btn-icon { background: none; border: none; -webkit-appearance: none; appearance: none; color: #475569; cursor: pointer; font-size: 0.9rem; padding: 0; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .btn-icon:hover { color: #f87171; }
+
+  .autofill-bar { display: flex; align-items: center; gap: 12px; background: #0f1117; border: 1px dashed #2d3748; border-radius: 8px; padding: 10px 14px; margin-bottom: 20px; }
+  .autofill-label { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .autofill-label span:first-child { font-size: 0.82rem; color: #94a3b8; }
+  .autofill-label input[type=file] { display: none; }
+  .autofill-btn { background: #1e2333; border: 1px solid #2d3748; border-radius: 5px; color: #60a5fa; padding: 4px 12px; font-size: 0.76rem; font-weight: 600; cursor: pointer; transition: background .15s; }
+  .autofill-btn:hover { background: #2d3748; }
+  #autofill-status { font-size: 0.76rem; color: #64748b; }
 </style>
 </head>
 <body>
@@ -95,15 +129,15 @@
   </div>
 
   <div class="steps" id="steps-indicator">
-    <div class="step-dot active" id="dot-1">1</div>
+    <div class="step-dot active" id="dot-1" onclick="goStep(1)">1</div>
     <div class="step-line" id="line-1-2"></div>
-    <div class="step-dot" id="dot-2">2</div>
+    <div class="step-dot" id="dot-2" onclick="goStep(2)">2</div>
     <div class="step-line" id="line-2-3"></div>
-    <div class="step-dot" id="dot-3">3</div>
+    <div class="step-dot" id="dot-3" onclick="goStep(3)">3</div>
     <div class="step-line" id="line-3-4"></div>
-    <div class="step-dot" id="dot-4">4</div>
+    <div class="step-dot" id="dot-4" onclick="goStep(4)">4</div>
     <div class="step-line" id="line-4-5"></div>
-    <div class="step-dot" id="dot-5">5</div>
+    <div class="step-dot" id="dot-5" onclick="goStep(5)">5</div>
   </div>
 
   <!-- Step 1: System check -->
@@ -111,14 +145,18 @@
     <h2>System Check</h2>
     <p class="subtitle">Checking what's already installed on your machine.</p>
     <div id="check-list">
-      <div class="check-row"><div class="check-icon loading" id="chk-python">…</div><div class="check-label"><strong>Python</strong><span>Required to run the app</span></div></div>
-      <div class="check-row"><div class="check-icon loading" id="chk-node">…</div><div class="check-label"><strong>Node.js</strong><span>Required to install the AI CLI</span></div></div>
+      <div class="check-row"><div class="check-icon loading" id="chk-python">…</div><div class="check-label"><strong>Python</strong><span id="chk-python-label">Required to run the app</span></div></div>
+      <div class="check-row"><div class="check-icon loading" id="chk-node">…</div><div class="check-label"><strong>Node.js</strong><span id="chk-node-label">Required to install the AI CLI</span></div></div>
+      <div id="node-install-block"></div>
       <div class="check-row"><div class="check-icon loading" id="chk-ai">…</div><div class="check-label"><strong>AI CLI</strong><span id="chk-ai-label">Claude Code or Gemini CLI</span></div></div>
       <div class="check-row"><div class="check-icon loading" id="chk-pdf">…</div><div class="check-label"><strong>pdflatex</strong><span id="chk-pdf-label">Required to compile resumes to PDF</span></div></div>
     </div>
     <div class="footer-nav">
       <span class="step-hint">Step 1 of 5</span>
-      <button class="btn btn-primary" id="btn-next-1" onclick="goStep(2)" disabled>Continue →</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="goStep(2)">Skip →</button>
+        <button class="btn btn-primary" id="btn-next-1" onclick="goStep(2)" disabled>Continue →</button>
+      </div>
     </div>
   </div>
 
@@ -126,6 +164,7 @@
   <div id="step-2" class="card" style="display:none">
     <h2>Choose Your AI</h2>
     <p class="subtitle">The AI generates your tailored resumes and cover letters. Both work great — pick the one you prefer.</p>
+    <div id="node-warning"></div>
     <div class="provider-grid">
       <div class="provider-card" id="card-claude" onclick="selectProvider('claude')">
         <span class="badge-login">Login required</span>
@@ -142,7 +181,10 @@
     <div class="footer-nav">
       <button class="btn btn-ghost" onclick="goStep(1)">← Back</button>
       <span class="step-hint">Step 2 of 5</span>
-      <button class="btn btn-primary" id="btn-next-2" onclick="goStep(3)" disabled>Continue →</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="goStep(3)">Skip →</button>
+        <button class="btn btn-primary" id="btn-next-2" onclick="goStep(3)" disabled>Continue →</button>
+      </div>
     </div>
   </div>
 
@@ -161,18 +203,86 @@
   <!-- Step 4: Profile -->
   <div id="step-4" class="card" style="display:none">
     <h2>Your Profile</h2>
-    <p class="subtitle">Paste your work experience, education, and certifications below. The AI reads this — and only this — to build your resumes. Nothing gets sent anywhere except to your chosen AI.</p>
-    <button class="profile-example-btn" onclick="loadProfileExample()">Load example template</button>
-    <div class="input-group">
-      <label>Profile (Markdown)</label>
-      <textarea id="profile-input" placeholder="## Contact&#10;- Name: Your Name&#10;- Email: you@example.com&#10;&#10;## Experience&#10;..."></textarea>
-      <div class="hint">Fill in your real details. The AI will never invent anything not listed here.</div>
+    <p class="subtitle">Fill in your details below, or upload your existing resume to autofill the form.</p>
+
+    <div class="autofill-bar">
+      <label class="autofill-label">
+        <span>⚡ Autofill from resume</span>
+        <input type="file" id="resume-upload" accept=".pdf,.docx,.txt" onchange="autofillFromResume(this)">
+        <span class="autofill-btn">Upload PDF / DOCX</span>
+      </label>
+      <span id="autofill-status"></span>
     </div>
+
+
+      <!-- Contact -->
+      <div class="profile-section">
+        <h3>Contact</h3>
+        <div class="field-row cols-2">
+          <div class="field"><label>Full Name *</label><input id="p-name" placeholder="Jane Smith"></div>
+          <div class="field"><label>City, State</label><input id="p-location" placeholder="Chicago, IL"></div>
+        </div>
+        <div class="field-row cols-2">
+          <div class="field"><label>Email *</label><input id="p-email" type="email" placeholder="jane@example.com"></div>
+          <div class="field"><label>Phone</label><input id="p-phone" placeholder="+1 312-555-0000"></div>
+        </div>
+        <div class="field-row cols-2">
+          <div class="field"><label>LinkedIn URL</label><input id="p-linkedin" placeholder="https://linkedin.com/in/janesmith"></div>
+          <div class="field"><label>Work Authorization</label>
+            <select id="p-auth">
+              <option value="">Select…</option>
+              <option value="US Citizen — no sponsorship required">US Citizen</option>
+              <option value="Green Card holder — legally authorized to work in the U.S.">Green Card</option>
+              <option value="Requires H-1B sponsorship">Requires H-1B sponsorship</option>
+              <option value="Authorized to work in the US · No sponsorship required">Other — authorized, no sponsorship</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Summary -->
+      <div class="profile-section">
+        <h3>Professional Summary</h3>
+        <div class="field"><textarea id="p-summary" placeholder="2–3 sentences: what you do, for whom, and what makes you effective. Keep it under 60 words." style="min-height:80px"></textarea></div>
+      </div>
+
+      <!-- Competencies -->
+      <div class="profile-section">
+        <h3>Core Competencies</h3>
+        <p style="font-size:0.76rem;color:#64748b;margin-bottom:8px">Skills and methodologies you want highlighted (6–12 items).</p>
+        <div class="dynamic-list" id="competencies-list"></div>
+        <button class="btn-add-row" onclick="addRow('competencies-list','competency-row','Add a competency…')">+ Add competency</button>
+      </div>
+
+      <!-- Experience -->
+      <div class="profile-section">
+        <h3>Professional Experience</h3>
+        <div id="exp-list"></div>
+        <button class="btn-add-row" onclick="addExpBlock()">+ Add role</button>
+      </div>
+
+      <!-- Education -->
+      <div class="profile-section">
+        <h3>Education</h3>
+        <div id="edu-list"></div>
+        <button class="btn-add-row" onclick="addEduRow()">+ Add degree</button>
+      </div>
+
+      <!-- Certifications -->
+      <div class="profile-section">
+        <h3>Certifications <span style="font-weight:400;color:#475569;text-transform:none;letter-spacing:0;font-size:0.75rem">(optional)</span></h3>
+        <div class="dynamic-list" id="certs-list"></div>
+        <button class="btn-add-row" onclick="addRow('certs-list','cert-row','e.g. Professional Scrum Product Owner I (PSPO I), Scrum.org')">+ Add certification</button>
+      </div>
+
     <div id="profile-alert"></div>
-    <div class="footer-nav">
+    <div class="footer-nav" style="margin-top:14px">
       <button class="btn btn-ghost" onclick="goStep(3)">← Back</button>
       <span class="step-hint">Step 4 of 5</span>
-      <button class="btn btn-primary" id="btn-next-4" onclick="saveProfile()">Save & Continue →</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="goStep(5)">Skip →</button>
+        <button class="btn btn-primary" id="btn-next-4" onclick="saveProfile()">Save & Continue →</button>
+      </div>
     </div>
   </div>
 
@@ -185,11 +295,15 @@
       <li>Click <strong>⟳ Fetch new jobs</strong> to pull listings from LinkedIn, Jobicy, Himalayas, and Greenhouse</li>
       <li>Click <strong>▶ Build CV</strong> on any job to generate a tailored ATS-optimized resume</li>
       <li>Click <strong>✉ Write Letter</strong> to generate a matching cover letter</li>
-      <li>Use <strong>⚙ Settings</strong> to change what roles and locations you search for</li>
+      <li>Use <strong>⚙ Search Settings</strong> to change what roles and locations you search for</li>
     </ul>
-    <div style="text-align:center;margin-top:8px">
-      <button class="btn btn-success" onclick="window.location='/'">Open Job Scraper →</button>
+    <div style="text-align:center;margin-top:20px">
+      <button class="btn btn-primary" id="btn-configure-searches" onclick="configureSearches()">⚡ Configure searches from my profile</button>
     </div>
+    <div style="text-align:center;margin-top:10px">
+      <button class="btn btn-ghost" onclick="window.location='/?fetch=1'">Skip — I'll configure manually →</button>
+    </div>
+    <div id="configure-status" style="margin-top:14px;text-align:center"></div>
   </div>
 </div>
 
@@ -198,64 +312,165 @@ let status = {};
 let selectedProvider = null;
 let providerReady = false;
 
-const PROFILE_EXAMPLE = `# Your Full Profile
+// ── Autofill ──────────────────────────────────────────────────────────────────
 
-## Contact
-- Location: City, State
-- Phone: +1 555-000-0000
-- Email: you@example.com
-- LinkedIn: https://www.linkedin.com/in/yourprofile
-- Work authorization: (e.g. US Citizen, Green Card, or requires H-1B sponsorship)
+async function autofillFromResume(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const status = document.getElementById("autofill-status");
+  status.innerHTML = `<span class="spinner" style="border-color:#60a5fa;border-top-color:transparent"></span> Extracting…`;
 
----
+  const fd = new FormData();
+  fd.append("file", file);
 
-## Professional Summary
+  try {
+    const res = await fetch("/api/setup/parse-resume", { method: "POST", body: fd });
+    const data = await res.json();
+    if (!data.ok) {
+      status.innerHTML = `<span style="color:#f87171">⚠ ${data.error}</span>`;
+      return;
+    }
+    fillForm(data.data);
+    status.innerHTML = `<span style="color:#4ade80">✓ Form filled from ${file.name}</span>`;
+  } catch (e) {
+    status.innerHTML = `<span style="color:#f87171">⚠ Upload failed. Try again.</span>`;
+  }
+  input.value = "";
+}
 
-Write 2-3 sentences describing your role, domain, and what makes you effective.
+function fillForm(d) {
+  const set = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
+  set("p-name",     d.name);
+  set("p-email",    d.email);
+  set("p-phone",    d.phone);
+  set("p-location", d.location);
+  set("p-linkedin", d.linkedin);
+  set("p-summary",  d.summary);
 
----
+  // Work auth — match to dropdown options
+  if (d.auth) {
+    const sel = document.getElementById("p-auth");
+    if (sel) {
+      const lower = d.auth.toLowerCase();
+      if (lower.includes("citizen"))     sel.value = "US Citizen — no sponsorship required";
+      else if (lower.includes("green"))  sel.value = "Green Card holder — legally authorized to work in the U.S.";
+      else if (lower.includes("h-1b") || lower.includes("sponsor")) sel.value = "Requires H-1B sponsorship";
+      else sel.value = "Authorized to work in the US · No sponsorship required";
+    }
+  }
 
-## Core Competencies
+  // Competencies
+  const compList = document.getElementById("competencies-list");
+  if (compList && d.competencies?.length) {
+    compList.innerHTML = "";
+    d.competencies.forEach(c => addRow("competencies-list", "competency-row", "e.g. Agile / SAFe Methodologies", c));
+  }
 
-- Competency 1
-- Competency 2
-- Competency 3
+  // Experience
+  const expList = document.getElementById("exp-list");
+  if (expList && d.experience?.length) {
+    expList.innerHTML = "";
+    d.experience.forEach(exp => {
+      addExpBlock();
+      const block = expList.lastElementChild;
+      const q = (cls) => block.querySelector(cls);
+      if (q(".exp-title"))    q(".exp-title").value    = exp.title    || "";
+      if (q(".exp-company"))  q(".exp-company").value  = exp.company  || "";
+      if (q(".exp-location")) q(".exp-location").value = exp.location || "";
+      if (q(".exp-start"))    q(".exp-start").value    = exp.start    || "";
+      if (q(".exp-end"))      q(".exp-end").value      = exp.end      || "";
+      // Bullets
+      const bulletList = block.querySelector(".exp-bullets");
+      const bulletBtn  = block.querySelectorAll(".btn-add-row")[0];
+      if (bulletList && exp.bullets?.length) {
+        bulletList.innerHTML = "";
+        exp.bullets.forEach(b => {
+          const row = document.createElement("div");
+          row.className = "dynamic-row";
+          row.innerHTML = `<input type="text" value="${b.replace(/"/g,'&quot;')}"><button class="btn-icon" onclick="this.closest('.dynamic-row').remove()">✕</button>`;
+          bulletList.appendChild(row);
+        });
+      }
+      // Projects
+      const projList = block.querySelector(".exp-projects");
+      if (projList && exp.projects?.length) {
+        projList.innerHTML = "";
+        exp.projects.forEach(p => {
+          const row = document.createElement("div");
+          row.className = "dynamic-row";
+          row.innerHTML = `<div style="flex:1;display:flex;gap:6px">
+            <input style="width:140px;flex-shrink:0" type="text" value="${(p.name||'').replace(/"/g,'&quot;')}">
+            <input type="text" value="${(p.desc||'').replace(/"/g,'&quot;')}">
+          </div><button class="btn-icon" onclick="this.closest('.dynamic-row').remove()">✕</button>`;
+          projList.appendChild(row);
+        });
+      }
+    });
+  }
 
----
+  // Education
+  const eduList = document.getElementById("edu-list");
+  if (eduList && d.education?.length) {
+    eduList.innerHTML = "";
+    d.education.forEach(edu => {
+      addEduRow();
+      const block = eduList.lastElementChild;
+      const q = (cls) => block.querySelector(cls);
+      if (q(".edu-degree")) q(".edu-degree").value = edu.degree || "";
+      if (q(".edu-school")) q(".edu-school").value = edu.school || "";
+      if (q(".edu-year"))   q(".edu-year").value   = edu.year   || "";
+      if (q(".edu-loc"))    q(".edu-loc").value    = edu.location || "";
+    });
+  }
 
-## Professional Experience
+  // Certifications
+  const certList = document.getElementById("certs-list");
+  if (certList && d.certifications?.length) {
+    certList.innerHTML = "";
+    d.certifications.forEach(c => addRow("certs-list", "cert-row", "e.g. PSPO I, Scrum.org", c));
+  }
+}
 
-### Job Title — Company Name
-**Location:** City, Country
-**Dates:** Jan 2020 – Present
+// Patched addRow to support initial value
+const _origAddRow = addRow;
+function addRow(listId, cls, placeholder, value = "") {
+  const list = document.getElementById(listId);
+  const row = document.createElement("div");
+  row.className = "dynamic-row " + cls;
+  row.innerHTML = `<input type="text" placeholder="${placeholder}" value="${value.replace(/"/g,'&quot;')}">
+    <button class="btn-icon" onclick="this.closest('.dynamic-row').remove()" title="Remove">✕</button>`;
+  list.appendChild(row);
+  if (!value) row.querySelector("input").focus();
+}
 
-**Bullets:**
-- Led delivery of X, resulting in Y
-- Owned backlog of Z features across N teams
-
-**Key Projects:**
-- **Project Name:** What it was, your role, and the outcome.
-
----
-
-## Education
-
-### Master's Degree
-- **Degree:** Master of Science in [Field]
-- **Institution:** University Name
-- **Year:** 2022
-
-### Bachelor's Degree
-- **Degree:** Bachelor of Science in [Field]
-- **Institution:** University Name
-- **Year:** 2018
-
----
-
-## Certifications
-
-- Certification Name, Issuer (Year)
-`;
+async function configureSearches() {
+  const btn = document.getElementById("btn-configure-searches");
+  const statusEl = document.getElementById("configure-status");
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span> Analyzing profile…`;
+  statusEl.innerHTML = "";
+  try {
+    const res = await fetch("/api/setup/suggest-config", { method: "POST" });
+    const data = await res.json();
+    if (data.ok) {
+      const titles = data.title_filter.join(", ");
+      const location = data.location || "your location";
+      statusEl.innerHTML = `<div class="alert alert-ok">✓ Searches configured for <strong>${titles}</strong> in <strong>${location}</strong></div>`;
+      btn.className = "btn btn-success";
+      btn.innerHTML = "Fetch jobs & open →";
+      btn.disabled = false;
+      btn.onclick = () => window.location = "/?fetch=1";
+    } else {
+      statusEl.innerHTML = `<div class="alert alert-error">${data.error}</div>`;
+      btn.disabled = false;
+      btn.innerHTML = "⚡ Configure searches from my profile";
+    }
+  } catch (e) {
+    statusEl.innerHTML = `<div class="alert alert-error">Request failed. Please try again.</div>`;
+    btn.disabled = false;
+    btn.innerHTML = "⚡ Configure searches from my profile";
+  }
+}
 
 async function init() {
   const res = await fetch("/api/setup/status");
@@ -264,23 +479,83 @@ async function init() {
 }
 
 function renderChecks() {
+  const plt = status.platform; // darwin | win32 | linux
+  const isWin = plt === "win32";
+  const isMac = plt === "darwin";
+
   const set = (id, ok, label) => {
     const el = document.getElementById(id);
     el.className = "check-icon " + (ok ? "ok" : "warn");
     el.textContent = ok ? "✓" : "!";
-    if (label) document.getElementById(id + "-label").textContent = label;
+    const labelEl = document.getElementById(id + "-label");
+    if (label && labelEl) labelEl.textContent = label;
   };
 
-  set("chk-python", true); // Python is running since we're here
-  set("chk-node", status.has_node, status.has_node ? "Installed" : "Not found — needed to install AI CLI");
+  // Python — always ok (server is running)
+  set("chk-python", true, `Installed (${isMac ? "macOS" : isWin ? "Windows" : "Linux"} detected)`);
+
+  // Node
+  if (status.has_node) {
+    set("chk-node", true, "Installed");
+  } else {
+    set("chk-node", false, "Not found — needed to install the AI CLI");
+    const nodeBlock = document.getElementById("node-install-block");
+    if (nodeBlock) {
+      const cmd = isWin
+        ? "winget install OpenJS.NodeJS.LTS"
+        : isMac
+        ? "brew install node"
+        : "sudo apt-get install -y nodejs npm";
+      const link = isWin
+        ? "https://nodejs.org/en/download"
+        : isMac
+        ? "https://nodejs.org/en/download"
+        : "https://nodejs.org/en/download";
+      nodeBlock.innerHTML = `
+        <div class="install-block" style="margin-top:8px">
+          <p>${isWin ? "Run in PowerShell (as Administrator), or" : "Run in Terminal, or"} <a href="${link}" target="_blank" style="color:#60a5fa">download the installer ↗</a>:</p>
+          <code>${cmd}</code>
+          <button class="btn btn-primary btn-sm" id="btn-install-node" onclick="installNode('${cmd}')">Install Node.js automatically</button>
+          <div class="install-log" id="install-log-node"></div>
+        </div>`;
+    }
+  }
+
+  // AI CLI
   const hasAI = status.has_claude || status.has_gemini;
   const aiLabel = status.has_claude && status.has_gemini ? "Claude & Gemini both installed" :
                   status.has_claude ? "Claude Code installed" :
-                  status.has_gemini ? "Gemini CLI installed" : "Not installed yet";
+                  status.has_gemini ? "Gemini CLI installed" : "Not installed yet — choose one in the next step";
   set("chk-ai", hasAI, aiLabel);
-  set("chk-pdf", status.has_pdflatex, status.has_pdflatex ? "Installed" : "Not installed yet — needed for PDF output");
+
+  // pdflatex
+  set("chk-pdf", status.has_pdflatex, status.has_pdflatex
+    ? "Installed"
+    : isWin ? "Not installed — MiKTeX needed (Step 3)" : "Not installed — BasicTeX needed (Step 3)");
 
   document.getElementById("btn-next-1").disabled = false;
+}
+
+async function installNode(cmd) {
+  const btn = document.getElementById("btn-install-node");
+  const log = document.getElementById("install-log-node");
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span>Installing…`;
+  log.style.display = "block";
+  log.textContent = "Installing Node.js… this may take a minute.";
+  const res = await fetch("/api/setup/install-node", { method: "POST" });
+  const data = await res.json();
+  log.textContent = data.output || "";
+  if (data.ok) {
+    btn.className = "btn btn-success btn-sm";
+    btn.innerHTML = "✓ Installed — restart the app to continue";
+    status.has_node = true;
+    document.getElementById("chk-node").className = "check-icon ok";
+    document.getElementById("chk-node").textContent = "✓";
+  } else {
+    btn.disabled = false;
+    btn.innerHTML = "Retry";
+  }
 }
 
 function goStep(n) {
@@ -293,10 +568,23 @@ function goStep(n) {
       line.className = "step-line" + (i < n ? " done" : "");
     }
   }
+  if (n === 2) renderNodeWarning();
   if (n === 3) renderPdfStep();
+  if (n === 4) initProfileForm();
 }
 
 // ── Step 2: Provider ──────────────────────────────────────────────────────────
+
+function renderNodeWarning() {
+  const el = document.getElementById("node-warning");
+  if (!el) return;
+  if (status.has_node) { el.innerHTML = ""; return; }
+  const isWin = status.platform === "win32";
+  el.innerHTML = `<div class="alert alert-error" style="margin-bottom:14px">
+    ⚠ Node.js is not installed. The one-click install buttons below won't work until it is.
+    Go back to Step 1 to install it${isWin ? ", or download it from <a href='https://nodejs.org/en/download' target='_blank' style='color:#fca5a5'>nodejs.org ↗</a>" : ""}.
+  </div>`;
+}
 
 function selectProvider(p) {
   selectedProvider = p;
@@ -402,33 +690,48 @@ function markProviderReady() {
 
 function renderPdfStep() {
   const block = document.getElementById("pdf-status");
+  const plt = status.platform;
+  const isWin = plt === "win32";
+  const isMac = plt === "darwin";
+
   if (status.has_pdflatex) {
     block.innerHTML = `<div class="alert alert-ok">✓ pdflatex is already installed. Nothing to do here.</div>`;
     return;
   }
-  const platform = status.platform;
-  let installBtn = "";
-  let manualCmd = "";
 
-  if (platform === "darwin") {
-    manualCmd = "brew install --cask basictex";
-    installBtn = `<button class="btn btn-primary btn-sm" id="btn-install-pdf" onclick="installPdflatex()">Install BasicTeX automatically</button>`;
-  } else if (platform === "linux") {
-    manualCmd = "sudo apt-get install -y texlive-latex-extra";
-    installBtn = `<button class="btn btn-primary btn-sm" id="btn-install-pdf" onclick="installPdflatex()">Install automatically</button>`;
+  if (isWin) {
+    block.innerHTML = `
+      <div class="install-block">
+        <p style="margin-bottom:12px">On Windows, install <strong style="color:#e2e8f0">MiKTeX</strong> — a lightweight LaTeX distribution that auto-installs missing packages on first use.</p>
+        <p><strong style="color:#e2e8f0">Step 1</strong> — Download the installer:</p>
+        <a href="https://miktex.org/download" target="_blank" class="btn btn-primary btn-sm" style="display:inline-block;margin:8px 0;text-decoration:none">Download MiKTeX for Windows ↗</a>
+        <p style="margin-top:12px"><strong style="color:#e2e8f0">Step 2</strong> — Run the installer, choose "Install for all users", keep all defaults.</p>
+        <p style="margin-top:8px"><strong style="color:#e2e8f0">Step 3</strong> — After installing, restart this setup wizard and come back to this step to verify.</p>
+        <div class="hint" style="margin-top:12px">MiKTeX will automatically download any missing LaTeX packages the first time you build a resume. An internet connection is needed for the first build.</div>
+      </div>
+      <div class="hint" style="margin-top:10px">You can skip this step and install it later — the app works without it until you build a resume.</div>`;
+  } else if (isMac) {
+    block.innerHTML = `
+      <div class="install-block">
+        <p>Install <strong style="color:#e2e8f0">BasicTeX</strong> — a lightweight LaTeX for macOS (~100 MB).</p>
+        <p style="margin-top:8px">Requires <a href="https://brew.sh" target="_blank" style="color:#60a5fa">Homebrew ↗</a>. If you don't have it, install Homebrew first:</p>
+        <code>/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"</code>
+        <p style="margin-top:8px">Then install BasicTeX:</p>
+        <code>brew install --cask basictex</code>
+        <button class="btn btn-primary btn-sm" id="btn-install-pdf" onclick="installPdflatex()">Install BasicTeX automatically</button>
+        <div class="install-log" id="install-log-pdf"></div>
+      </div>
+      <div class="hint" style="margin-top:10px">You can skip this step and install it later — the app works without it until you build a resume.</div>`;
   } else {
-    manualCmd = null;
+    block.innerHTML = `
+      <div class="install-block">
+        <p>Install <strong style="color:#e2e8f0">texlive-latex-extra</strong>:</p>
+        <code>sudo apt-get install -y texlive-latex-extra</code>
+        <button class="btn btn-primary btn-sm" id="btn-install-pdf" onclick="installPdflatex()">Install automatically</button>
+        <div class="install-log" id="install-log-pdf"></div>
+      </div>
+      <div class="hint" style="margin-top:10px">You can skip this step and install it later — the app works without it until you build a resume.</div>`;
   }
-
-  block.innerHTML = `
-    <div class="install-block">
-      <p>pdflatex is not installed. It's needed to compile LaTeX to PDF.</p>
-      ${manualCmd ? `<code>${manualCmd}</code>${installBtn}` :
-        `<p style="color:#94a3b8">Download and install <a href="https://miktex.org/download" target="_blank" style="color:#60a5fa">MiKTeX for Windows ↗</a>. It installs missing packages automatically on first use.</p>`}
-      <div class="install-log" id="install-log-pdf"></div>
-    </div>
-    <div class="hint" style="margin-top:10px">You can skip this step and install it later — the app works without it until you build a resume.</div>
-  `;
 }
 
 async function installPdflatex() {
@@ -454,33 +757,214 @@ async function installPdflatex() {
   }
 }
 
-// ── Step 4: Profile ───────────────────────────────────────────────────────────
+// ── Step 4: Profile form ──────────────────────────────────────────────────────
 
-function loadProfileExample() {
-  document.getElementById("profile-input").value = PROFILE_EXAMPLE;
+function addRow(listId, cls, placeholder) {
+  const list = document.getElementById(listId);
+  const row = document.createElement("div");
+  row.className = "dynamic-row " + cls;
+  row.innerHTML = `<input type="text" placeholder="${placeholder}">
+    <button class="btn-icon" onclick="this.closest('.dynamic-row').remove()" title="Remove">✕</button>`;
+  list.appendChild(row);
+  row.querySelector("input").focus();
+}
+
+function addExpBlock() {
+  const list = document.getElementById("exp-list");
+  const idx = list.children.length + 1;
+  const block = document.createElement("div");
+  block.className = "exp-block";
+  block.innerHTML = `
+    <div class="exp-block-header">
+      <span>Role ${idx}</span>
+      <button class="btn-icon" onclick="this.closest('.exp-block').remove()">✕</button>
+    </div>
+    <div class="field-row cols-2">
+      <div class="field"><label>Job Title *</label><input class="exp-title" placeholder="Product Owner"></div>
+      <div class="field"><label>Company *</label><input class="exp-company" placeholder="Acme Corp"></div>
+    </div>
+    <div class="field-row cols-3">
+      <div class="field"><label>Location</label><input class="exp-location" placeholder="Tunis, Tunisia"></div>
+      <div class="field"><label>Start Date</label><input class="exp-start" placeholder="Oct 2020"></div>
+      <div class="field"><label>End Date</label><input class="exp-end" placeholder="Present"></div>
+    </div>
+    <div class="sublabel">Key bullets (what you did and the outcome)</div>
+    <div class="dynamic-list exp-bullets"></div>
+    <button class="btn-add-row" onclick="addBullet(this)" style="margin-bottom:10px">+ Add bullet</button>
+    <div class="sublabel">Key Projects (optional)</div>
+    <div class="dynamic-list exp-projects"></div>
+    <button class="btn-add-row" onclick="addProject(this)">+ Add project</button>
+  `;
+  list.appendChild(block);
+  addBullet(block.querySelectorAll(".btn-add-row")[0]);
+}
+
+function addBullet(btn) {
+  const list = btn.previousElementSibling;
+  const row = document.createElement("div");
+  row.className = "dynamic-row";
+  row.innerHTML = `<input type="text" placeholder="Led delivery of X, resulting in Y">
+    <button class="btn-icon" onclick="this.closest('.dynamic-row').remove()">✕</button>`;
+  list.appendChild(row);
+}
+
+function addProject(btn) {
+  const list = btn.previousElementSibling;
+  const row = document.createElement("div");
+  row.className = "dynamic-row";
+  row.innerHTML = `
+    <div style="flex:1;display:flex;gap:6px">
+      <input style="width:140px;flex-shrink:0" type="text" placeholder="Project Name">
+      <input type="text" placeholder="What it was, your role, and the outcome">
+    </div>
+    <button class="btn-icon" onclick="this.closest('.dynamic-row').remove()">✕</button>`;
+  list.appendChild(row);
+}
+
+function addEduRow() {
+  const list = document.getElementById("edu-list");
+  const row = document.createElement("div");
+  row.className = "exp-block";
+  row.innerHTML = `
+    <div class="exp-block-header">
+      <span>Degree</span>
+      <button class="btn-icon" onclick="this.closest('.exp-block').remove()">✕</button>
+    </div>
+    <div class="field-row cols-2">
+      <div class="field"><label>Full Degree Name</label><input class="edu-degree" placeholder="Master of Science in Information Systems Management"></div>
+      <div class="field"><label>Institution</label><input class="edu-school" placeholder="University Name"></div>
+    </div>
+    <div class="field-row cols-2">
+      <div class="field"><label>Year</label><input class="edu-year" placeholder="2024"></div>
+      <div class="field"><label>Location</label><input class="edu-loc" placeholder="City, Country"></div>
+    </div>`;
+  list.appendChild(row);
+}
+
+function initProfileForm() {
+  if (!document.getElementById("competencies-list").children.length) {
+    for (let i = 0; i < 3; i++) addRow("competencies-list", "competency-row", "e.g. Agile / SAFe Methodologies");
+  }
+  if (!document.getElementById("exp-list").children.length) addExpBlock();
+  if (!document.getElementById("edu-list").children.length) addEduRow();
+}
+
+function buildProfileMd() {
+  const v = id => (document.getElementById(id)?.value || "").trim();
+  const name = v("p-name");
+  const lines = [];
+
+  lines.push(`# ${name || "Your Name"} — Full Profile`, "");
+  lines.push("## Contact");
+  if (v("p-location")) lines.push(`- Location: ${v("p-location")}`);
+  if (v("p-phone"))    lines.push(`- Phone: ${v("p-phone")}`);
+  if (v("p-email"))    lines.push(`- Email: ${v("p-email")}`);
+  if (v("p-linkedin")) lines.push(`- LinkedIn: ${v("p-linkedin")}`);
+  if (v("p-auth"))     lines.push(`- Work authorization: ${v("p-auth")}`);
+  lines.push("", "---", "");
+
+  const summary = v("p-summary");
+  if (summary) { lines.push("## Professional Summary", "", summary, "", "---", ""); }
+
+  const competencies = [...document.querySelectorAll(".competency-row input")]
+    .map(i => i.value.trim()).filter(Boolean);
+  if (competencies.length) {
+    lines.push("## Core Competencies", "");
+    competencies.forEach(c => lines.push(`- ${c}`));
+    lines.push("", "---", "");
+  }
+
+  const expBlocks = document.querySelectorAll("#exp-list .exp-block");
+  if (expBlocks.length) {
+    lines.push("## Professional Experience", "");
+    expBlocks.forEach(b => {
+      const title    = b.querySelector(".exp-title")?.value.trim() || "";
+      const company  = b.querySelector(".exp-company")?.value.trim() || "";
+      const location = b.querySelector(".exp-location")?.value.trim() || "";
+      const start    = b.querySelector(".exp-start")?.value.trim() || "";
+      const end      = b.querySelector(".exp-end")?.value.trim() || "";
+      if (!title && !company) return;
+      lines.push(`### ${title} — ${company}`);
+      if (location) lines.push(`**Location:** ${location}`);
+      if (start)    lines.push(`**Dates:** ${start} – ${end || "Present"}`);
+      lines.push("");
+      const bullets = [...b.querySelectorAll(".exp-bullets .dynamic-row input")]
+        .map(i => i.value.trim()).filter(Boolean);
+      if (bullets.length) {
+        lines.push("**Bullets:**");
+        bullets.forEach(bl => lines.push(`- ${bl}`));
+        lines.push("");
+      }
+      const projects = [...b.querySelectorAll(".exp-projects .dynamic-row")];
+      if (projects.length) {
+        lines.push("**Key Projects:**");
+        projects.forEach(p => {
+          const inputs = p.querySelectorAll("input");
+          const pname = inputs[0]?.value.trim();
+          const pdesc = inputs[1]?.value.trim();
+          if (pname || pdesc) lines.push(`- **${pname || "Project"}:** ${pdesc || ""}`);
+        });
+        lines.push("");
+      }
+    });
+    lines.push("---", "");
+  }
+
+  const eduBlocks = document.querySelectorAll("#edu-list .exp-block");
+  if (eduBlocks.length) {
+    lines.push("## Education", "");
+    eduBlocks.forEach(b => {
+      const degree = b.querySelector(".edu-degree")?.value.trim() || "";
+      const school = b.querySelector(".edu-school")?.value.trim() || "";
+      const year   = b.querySelector(".edu-year")?.value.trim() || "";
+      const loc    = b.querySelector(".edu-loc")?.value.trim() || "";
+      if (!degree) return;
+      lines.push(`### ${degree}`);
+      if (school) lines.push(`- **Institution:** ${school}`);
+      if (loc)    lines.push(`- **Location:** ${loc}`);
+      if (year)   lines.push(`- **Year conferred:** ${year}`);
+      lines.push("");
+    });
+    lines.push("---", "");
+  }
+
+  const certs = [...document.querySelectorAll(".cert-row input")]
+    .map(i => i.value.trim()).filter(Boolean);
+  if (certs.length) {
+    lines.push("## Certifications", "");
+    certs.forEach(c => lines.push(`- ${c}`));
+  }
+
+  return lines.join("\n");
 }
 
 async function saveProfile() {
-  const content = document.getElementById("profile-input").value.trim();
   const alert = document.getElementById("profile-alert");
-  if (!content) {
-    alert.innerHTML = `<div class="alert alert-error">Please fill in your profile before continuing.</div>`;
+  const name  = (document.getElementById("p-name")?.value || "").trim();
+  const email = (document.getElementById("p-email")?.value || "").trim();
+
+  if (!name) {
+    alert.innerHTML = `<div class="alert alert-error" style="margin-top:8px">Please enter your full name.</div>`;
+    document.getElementById("p-name").focus();
     return;
   }
-  if (content.includes("you@example.com") || content.includes("City, State")) {
-    alert.innerHTML = `<div class="alert alert-error">Please replace the example placeholders with your real details before saving.</div>`;
+  if (!email) {
+    alert.innerHTML = `<div class="alert alert-error" style="margin-top:8px">Please enter your email address.</div>`;
+    document.getElementById("p-email").focus();
     return;
   }
+
+  const content = buildProfileMd();
   const res = await fetch("/api/setup/save-profile", {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({content})
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content }),
   });
   const data = await res.json();
   if (data.ok) {
     goStep(5);
   } else {
-    alert.innerHTML = `<div class="alert alert-error">${data.error}</div>`;
+    alert.innerHTML = `<div class="alert alert-error" style="margin-top:8px">${data.error}</div>`;
   }
 }
 

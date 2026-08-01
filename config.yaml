@@ -1,43 +1,38 @@
 searches:
-  - name: "LinkedIn - Product Owner USA"
-    source: linkedin
-    query: "Product Owner"
-    location: "United States"
-    remote: true
-    max_pages: 3
-
-  - name: "Jobicy - Product Owner USA"
-    source: jobicy
-    query: "product owner"
-    location: "United States"
-
-  - name: "Himalayas - Product Owner USA"
-    source: himalayas
-    query: "product owner"
-    location: "United States"
-    max_pages: 2
-
-  - name: "Greenhouse - Product Owner USA"
-    source: greenhouse
-    query: "Product Owner Business Analyst Program Manager"
-    location: "United States"
-    remote: true
-
-blacklist:
-  - internship
-  - junior
-  - unpaid
-  - staffing
-
+- name: Linkedin - Senior Frontend Engineer
+  source: linkedin
+  query: Senior Frontend Engineer
+  location: Germany
+  max_pages: 3
+  remote: true
+- name: Jobicy - Senior Frontend Engineer
+  source: jobicy
+  query: Senior Frontend Engineer
+  location: Germany
+  max_pages: 3
+  remote: true
+- name: Himalayas - Senior Frontend Engineer
+  source: himalayas
+  query: Senior Frontend Engineer
+  location: Germany
+  max_pages: 2
+  remote: true
+- name: Greenhouse - Senior Frontend Engineer
+  source: greenhouse
+  query: Senior Frontend Engineer
+  location: Germany
+  max_pages: 3
+  remote: true
 title_filter:
-  - product owner
-  - product manager
-  - business analyst
-  - program manager
-  - po/ba
-  - ba/po
-
+- senior frontend engineer
+- software engineer
+- frontend developer
+blacklist:
+- internship
+- junior
+- unpaid
+- staffing
 company_blacklist:
-  - Accentuate Staffing
-  - Motion Recruitment
-  - RG Talent Inc
+- Accentuate Staffing
+- Motion Recruitment
+- RG Talent Inc
