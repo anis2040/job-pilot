@@ -91,15 +91,41 @@ git clone https://github.com/anis2040/job-scraper.git
 cd job-scraper
 ```
 
-**2. Create a virtual environment and install Python dependencies:**
-
-This installs Flask and all other required packages (`requirements.txt`). You must do this before running the app for the first time.
+**2. Run the start script:**
 
 **macOS / Linux:**
 ```bash
-python -m venv .venv
+./start.sh
+```
+
+**Windows:**
+```powershell
+start.bat
+```
+
+That's it. The script automatically:
+- Creates a Python virtual environment if one doesn't exist
+- Installs all dependencies (`pip install -r requirements.txt`)
+- Starts the app at **http://localhost:5050**
+
+Run the same script every time you want to start the app.
+
+> **If you get a permission error on macOS/Linux**, make the script executable first:
+> ```bash
+> chmod +x start.sh
+> ```
+
+---
+
+<details>
+<summary>Manual setup (if the script doesn't work)</summary>
+
+**macOS / Linux:**
+```bash
+python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+python web.py
 ```
 
 **Windows (PowerShell):**
@@ -107,28 +133,12 @@ pip install -r requirements.txt
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
-```
-
-> If you get a "running scripts is disabled" error on Windows, run once as Administrator:
-> `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`
-
-**3. Start the app** (activate the virtualenv first — required every new terminal session):
-
-```bash
-# macOS / Linux
-source .venv/bin/activate
-python web.py
-
-# Windows
-.venv\Scripts\activate
 python web.py
 ```
 
-> ⚠️ If you get `ModuleNotFoundError: No module named 'yaml'` (or any other module), it means either:
-> - You forgot to run `pip install -r requirements.txt`, or
-> - You're running `python web.py` without activating the virtualenv first
->
-> Fix: run `source .venv/bin/activate` (macOS/Linux) or `.venv\Scripts\activate` (Windows), then `pip install -r requirements.txt`, then `python web.py`
+> If you get `ModuleNotFoundError`, make sure you activated the virtualenv before running `python web.py`.
+
+</details>
 
 Open **http://localhost:5050** — the setup wizard launches automatically and guides you through the AI CLI, pdflatex, and your profile.
 
