@@ -697,59 +697,69 @@ function renderPdfStep() {
   if (isWin) {
     block.innerHTML = `
       <div class="install-block">
-        <p style="margin-bottom:12px">On Windows, install <strong style="color:#e2e8f0">MiKTeX</strong> — a lightweight LaTeX distribution that auto-installs missing packages on first use.</p>
-        <p><strong style="color:#e2e8f0">Step 1</strong> — Download the installer:</p>
-        <a href="https://miktex.org/download" target="_blank" class="btn btn-primary btn-sm" style="display:inline-block;margin:8px 0;text-decoration:none">Download MiKTeX for Windows ↗</a>
-        <p style="margin-top:12px"><strong style="color:#e2e8f0">Step 2</strong> — Run the installer, choose "Install for all users", keep all defaults.</p>
-        <p style="margin-top:8px"><strong style="color:#e2e8f0">Step 3</strong> — After installing, restart this setup wizard and come back to this step to verify.</p>
-        <div class="hint" style="margin-top:12px">MiKTeX will automatically download any missing LaTeX packages the first time you build a resume. An internet connection is needed for the first build.</div>
-      </div>
-      <div class="hint" style="margin-top:10px">You can skip this step and install it later — the app works without it until you build a resume.</div>`;
+        <p style="margin-bottom:12px">Install <strong style="color:#e2e8f0">MiKTeX</strong> — auto-installs missing LaTeX packages on first use.</p>
+        <p><strong style="color:#e2e8f0">Step 1</strong> — Download and run the installer:</p>
+        <a href="https://miktex.org/download" target="_blank" class="btn btn-primary btn-sm" style="display:inline-block;margin:8px 0;text-decoration:none">Download MiKTeX ↗</a>
+        <p style="margin-top:10px"><strong style="color:#e2e8f0">Step 2</strong> — Choose "Install for all users", keep all defaults.</p>
+        <p style="margin-top:8px"><strong style="color:#e2e8f0">Step 3</strong> — Open a new terminal and verify:</p>
+        <code>pdflatex --version</code>
+        <p style="margin-top:8px">Then click below:</p>
+        <button class="btn btn-ghost btn-sm" onclick="recheckPdflatex()">I've installed it ✓</button>
+        <div id="pdf-recheck-status" style="margin-top:8px"></div>
+      </div>`;
   } else if (isMac) {
     block.innerHTML = `
       <div class="install-block">
-        <p>Install <strong style="color:#e2e8f0">BasicTeX</strong> — a lightweight LaTeX for macOS (~100 MB).</p>
-        <p style="margin-top:8px">Requires <a href="https://brew.sh" target="_blank" style="color:#60a5fa">Homebrew ↗</a>. If you don't have it, install Homebrew first:</p>
-        <code>/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"</code>
-        <p style="margin-top:8px">Then install BasicTeX:</p>
-        <code>brew install --cask basictex</code>
-        <button class="btn btn-primary btn-sm" id="btn-install-pdf" onclick="installPdflatex()">Install BasicTeX automatically</button>
-        <div class="install-log" id="install-log-pdf"></div>
-      </div>
-      <div class="hint" style="margin-top:10px">You can skip this step and install it later — the app works without it until you build a resume.</div>`;
+        <p>Install <strong style="color:#e2e8f0">BasicTeX</strong> (~100 MB). Run these in your Terminal:</p>
+        <p style="margin-top:10px;font-size:0.76rem;color:#64748b;">1. If you don't have Homebrew:</p>
+        <code style="cursor:pointer" onclick="copyCmd(this)">/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"</code>
+        <p style="margin-top:8px;font-size:0.76rem;color:#64748b;">2. Install BasicTeX (will ask for your password):</p>
+        <code style="cursor:pointer" onclick="copyCmd(this)">brew install --cask basictex</code>
+        <p style="margin-top:8px;font-size:0.76rem;color:#64748b;">3. Reload your shell so pdflatex is found:</p>
+        <code style="cursor:pointer" onclick="copyCmd(this)">eval "$(/usr/libexec/path_helper)"</code>
+        <div class="hint" style="margin-top:8px">Click any command to copy it. The install may ask for your Mac login password — this is normal.</div>
+        <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+          <button class="btn btn-primary btn-sm" onclick="recheckPdflatex()">I've installed it — check again ✓</button>
+        </div>
+        <div id="pdf-recheck-status" style="margin-top:8px"></div>
+      </div>`;
   } else {
     block.innerHTML = `
       <div class="install-block">
-        <p>Install <strong style="color:#e2e8f0">texlive-latex-extra</strong>:</p>
-        <code>sudo apt-get install -y texlive-latex-extra</code>
-        <button class="btn btn-primary btn-sm" id="btn-install-pdf" onclick="installPdflatex()">Install automatically</button>
-        <div class="install-log" id="install-log-pdf"></div>
-      </div>
-      <div class="hint" style="margin-top:10px">You can skip this step and install it later — the app works without it until you build a resume.</div>`;
+        <p>Run this in your terminal (will ask for your password):</p>
+        <code style="cursor:pointer" onclick="copyCmd(this)">sudo apt-get install -y texlive-latex-extra</code>
+        <div class="hint" style="margin-top:6px">Click the command to copy it.</div>
+        <div style="margin-top:10px">
+          <button class="btn btn-primary btn-sm" onclick="recheckPdflatex()">I've installed it — check again ✓</button>
+        </div>
+        <div id="pdf-recheck-status" style="margin-top:8px"></div>
+      </div>`;
+  }
+  block.insertAdjacentHTML("beforeend",
+    `<div class="hint" style="margin-top:10px">You can skip this and install later — the app works without it until you build a resume.</div>`);
+}
+
+async function recheckPdflatex() {
+  const statusEl = document.getElementById("pdf-recheck-status");
+  if (statusEl) statusEl.innerHTML = `<span class="spinner"></span> Checking…`;
+  const res = await fetch("/api/setup/status");
+  const fresh = await res.json();
+  status.has_pdflatex = fresh.has_pdflatex;
+  renderChecks();
+  if (fresh.has_pdflatex) {
+    renderPdfStep(); // will show the green ✓ message
+  } else {
+    if (statusEl) statusEl.innerHTML = `<div class="alert alert-error" style="margin-top:6px">pdflatex still not found. Make sure the install completed and try running the reload command above, then check again.</div>`;
   }
 }
 
-async function installPdflatex() {
-  const btn = document.getElementById("btn-install-pdf");
-  const log = document.getElementById("install-log-pdf");
-  btn.disabled = true;
-  btn.innerHTML = `<span class="spinner"></span>Installing…`;
-  log.style.display = "block";
-  log.textContent = "Installing… this can take a few minutes.";
-
-  const res = await fetch("/api/setup/install-pdflatex", {method: "POST"});
-  const data = await res.json();
-  log.textContent = data.output || "";
-  if (data.ok) {
-    btn.className = "btn btn-success btn-sm";
-    btn.innerHTML = "✓ Installed";
-    status.has_pdflatex = true;
-    renderChecks(); // update the ✓ icon in the check list
-    document.getElementById("pdf-status").insertAdjacentHTML("afterbegin",
-      `<div class="alert alert-ok" style="margin-bottom:10px">✓ pdflatex installed successfully.</div>`);
-  } else {
-    btn.disabled = false;
-    btn.innerHTML = "Retry";
+function copyCmd(el) {
+  navigator.clipboard.writeText(el.textContent.trim()).then(() => {
+    const orig = el.style.outline;
+    el.style.outline = "1px solid #4ade80";
+    setTimeout(() => el.style.outline = orig, 1000);
+  });
+}
   }
 }
 
