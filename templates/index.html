@@ -98,11 +98,17 @@
   .settings-section h3 { font-size: 0.78rem; font-weight: 700; color: #60a5fa; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
 
   /* Search rows */
-  .search-row { display: grid; grid-template-columns: 1fr 100px 1fr 80px 60px 32px; gap: 6px; align-items: center; margin-bottom: 6px; }
-  .search-row input, .search-row select { background: #0f1117; border: 1px solid #2d3748; border-radius: 5px; color: #e2e8f0; padding: 5px 8px; font-size: 0.78rem; width: 100%; }
-  .search-row input:focus, .search-row select:focus { outline: none; border-color: #3b82f6; }
-  .search-row-header { display: grid; grid-template-columns: 1fr 100px 1fr 80px 60px 32px; gap: 6px; margin-bottom: 4px; }
-  .search-row-header span { font-size: 0.7rem; color: #475569; font-weight: 600; text-transform: uppercase; padding: 0 8px; }
+  .search-row { background: #0f1117; border: 1px solid #2d3748; border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; }
+  .search-row-fields { display: grid; grid-template-columns: 1fr 1fr 60px 28px; gap: 6px; align-items: center; margin-bottom: 8px; }
+  .search-row-fields input { background: #1a1f2e; border: 1px solid #2d3748; border-radius: 5px; color: #e2e8f0; padding: 5px 8px; font-size: 0.78rem; width: 100%; outline: none; }
+  .search-row-fields input:focus { border-color: #3b82f6; }
+  .search-sources { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .source-cb { display: flex; align-items: center; gap: 4px; font-size: 0.72rem; color: #94a3b8; cursor: pointer; padding: 3px 8px; border-radius: 99px; border: 1px solid #2d3748; transition: all .1s; user-select: none; }
+  .source-cb:hover { border-color: #3b82f6; color: #e2e8f0; }
+  .source-cb input[type=checkbox] { accent-color: #3b82f6; width: 12px; height: 12px; }
+  .source-cb.checked { background: #1e2a3a; border-color: #3b82f6; color: #60a5fa; }
+  .source-all-btn { font-size: 0.7rem; color: #60a5fa; background: none; border: none; cursor: pointer; padding: 3px 6px; margin-left: 4px; }
+  .source-all-btn:hover { text-decoration: underline; }
   .toggle-remote { display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 0.72rem; cursor: pointer; }
   .toggle-remote input[type=checkbox] { accent-color: #3b82f6; width: 14px; height: 14px; }
   .btn-icon { background: none; border: none; color: #475569; cursor: pointer; font-size: 1rem; padding: 0; line-height: 1; }
@@ -159,11 +165,8 @@
 
       <div class="settings-section">
         <h3>Search Sources</h3>
-        <div class="search-row-header">
-          <span>Query (job title)</span><span>Source</span><span>Location</span><span>Max pages</span><span>Remote</span><span></span>
-        </div>
         <div id="searches-list"></div>
-        <button class="btn-add" onclick="addSearchRow()">+ Add source</button>
+        <button class="btn-add" onclick="addSearchRow()">+ Add search</button>
       </div>
 
       <div class="settings-section">
@@ -531,40 +534,66 @@ function closeSettingsOnBackdrop(e) {
 }
 
 function renderSearchRows(searches) {
+  // Group by query+location+remote so multiple sources for the same query show as one row
+  const groups = {};
+  for (const s of searches) {
+    const key = `${s.query}||${s.location || ""}||${s.remote ?? true}||${s.max_pages ?? 3}`;
+    if (!groups[key]) groups[key] = { query: s.query, location: s.location || "United States", remote: s.remote !== false, max_pages: s.max_pages ?? 3, sources: [] };
+    groups[key].sources.push(s.source);
+  }
   const list = document.getElementById("searches-list");
   list.innerHTML = "";
-  searches.forEach((s, i) => addSearchRow(s));
+  for (const g of Object.values(groups)) addSearchRow(g);
+}
+
+function toggleSourceAll(row) {
+  const cbs = row.querySelectorAll(".src-cb");
+  const allChecked = [...cbs].every(c => c.checked);
+  cbs.forEach(c => {
+    c.checked = !allChecked;
+    c.closest(".source-cb").classList.toggle("checked", !allChecked);
+  });
 }
 
 function addSearchRow(s = {}) {
   const list = document.getElementById("searches-list");
-  const idx = list.children.length;
   const row = document.createElement("div");
   row.className = "search-row";
-  row.dataset.idx = idx;
-  const srcOptions = SOURCES.map(src =>
-    `<option value="${src}" ${s.source === src ? "selected" : ""}>${src}</option>`
-  ).join("");
+  const activeSources = Array.isArray(s.sources) ? s.sources : (s.source ? [s.source] : SOURCES);
+  const sourceCbs = SOURCES.map(src => {
+    const checked = activeSources.includes(src);
+    return `<label class="source-cb ${checked ? 'checked' : ''}" onclick="this.classList.toggle('checked',this.querySelector('input').checked)">
+      <input type="checkbox" class="src-cb" value="${src}" ${checked ? 'checked' : ''}> ${src}
+    </label>`;
+  }).join("");
   row.innerHTML = `
-    <input type="text" placeholder="product owner" value="${s.query || ""}" data-field="query">
-    <select data-field="source">${srcOptions}</select>
-    <input type="text" placeholder="United States" value="${s.location || "United States"}" data-field="location">
-    <input type="number" min="1" max="10" value="${s.max_pages ?? 3}" data-field="max_pages" style="text-align:center">
-    <label class="toggle-remote"><input type="checkbox" data-field="remote" ${s.remote !== false ? "checked" : ""}> Remote</label>
-    <button class="btn-icon" title="Remove" onclick="this.closest('.search-row').remove()">✕</button>
-  `;
+    <div class="search-row-fields">
+      <input type="text" placeholder="e.g. Product Manager" value="${s.query || ""}" data-field="query">
+      <input type="text" placeholder="United States" value="${s.location || "United States"}" data-field="location">
+      <label class="toggle-remote"><input type="checkbox" data-field="remote" ${s.remote !== false ? "checked" : ""}> Remote</label>
+      <button class="btn-icon" title="Remove" onclick="this.closest('.search-row').remove()">✕</button>
+    </div>
+    <div class="search-sources">
+      <span style="font-size:0.7rem;color:#475569;font-weight:600;text-transform:uppercase;margin-right:4px">Sources:</span>
+      ${sourceCbs}
+      <button class="source-all-btn" type="button" onclick="toggleSourceAll(this.closest('.search-row'))">all/none</button>
+    </div>`;
   list.appendChild(row);
 }
 
 function collectSearchRows() {
-  return [...document.querySelectorAll(".search-row")].map((row, i) => {
+  const results = [];
+  document.querySelectorAll(".search-row").forEach(row => {
     const q = row.querySelector("[data-field=query]").value.trim();
-    const src = row.querySelector("[data-field=source]").value;
     const loc = row.querySelector("[data-field=location]").value.trim();
-    const pages = parseInt(row.querySelector("[data-field=max_pages]").value) || 3;
     const remote = row.querySelector("[data-field=remote]").checked;
-    return { name: `${src} - ${q}`, source: src, query: q, location: loc, max_pages: pages, remote };
-  }).filter(s => s.query);
+    const sources = [...row.querySelectorAll(".src-cb:checked")].map(c => c.value);
+    if (!q || !sources.length) return;
+    for (const src of sources) {
+      results.push({ name: `${src} - ${q}`, source: src, query: q, location: loc, max_pages: 3, remote });
+    }
+  });
+  return results;
 }
 
 // ── Tag inputs ────────────────────────────────────────────────────────────────
