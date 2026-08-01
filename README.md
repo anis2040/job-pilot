@@ -4,94 +4,42 @@ Fetches job listings from LinkedIn, Jobicy, Himalayas, and Greenhouse, and gener
 
 ---
 
-## What you need to install manually
+## Before you start
 
-Only two things are required before you can run the app. Everything else (AI CLI, pdflatex, your profile) is handled by the in-browser setup wizard.
+Install these three things manually. Everything else (AI CLI, pdflatex, your profile) is handled by the in-browser setup wizard.
 
-### 1. Python 3.9+
+### Python 3.9+
 
-**macOS:**
-```bash
-brew install python@3.11
-```
-Or download from [python.org/downloads](https://www.python.org/downloads/)
+**macOS:** `brew install python@3.11` or download from [python.org/downloads](https://www.python.org/downloads/)
 
-After installing with Homebrew, Python is added to PATH automatically. Verify with `python3 --version`. If it says "command not found", add it manually:
-```bash
-echo 'export PATH="/opt/homebrew/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc
-```
+**Windows:** Download from [python.org/downloads](https://www.python.org/downloads/) — check **"Add Python to PATH"** on the first installer screen.
 
-**Windows:**
+If Python isn't found after install, add it to PATH manually:
+- **macOS:** `echo 'export PATH="/opt/homebrew/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc`
+- **Windows:** System Properties → Environment Variables → add `C:\Users\<You>\AppData\Local\Programs\Python\Python311\` to Path
 
-1. Download the installer from [python.org/downloads](https://www.python.org/downloads/)
-2. Run the installer — on the **first screen**, check **"Add Python to PATH"** before clicking Install Now
+**Linux:** `sudo apt install python3.11 python3.11-venv`
 
-   > ⚠️ If you miss this checkbox, Python won't be found in the terminal. You'd need to reinstall or add it manually.
+### Git
 
-3. Open a new PowerShell window and verify:
-   ```powershell
-   python --version
-   ```
-   Should show `Python 3.11.x` or higher.
+**macOS:** pre-installed, or `brew install git` · **Windows:** [git-scm.com/download/win](https://git-scm.com/download/win) · **Linux:** `sudo apt install git`
 
-If Python is installed but not in PATH (you get "not recognized as a command"), add it manually:
-- Open **System Properties** → **Environment Variables**
-- Under **User variables**, find `Path`, click **Edit**
-- Add: `C:\Users\<YourName>\AppData\Local\Programs\Python\Python311\` and `C:\Users\<YourName>\AppData\Local\Programs\Python\Python311\Scripts\`
-- Open a new terminal and try again
+### Node.js 18+ *(only needed for CV/cover letter generation)*
 
-**Linux:**
-```bash
-sudo apt install python3.11 python3.11-venv
-```
+Not required to run the app or fetch jobs. The setup wizard will prompt you if it's missing when you try to build a resume.
 
-Verify: `python3 --version` (should show 3.11 or higher)
-
----
-
-### 2. Git
-
-**macOS:** pre-installed, or `brew install git`
-
-**Windows:** download from [git-scm.com/download/win](https://git-scm.com/download/win)
-
-**Linux:** `sudo apt install git`
-
----
-
-### 3. Node.js 18+ *(required for CV/cover letter generation only)*
-
-Not needed to run the app or fetch jobs. Only needed if you want the AI to build resumes — the setup wizard will prompt you if it's missing.
-
-**macOS:**
-```bash
-brew install node
-```
-
-**Windows:** download from [nodejs.org/en/download](https://nodejs.org/en/download) (LTS), or:
-```powershell
-winget install OpenJS.NodeJS.LTS
-```
-
-**Linux:**
-```bash
-sudo apt install nodejs npm
-```
-
-Verify: `node --version`
+**macOS:** `brew install node` · **Windows:** [nodejs.org/en/download](https://nodejs.org/en/download) or `winget install OpenJS.NodeJS.LTS` · **Linux:** `sudo apt install nodejs npm`
 
 ---
 
 ## Install & Run
-
-**1. Clone the repo:**
 
 ```bash
 git clone https://github.com/anis2040/job-scraper.git
 cd job-scraper
 ```
 
-**2. Run the start script:**
+Then run the start script — it handles the rest automatically (creates venv, installs dependencies, starts the app):
 
 **macOS / Linux:**
 ```bash
@@ -103,118 +51,66 @@ cd job-scraper
 start.bat
 ```
 
-That's it. The script automatically:
-- Creates a Python virtual environment if one doesn't exist
-- Installs all dependencies (`pip install -r requirements.txt`)
-- Starts the app at **http://localhost:5050**
+Open **http://localhost:5050** — the setup wizard launches on first run.
 
-Run the same script every time you want to start the app.
-
-> **If you get a permission error on macOS/Linux**, make the script executable first:
-> ```bash
-> chmod +x start.sh
-> ```
-
----
-
-<details>
-<summary>Manual setup (if the script doesn't work)</summary>
-
-**macOS / Linux:**
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python web.py
-```
-
-**Windows (PowerShell):**
-```powershell
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-python web.py
-```
-
-> If you get `ModuleNotFoundError`, make sure you activated the virtualenv before running `python web.py`.
-
-</details>
-
-Open **http://localhost:5050** — the setup wizard launches automatically and guides you through the AI CLI, pdflatex, and your profile.
-
-> There is no `package.json` or `npm install` — this is a Python app. All dependencies are Python packages managed by `pip` via `requirements.txt`.
+> Run the same script every time you want to start the app.
+> If you get a permission error: `chmod +x start.sh`
 
 ---
 
 ## Setup Wizard
 
-Runs on first launch. 3 steps:
+Runs automatically on first launch. 3 steps:
 
-**Step 1 — Prerequisites:** Checks Node.js, AI CLI (Claude or Gemini), and pdflatex.
-- One-click install buttons for AI CLI and pdflatex (macOS/Linux). Windows shows step-by-step instructions.
-- If Node.js is missing, install it manually (see above) — the wizard can't install it automatically on all platforms.
+**Step 1 — Prerequisites:** Checks Node.js, AI CLI (Claude or Gemini), and pdflatex. Shows install instructions for anything missing.
 
-**Step 2 — Profile:** Fill in your experience, education, and certifications using a structured form, or upload an existing PDF/DOCX resume to autofill. The AI uses this exclusively to build resumes — it never invents anything not in your profile.
+**Step 2 — Profile:** Fill in your experience, education, and certifications using a structured form, or upload an existing PDF/DOCX resume to autofill.
 
-**Step 3 — Done:** Auto-configure searches from your profile with one click, or skip with a quick title + location form to start fetching jobs immediately.
-
-> The AI CLI, pdflatex, Gemini API key, and your profile are all configured inside the wizard — no extra terminal commands needed after `pip install`.
-
+**Step 3 — Done:** Auto-configure searches from your profile with one click, or enter a job title and location to start fetching immediately.
 
 ---
 
 ## Features
 
-**Multi-profile support** — click the avatar in the top-right to switch between profiles, add a new one, or manage existing ones. Each profile has its own jobs database, search config, and resumes folder.
+**Multi-profile** — avatar in the top-right switches between profiles, each with its own jobs, search config, and resumes.
 
-**Job list** — sortable and searchable table of all fetched listings. Filter by title, company, location, source, or remote type.
+**Job list** — sortable and searchable. Filter by title, company, location, source, or remote type.
 
-**Build CV** — click ▶ Build CV on any job. The AI generates a tailored ATS-optimized resume as a PDF. Once done, click 📄 Open CV to view it.
+**Build CV** — click ▶ Build CV on any job to generate a tailored ATS-optimized resume PDF.
 
-**Write Letter** — appears after a CV is built. Generates a matching cover letter that reads the resume for consistency.
+**Write Letter** — appears after a CV is built. Generates a matching cover letter.
 
-**⚙ Search Settings** — edit search queries, sources, locations, and filters directly from the job list without touching any files.
+**Search Settings** — edit queries, sources, locations, and filters from the UI without touching files.
 
-**Profile Settings** — click your avatar → Manage Profiles → click a profile row. GitHub-settings-style page with sections for profile editing, search configuration, and danger zone actions.
+**Profile Settings** — avatar → Manage Profiles → click a profile row. Edit profile, search config, or clear data.
 
 ---
 
 ## Sources
 
-| Source | Type |
+| Source | Coverage |
 |---|---|
-| LinkedIn | Scrapes public job search results |
-| Jobicy | Remote-first jobs, public JSON API |
-| Himalayas | Remote jobs, public JSON API |
-| Greenhouse | Per-company job board API (no key required) |
+| LinkedIn | Large job market, public search |
+| Jobicy | Remote-first jobs, public API |
+| Himalayas | Remote jobs, public API |
+| Greenhouse | Per-company boards, no key required |
 
 ---
 
 ## Output
 
-Generated files are saved under each profile's folder:
+Resumes and cover letters are saved per profile:
 
 ```
-profiles/<name>/
-  resumes/
-    <CompanyName>/
-      <Name>_Resume.pdf
-      <Name>_Resume.tex
-      <Name>_Cover_Letter.pdf   (if generated)
-      job_description.txt
-  profile.md
-  config.yaml
-  state.db
+profiles/<name>/resumes/<CompanyName>/
+  <Name>_Resume.pdf
+  <Name>_Cover_Letter.pdf
+  <Name>_Resume.tex
+  job_description.txt
 ```
 
 ---
 
 ## Reset
 
-Clear all jobs for the current profile from the UI: **avatar → Manage Profiles → profile row → Danger Zone → Clear jobs**.
-
-Or from the terminal (macOS/Linux):
-```bash
-source .venv/bin/activate
-python -c "from job.db import clear_all_jobs; clear_all_jobs(); print('cleared')"
-```
+Clear jobs from the UI: **avatar → Manage Profiles → profile row → Danger Zone → Clear jobs**
