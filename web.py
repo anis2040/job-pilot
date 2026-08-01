@@ -722,12 +722,10 @@ def api_setup_save_profile():
     pending_slug = session.pop("pending_profile_slug", None)
 
     if pending_slug and (PROFILES_DIR / pending_slug).is_dir():
-        # Use the pre-created pending folder, switch to it now
         profile_dir = PROFILES_DIR / pending_slug
         set_active(pending_slug)
         clear_task_state()
     elif not profile_dir:
-        # No active profile at all (fresh install) — create one from name
         slug = create_profile(name)
         profile_dir = PROFILES_DIR / slug
         set_active(slug)
@@ -735,6 +733,21 @@ def api_setup_save_profile():
     profile_dir.mkdir(parents=True, exist_ok=True)
     (profile_dir / "profile.md").write_text(content)
     (profile_dir / "resumes").mkdir(exist_ok=True)
+
+    # Rename the folder to the proper name-based slug if it's still a temp name
+    current_slug = profile_dir.name
+    proper_slug = slugify(name)
+    if current_slug != proper_slug and current_slug.startswith("new-profile-"):
+        # Ensure no collision
+        target = PROFILES_DIR / proper_slug
+        counter = 1
+        while target.exists():
+            target = PROFILES_DIR / f"{proper_slug}-{counter}"
+            counter += 1
+        profile_dir.rename(target)
+        profile_dir = target
+        set_active(target.name)
+
     from job.profiles import _update_symlinks
     _update_symlinks(profile_dir)
     init_db()
