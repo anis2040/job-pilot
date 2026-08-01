@@ -1,13 +1,19 @@
 import os
+import sys
+import yaml
+import shutil
+import subprocess
 from pathlib import Path
 from datetime import datetime, timezone
-from flask import Flask, render_template, jsonify, request, send_file, abort
+from flask import Flask, render_template, jsonify, request, send_file, abort, redirect, url_for
 
 from job.db import init_db, get_pending_deduped, get_jobs_by_status, update_status, get_job, stats, last_fetch_at
 from job.web_api import trigger_resume, get_task_status, trigger_cover_letter, get_cl_task_status, trigger_fetch, get_fetch_status
 
 BASE = Path(__file__).parent
+CONFIG_PATH = BASE / "config.yaml"
 SKILL_PATH = BASE / "resume-skill"
+PROFILE_PATH = SKILL_PATH / "references" / "profile.md"
 RESUMES_PATH = BASE / "resumes"
 
 app = Flask(__name__, template_folder="templates")
@@ -117,6 +123,7 @@ def _serialize_job(row, task_status: dict, cl_task_status: dict) -> dict:
         "remote": r.get("remote") or "",
         "experience": r.get("experience") or "",
         "salary": salary,
+        "salary_min": r.get("salary_min") or 0,
         "score": r.get("score") or 0,
         "age": age,
         "posted": posted,
@@ -135,6 +142,8 @@ def _serialize_job(row, task_status: dict, cl_task_status: dict) -> dict:
 
 @app.route("/")
 def index():
+    if not PROFILE_PATH.exists():
+        return redirect(url_for("setup"))
     counts = stats()
     last = last_fetch_at()
     last_str = ""
@@ -214,6 +223,30 @@ def api_job_status(job_id, new_status):
     return jsonify({"ok": ok})
 
 
+@app.route("/api/config", methods=["GET"])
+def api_config_get():
+    with open(CONFIG_PATH) as f:
+        data = yaml.safe_load(f)
+    return jsonify(data)
+
+
+@app.route("/api/config", methods=["POST"])
+def api_config_save():
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data"}), 400
+    # Basic validation
+    if not isinstance(data.get("searches"), list) or not data["searches"]:
+        return jsonify({"error": "At least one search entry required"}), 400
+    required = {"name", "source", "query"}
+    for s in data["searches"]:
+        if not required.issubset(s.keys()):
+            return jsonify({"error": f"Search entry missing fields: {required - s.keys()}"}), 400
+    with open(CONFIG_PATH, "w") as f:
+        yaml.dump(data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    return jsonify({"ok": True})
+
+
 @app.route("/api/fetch", methods=["POST"])
 def api_fetch():
     trigger_fetch()
@@ -241,5 +274,112 @@ def serve_cover_letter(company):
     return send_file(str(pdf), mimetype="application/pdf")
 
 
+@app.route("/setup")
+def setup():
+    return render_template("setup.html")
+
+
+@app.route("/api/setup/status")
+def api_setup_status():
+    platform = sys.platform  # darwin, win32, linux
+    has_claude = bool(shutil.which("claude"))
+    has_gemini = bool(shutil.which("gemini"))
+    has_pdflatex = bool(shutil.which("pdflatex"))
+    has_node = bool(shutil.which("node"))
+    has_profile = PROFILE_PATH.exists()
+    # Read GEMINI_API_KEY from env
+    gemini_key_set = bool(os.environ.get("GEMINI_API_KEY"))
+    return jsonify({
+        "platform": platform,
+        "has_claude": has_claude,
+        "has_gemini": has_gemini,
+        "has_pdflatex": has_pdflatex,
+        "has_node": has_node,
+        "has_profile": has_profile,
+        "gemini_key_set": gemini_key_set,
+    })
+
+
+@app.route("/api/setup/install-cli", methods=["POST"])
+def api_setup_install_cli():
+    data = request.get_json()
+    provider = data.get("provider")  # "claude" or "gemini"
+    if provider not in ("claude", "gemini"):
+        return jsonify({"error": "Invalid provider"}), 400
+    pkg = "@anthropic-ai/claude-code" if provider == "claude" else "@google/gemini-cli"
+    try:
+        result = subprocess.run(
+            ["npm", "install", "-g", pkg],
+            capture_output=True, text=True, timeout=180
+        )
+        if result.returncode == 0:
+            return jsonify({"ok": True, "output": result.stdout[-1000:]})
+        return jsonify({"ok": False, "output": result.stderr[-1000:]})
+    except subprocess.TimeoutExpired:
+        return jsonify({"ok": False, "output": "Install timed out after 3 minutes."})
+    except Exception as e:
+        return jsonify({"ok": False, "output": str(e)})
+
+
+@app.route("/api/setup/save-gemini-key", methods=["POST"])
+def api_setup_save_gemini_key():
+    data = request.get_json()
+    key = (data.get("key") or "").strip()
+    if not key:
+        return jsonify({"error": "No key provided"}), 400
+    # Persist to a .env file the app loads on startup
+    env_path = BASE / ".env"
+    lines = []
+    if env_path.exists():
+        lines = [l for l in env_path.read_text().splitlines() if not l.startswith("GEMINI_API_KEY=")]
+    lines.append(f"GEMINI_API_KEY={key}")
+    env_path.write_text("\n".join(lines) + "\n")
+    os.environ["GEMINI_API_KEY"] = key
+    return jsonify({"ok": True})
+
+
+@app.route("/api/setup/install-pdflatex", methods=["POST"])
+def api_setup_install_pdflatex():
+    platform = sys.platform
+    try:
+        if platform == "darwin":
+            result = subprocess.run(
+                ["brew", "install", "--cask", "basictex"],
+                capture_output=True, text=True, timeout=600
+            )
+        elif platform == "linux":
+            result = subprocess.run(
+                ["sudo", "apt-get", "install", "-y", "texlive-latex-extra"],
+                capture_output=True, text=True, timeout=600
+            )
+        else:
+            return jsonify({"ok": False, "output": "Auto-install not supported on Windows. Please install MiKTeX manually from https://miktex.org/download"})
+        if result.returncode == 0:
+            return jsonify({"ok": True, "output": result.stdout[-1000:]})
+        return jsonify({"ok": False, "output": (result.stderr or result.stdout)[-1000:]})
+    except subprocess.TimeoutExpired:
+        return jsonify({"ok": False, "output": "Install timed out."})
+    except Exception as e:
+        return jsonify({"ok": False, "output": str(e)})
+
+
+@app.route("/api/setup/save-profile", methods=["POST"])
+def api_setup_save_profile():
+    data = request.get_json()
+    content = (data.get("content") or "").strip()
+    if not content:
+        return jsonify({"error": "Profile content is empty"}), 400
+    PROFILE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    PROFILE_PATH.write_text(content)
+    return jsonify({"ok": True})
+
+
 if __name__ == "__main__":
+    # Load .env if present (for GEMINI_API_KEY etc.)
+    env_path = BASE / ".env"
+    if env_path.exists():
+        for line in env_path.read_text().splitlines():
+            if "=" in line and not line.startswith("#"):
+                k, v = line.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip())
     app.run(debug=False, port=5050)

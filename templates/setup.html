@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Job Scraper — Setup</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+
+  .wizard { width: 600px; max-width: 100%; }
+
+  .wizard-header { text-align: center; margin-bottom: 32px; }
+  .wizard-header h1 { font-size: 1.6rem; font-weight: 800; color: #fff; margin-bottom: 6px; }
+  .wizard-header p { color: #64748b; font-size: 0.9rem; }
+
+  .steps { display: flex; align-items: center; justify-content: center; gap: 0; margin-bottom: 32px; }
+  .step-dot { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #2d3748; color: #475569; font-size: 0.72rem; font-weight: 700; display: flex; align-items: center; justify-content: center; transition: all .2s; flex-shrink: 0; }
+  .step-dot.active { border-color: #3b82f6; background: #3b82f6; color: #fff; }
+  .step-dot.done { border-color: #16a34a; background: #16a34a; color: #fff; }
+  .step-line { flex: 1; height: 2px; background: #2d3748; max-width: 48px; }
+  .step-line.done { background: #16a34a; }
+
+  .card { background: #1a1f2e; border: 1px solid #2d3748; border-radius: 12px; padding: 28px 32px; }
+  .card h2 { font-size: 1.1rem; font-weight: 700; color: #fff; margin-bottom: 6px; }
+  .card .subtitle { font-size: 0.84rem; color: #64748b; margin-bottom: 22px; line-height: 1.5; }
+
+  .check-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #1e2333; }
+  .check-row:last-child { border-bottom: none; }
+  .check-icon { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; flex-shrink: 0; }
+  .check-icon.ok { background: #14532d; color: #4ade80; }
+  .check-icon.warn { background: #451a03; color: #fb923c; }
+  .check-icon.loading { background: #1e2333; color: #475569; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  .check-label { flex: 1; font-size: 0.84rem; }
+  .check-label strong { color: #e2e8f0; display: block; margin-bottom: 1px; }
+  .check-label span { color: #64748b; font-size: 0.78rem; }
+
+  .provider-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 4px; }
+  .provider-card { border: 2px solid #2d3748; border-radius: 8px; padding: 16px; cursor: pointer; transition: all .15s; position: relative; }
+  .provider-card:hover { border-color: #3b82f6; background: #1e2333; }
+  .provider-card.selected { border-color: #3b82f6; background: #1e2a3a; }
+  .provider-card h3 { font-size: 0.9rem; font-weight: 700; color: #fff; margin-bottom: 4px; }
+  .provider-card p { font-size: 0.76rem; color: #64748b; line-height: 1.4; }
+  .provider-card .badge-free { position: absolute; top: 10px; right: 10px; background: #14532d; color: #4ade80; font-size: 0.65rem; font-weight: 700; padding: 2px 7px; border-radius: 99px; }
+  .provider-card .badge-login { position: absolute; top: 10px; right: 10px; background: #1e3a5f; color: #60a5fa; font-size: 0.65rem; font-weight: 700; padding: 2px 7px; border-radius: 99px; }
+
+  .input-group { margin-bottom: 16px; }
+  .input-group label { display: block; font-size: 0.78rem; font-weight: 600; color: #94a3b8; margin-bottom: 6px; }
+  .input-group input, .input-group textarea { width: 100%; background: #0f1117; border: 1px solid #2d3748; border-radius: 6px; color: #e2e8f0; padding: 9px 12px; font-size: 0.84rem; outline: none; font-family: inherit; }
+  .input-group input:focus, .input-group textarea:focus { border-color: #3b82f6; }
+  .input-group textarea { min-height: 280px; resize: vertical; font-family: "SF Mono", "Fira Code", monospace; font-size: 0.76rem; line-height: 1.5; }
+  .input-group .hint { font-size: 0.73rem; color: #475569; margin-top: 5px; }
+  .input-group .hint a { color: #60a5fa; text-decoration: none; }
+  .input-group .hint a:hover { text-decoration: underline; }
+
+  .install-block { background: #0f1117; border: 1px solid #2d3748; border-radius: 6px; padding: 12px 14px; margin-top: 10px; }
+  .install-block p { font-size: 0.78rem; color: #94a3b8; margin-bottom: 8px; }
+  .install-block code { display: block; background: #1a1f2e; border-radius: 4px; padding: 8px 10px; font-size: 0.76rem; color: #a78bfa; font-family: "SF Mono", monospace; margin-bottom: 8px; white-space: pre-wrap; word-break: break-all; }
+  .install-log { font-size: 0.72rem; color: #64748b; font-family: monospace; max-height: 100px; overflow-y: auto; margin-top: 6px; white-space: pre-wrap; display: none; }
+
+  .btn { padding: 9px 20px; border-radius: 6px; font-size: 0.84rem; font-weight: 600; border: none; cursor: pointer; transition: opacity .15s; }
+  .btn:hover { opacity: 0.85; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-primary { background: #3b82f6; color: #fff; }
+  .btn-ghost { background: #1e2333; color: #94a3b8; }
+  .btn-success { background: #16a34a; color: #fff; }
+  .btn-sm { padding: 5px 12px; font-size: 0.76rem; }
+
+  .footer-nav { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; }
+  .footer-nav .step-hint { font-size: 0.76rem; color: #475569; }
+
+  .alert { padding: 10px 14px; border-radius: 6px; font-size: 0.8rem; margin-top: 10px; }
+  .alert-error { background: #2d1b1b; color: #f87171; border: 1px solid #7f1d1d; }
+  .alert-ok { background: #14532d; color: #4ade80; border: 1px solid #166534; }
+
+  .success-icon { font-size: 3rem; text-align: center; margin-bottom: 16px; }
+  .success-features { list-style: none; margin: 16px 0; }
+  .success-features li { padding: 6px 0; font-size: 0.84rem; color: #94a3b8; }
+  .success-features li::before { content: "✓ "; color: #4ade80; font-weight: 700; }
+
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .profile-example-btn { background: none; border: 1px dashed #2d3748; color: #60a5fa; border-radius: 5px; padding: 5px 12px; font-size: 0.76rem; cursor: pointer; margin-bottom: 10px; }
+  .profile-example-btn:hover { background: #1e2333; }
+</style>
+</head>
+<body>
+
+<div class="wizard">
+  <div class="wizard-header">
+    <h1>🔍 Job Scraper Setup</h1>
+    <p>Let's get you set up in a few steps.</p>
+  </div>
+
+  <div class="steps" id="steps-indicator">
+    <div class="step-dot active" id="dot-1">1</div>
+    <div class="step-line" id="line-1-2"></div>
+    <div class="step-dot" id="dot-2">2</div>
+    <div class="step-line" id="line-2-3"></div>
+    <div class="step-dot" id="dot-3">3</div>
+    <div class="step-line" id="line-3-4"></div>
+    <div class="step-dot" id="dot-4">4</div>
+    <div class="step-line" id="line-4-5"></div>
+    <div class="step-dot" id="dot-5">5</div>
+  </div>
+
+  <!-- Step 1: System check -->
+  <div id="step-1" class="card">
+    <h2>System Check</h2>
+    <p class="subtitle">Checking what's already installed on your machine.</p>
+    <div id="check-list">
+      <div class="check-row"><div class="check-icon loading" id="chk-python">…</div><div class="check-label"><strong>Python</strong><span>Required to run the app</span></div></div>
+      <div class="check-row"><div class="check-icon loading" id="chk-node">…</div><div class="check-label"><strong>Node.js</strong><span>Required to install the AI CLI</span></div></div>
+      <div class="check-row"><div class="check-icon loading" id="chk-ai">…</div><div class="check-label"><strong>AI CLI</strong><span id="chk-ai-label">Claude Code or Gemini CLI</span></div></div>
+      <div class="check-row"><div class="check-icon loading" id="chk-pdf">…</div><div class="check-label"><strong>pdflatex</strong><span id="chk-pdf-label">Required to compile resumes to PDF</span></div></div>
+    </div>
+    <div class="footer-nav">
+      <span class="step-hint">Step 1 of 5</span>
+      <button class="btn btn-primary" id="btn-next-1" onclick="goStep(2)" disabled>Continue →</button>
+    </div>
+  </div>
+
+  <!-- Step 2: AI provider -->
+  <div id="step-2" class="card" style="display:none">
+    <h2>Choose Your AI</h2>
+    <p class="subtitle">The AI generates your tailored resumes and cover letters. Both work great — pick the one you prefer.</p>
+    <div class="provider-grid">
+      <div class="provider-card" id="card-claude" onclick="selectProvider('claude')">
+        <span class="badge-login">Login required</span>
+        <h3>Claude</h3>
+        <p>By Anthropic. Free tier available. Login with your Anthropic account — no API key needed.</p>
+      </div>
+      <div class="provider-card" id="card-gemini" onclick="selectProvider('gemini')">
+        <span class="badge-free">Free API key</span>
+        <h3>Gemini</h3>
+        <p>By Google. Free API key from Google AI Studio. No credit card required.</p>
+      </div>
+    </div>
+    <div id="provider-action" style="margin-top:16px;display:none"></div>
+    <div class="footer-nav">
+      <button class="btn btn-ghost" onclick="goStep(1)">← Back</button>
+      <span class="step-hint">Step 2 of 5</span>
+      <button class="btn btn-primary" id="btn-next-2" onclick="goStep(3)" disabled>Continue →</button>
+    </div>
+  </div>
+
+  <!-- Step 3: pdflatex -->
+  <div id="step-3" class="card" style="display:none">
+    <h2>PDF Compiler</h2>
+    <p class="subtitle">Resumes and cover letters are generated as LaTeX and compiled to PDF. <strong style="color:#e2e8f0">pdflatex</strong> handles the compilation.</p>
+    <div id="pdf-status"></div>
+    <div class="footer-nav">
+      <button class="btn btn-ghost" onclick="goStep(2)">← Back</button>
+      <span class="step-hint">Step 3 of 5</span>
+      <button class="btn btn-primary" id="btn-next-3" onclick="goStep(4)">Continue →</button>
+    </div>
+  </div>
+
+  <!-- Step 4: Profile -->
+  <div id="step-4" class="card" style="display:none">
+    <h2>Your Profile</h2>
+    <p class="subtitle">Paste your work experience, education, and certifications below. The AI reads this — and only this — to build your resumes. Nothing gets sent anywhere except to your chosen AI.</p>
+    <button class="profile-example-btn" onclick="loadProfileExample()">Load example template</button>
+    <div class="input-group">
+      <label>Profile (Markdown)</label>
+      <textarea id="profile-input" placeholder="## Contact&#10;- Name: Your Name&#10;- Email: you@example.com&#10;&#10;## Experience&#10;..."></textarea>
+      <div class="hint">Fill in your real details. The AI will never invent anything not listed here.</div>
+    </div>
+    <div id="profile-alert"></div>
+    <div class="footer-nav">
+      <button class="btn btn-ghost" onclick="goStep(3)">← Back</button>
+      <span class="step-hint">Step 4 of 5</span>
+      <button class="btn btn-primary" id="btn-next-4" onclick="saveProfile()">Save & Continue →</button>
+    </div>
+  </div>
+
+  <!-- Step 5: Done -->
+  <div id="step-5" class="card" style="display:none">
+    <div class="success-icon">🎉</div>
+    <h2 style="text-align:center">You're all set!</h2>
+    <p class="subtitle" style="text-align:center">Everything is configured. Here's what you can do now:</p>
+    <ul class="success-features">
+      <li>Click <strong>⟳ Fetch new jobs</strong> to pull listings from LinkedIn, Jobicy, Himalayas, and Greenhouse</li>
+      <li>Click <strong>▶ Build CV</strong> on any job to generate a tailored ATS-optimized resume</li>
+      <li>Click <strong>✉ Write Letter</strong> to generate a matching cover letter</li>
+      <li>Use <strong>⚙ Settings</strong> to change what roles and locations you search for</li>
+    </ul>
+    <div style="text-align:center;margin-top:8px">
+      <button class="btn btn-success" onclick="window.location='/'">Open Job Scraper →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let status = {};
+let selectedProvider = null;
+let providerReady = false;
+
+const PROFILE_EXAMPLE = `# Your Full Profile
+
+## Contact
+- Location: City, State
+- Phone: +1 555-000-0000
+- Email: you@example.com
+- LinkedIn: https://www.linkedin.com/in/yourprofile
+- Work authorization: (e.g. US Citizen, Green Card, or requires H-1B sponsorship)
+
+---
+
+## Professional Summary
+
+Write 2-3 sentences describing your role, domain, and what makes you effective.
+
+---
+
+## Core Competencies
+
+- Competency 1
+- Competency 2
+- Competency 3
+
+---
+
+## Professional Experience
+
+### Job Title — Company Name
+**Location:** City, Country
+**Dates:** Jan 2020 – Present
+
+**Bullets:**
+- Led delivery of X, resulting in Y
+- Owned backlog of Z features across N teams
+
+**Key Projects:**
+- **Project Name:** What it was, your role, and the outcome.
+
+---
+
+## Education
+
+### Master's Degree
+- **Degree:** Master of Science in [Field]
+- **Institution:** University Name
+- **Year:** 2022
+
+### Bachelor's Degree
+- **Degree:** Bachelor of Science in [Field]
+- **Institution:** University Name
+- **Year:** 2018
+
+---
+
+## Certifications
+
+- Certification Name, Issuer (Year)
+`;
+
+async function init() {
+  const res = await fetch("/api/setup/status");
+  status = await res.json();
+  renderChecks();
+}
+
+function renderChecks() {
+  const set = (id, ok, label) => {
+    const el = document.getElementById(id);
+    el.className = "check-icon " + (ok ? "ok" : "warn");
+    el.textContent = ok ? "✓" : "!";
+    if (label) document.getElementById(id + "-label").textContent = label;
+  };
+
+  set("chk-python", true); // Python is running since we're here
+  set("chk-node", status.has_node, status.has_node ? "Installed" : "Not found — needed to install AI CLI");
+  const hasAI = status.has_claude || status.has_gemini;
+  const aiLabel = status.has_claude && status.has_gemini ? "Claude & Gemini both installed" :
+                  status.has_claude ? "Claude Code installed" :
+                  status.has_gemini ? "Gemini CLI installed" : "Not installed yet";
+  set("chk-ai", hasAI, aiLabel);
+  set("chk-pdf", status.has_pdflatex, status.has_pdflatex ? "Installed" : "Not installed yet — needed for PDF output");
+
+  document.getElementById("btn-next-1").disabled = false;
+}
+
+function goStep(n) {
+  for (let i = 1; i <= 5; i++) {
+    document.getElementById(`step-${i}`).style.display = i === n ? "block" : "none";
+    const dot = document.getElementById(`dot-${i}`);
+    dot.className = "step-dot" + (i < n ? " done" : i === n ? " active" : "");
+    if (i < 5) {
+      const line = document.getElementById(`line-${i}-${i+1}`);
+      line.className = "step-line" + (i < n ? " done" : "");
+    }
+  }
+  if (n === 3) renderPdfStep();
+}
+
+// ── Step 2: Provider ──────────────────────────────────────────────────────────
+
+function selectProvider(p) {
+  selectedProvider = p;
+  providerReady = false;
+  document.getElementById("btn-next-2").disabled = true;
+  document.getElementById("card-claude").classList.toggle("selected", p === "claude");
+  document.getElementById("card-gemini").classList.toggle("selected", p === "gemini");
+
+  const block = document.getElementById("provider-action");
+  block.style.display = "block";
+
+  if (p === "claude") {
+    const installed = status.has_claude;
+    block.innerHTML = installed
+      ? `<div class="alert alert-ok">✓ Claude Code is already installed. You're good to go.</div>`
+      : `<div class="install-block">
+           <p>Claude Code is not installed. Click below to install it via npm, or run this manually:</p>
+           <code>npm install -g @anthropic-ai/claude-code</code>
+           <button class="btn btn-primary btn-sm" id="btn-install-claude" onclick="installCLI('claude')">Install Claude Code</button>
+           <div class="install-log" id="install-log-claude"></div>
+         </div>
+         <div class="install-block" style="margin-top:10px">
+           <p>After installing, run this in your terminal to log in:</p>
+           <code>claude login</code>
+           <div class="hint" style="color:#475569;font-size:0.76rem;margin-top:4px">Opens a browser to authenticate with your Anthropic account. Free plan available at <a href="https://claude.ai" target="_blank">claude.ai</a>.</div>
+         </div>
+         <button class="btn btn-ghost btn-sm" style="margin-top:12px" onclick="markProviderReady()">I've logged in ✓</button>`;
+    if (installed) markProviderReady();
+
+  } else {
+    const installed = status.has_gemini;
+    const keySet = status.gemini_key_set;
+    block.innerHTML = (installed ? `<div class="alert alert-ok" style="margin-bottom:10px">✓ Gemini CLI is already installed.</div>` :
+      `<div class="install-block" style="margin-bottom:10px">
+         <p>Gemini CLI is not installed. Click below to install it via npm:</p>
+         <code>npm install -g @google/gemini-cli</code>
+         <button class="btn btn-primary btn-sm" id="btn-install-gemini" onclick="installCLI('gemini')">Install Gemini CLI</button>
+         <div class="install-log" id="install-log-gemini"></div>
+       </div>`) +
+      `<div class="input-group" style="margin-top:0">
+         <label>Gemini API Key <a href="https://aistudio.google.com/apikey" target="_blank" style="color:#60a5fa;font-size:0.72rem;margin-left:6px">Get a free key at Google AI Studio ↗</a></label>
+         <input type="password" id="gemini-key-input" placeholder="AIza…" value="${keySet ? '••••••••••••••••' : ''}">
+         <div class="hint">Free tier — no credit card required. Your key is saved locally and never shared.</div>
+       </div>
+       <div id="key-alert"></div>
+       <button class="btn btn-primary btn-sm" onclick="saveGeminiKey()">Save API Key</button>`;
+    if (installed && keySet) markProviderReady();
+  }
+}
+
+async function installCLI(provider) {
+  const btn = document.getElementById(`btn-install-${provider}`);
+  const log = document.getElementById(`install-log-${provider}`);
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span>Installing…`;
+  log.style.display = "block";
+  log.textContent = "Installing, this may take a minute…";
+
+  const res = await fetch("/api/setup/install-cli", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({provider})
+  });
+  const data = await res.json();
+  log.textContent = data.output || "";
+  if (data.ok) {
+    btn.className = "btn btn-success btn-sm";
+    btn.innerHTML = "✓ Installed";
+    status[`has_${provider}`] = true;
+    if (provider === "gemini") selectProvider("gemini"); // re-render to show key input
+    if (provider === "claude") markProviderReady();
+  } else {
+    btn.disabled = false;
+    btn.innerHTML = "Retry";
+  }
+}
+
+async function saveGeminiKey() {
+  const key = document.getElementById("gemini-key-input").value.trim();
+  if (!key || key.startsWith("•")) { markProviderReady(); return; }
+  const res = await fetch("/api/setup/save-gemini-key", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({key})
+  });
+  const data = await res.json();
+  const alert = document.getElementById("key-alert");
+  if (data.ok) {
+    alert.innerHTML = `<div class="alert alert-ok" style="margin-top:8px">✓ API key saved.</div>`;
+    status.gemini_key_set = true;
+    if (status.has_gemini) markProviderReady();
+  } else {
+    alert.innerHTML = `<div class="alert alert-error" style="margin-top:8px">${data.error}</div>`;
+  }
+}
+
+function markProviderReady() {
+  providerReady = true;
+  document.getElementById("btn-next-2").disabled = false;
+}
+
+// ── Step 3: pdflatex ──────────────────────────────────────────────────────────
+
+function renderPdfStep() {
+  const block = document.getElementById("pdf-status");
+  if (status.has_pdflatex) {
+    block.innerHTML = `<div class="alert alert-ok">✓ pdflatex is already installed. Nothing to do here.</div>`;
+    return;
+  }
+  const platform = status.platform;
+  let installBtn = "";
+  let manualCmd = "";
+
+  if (platform === "darwin") {
+    manualCmd = "brew install --cask basictex";
+    installBtn = `<button class="btn btn-primary btn-sm" id="btn-install-pdf" onclick="installPdflatex()">Install BasicTeX automatically</button>`;
+  } else if (platform === "linux") {
+    manualCmd = "sudo apt-get install -y texlive-latex-extra";
+    installBtn = `<button class="btn btn-primary btn-sm" id="btn-install-pdf" onclick="installPdflatex()">Install automatically</button>`;
+  } else {
+    manualCmd = null;
+  }
+
+  block.innerHTML = `
+    <div class="install-block">
+      <p>pdflatex is not installed. It's needed to compile LaTeX to PDF.</p>
+      ${manualCmd ? `<code>${manualCmd}</code>${installBtn}` :
+        `<p style="color:#94a3b8">Download and install <a href="https://miktex.org/download" target="_blank" style="color:#60a5fa">MiKTeX for Windows ↗</a>. It installs missing packages automatically on first use.</p>`}
+      <div class="install-log" id="install-log-pdf"></div>
+    </div>
+    <div class="hint" style="margin-top:10px">You can skip this step and install it later — the app works without it until you build a resume.</div>
+  `;
+}
+
+async function installPdflatex() {
+  const btn = document.getElementById("btn-install-pdf");
+  const log = document.getElementById("install-log-pdf");
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span>Installing…`;
+  log.style.display = "block";
+  log.textContent = "Installing… this can take a few minutes.";
+
+  const res = await fetch("/api/setup/install-pdflatex", {method: "POST"});
+  const data = await res.json();
+  log.textContent = data.output || "";
+  if (data.ok) {
+    btn.className = "btn btn-success btn-sm";
+    btn.innerHTML = "✓ Installed";
+    status.has_pdflatex = true;
+    document.getElementById("pdf-status").insertAdjacentHTML("afterbegin",
+      `<div class="alert alert-ok" style="margin-bottom:10px">✓ pdflatex installed successfully.</div>`);
+  } else {
+    btn.disabled = false;
+    btn.innerHTML = "Retry";
+  }
+}
+
+// ── Step 4: Profile ───────────────────────────────────────────────────────────
+
+function loadProfileExample() {
+  document.getElementById("profile-input").value = PROFILE_EXAMPLE;
+}
+
+async function saveProfile() {
+  const content = document.getElementById("profile-input").value.trim();
+  const alert = document.getElementById("profile-alert");
+  if (!content) {
+    alert.innerHTML = `<div class="alert alert-error">Please fill in your profile before continuing.</div>`;
+    return;
+  }
+  const res = await fetch("/api/setup/save-profile", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({content})
+  });
+  const data = await res.json();
+  if (data.ok) {
+    goStep(5);
+  } else {
+    alert.innerHTML = `<div class="alert alert-error">${data.error}</div>`;
+  }
+}
+
+init();
+</script>
+</body>
+</html>
