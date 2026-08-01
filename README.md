@@ -1,6 +1,6 @@
 # job-scraper
 
-Fetches job listings from LinkedIn, Jobicy, Himalayas, and Greenhouse, scores them by fit, and generates tailored ATS-optimized resumes and cover letters with one click using Claude or Gemini.
+Fetches job listings from LinkedIn, Jobicy, Himalayas, and Greenhouse, and generates tailored ATS-optimized resumes and cover letters with one click using Claude or Gemini. Supports multiple profiles so different people (or different job tracks) can share one installation.
 
 ## Requirements
 
@@ -36,62 +36,9 @@ pip install -r requirements.txt
 > If you get a "running scripts is disabled" error on Windows, run once as Administrator:
 > `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`
 
-### 2. Set up your profile
+### 2. Run
 
-Copy the example profile and fill in your details:
-
-```bash
-cp resume-skill/references/profile.md.example resume-skill/references/profile.md
-```
-
-Edit `resume-skill/references/profile.md` with your experience, education, and certifications. This is the only source of truth the AI uses — it will never invent anything not listed here.
-
-### 3. Set up your AI CLI
-
-**Option A — Claude:**
-```bash
-npm install -g @anthropic-ai/claude-code
-claude login
-```
-
-**Option B — Gemini:**
-```bash
-npm install -g @google/gemini-cli
-```
-Then set your API key (get one free at [aistudio.google.com](https://aistudio.google.com/apikey)):
-```bash
-# macOS / Linux
-export GEMINI_API_KEY="your_key_here"
-
-# Windows (PowerShell)
-$env:GEMINI_API_KEY="your_key_here"
-```
-To make it permanent on Windows, add it via System Properties → Environment Variables.
-
-The app auto-detects which CLI is installed. Claude is tried first; Gemini is used if Claude is not found.
-
-### 4. Install BasicTeX (for PDF compilation)
-
-Resumes and cover letters are compiled from LaTeX to PDF.
-
-**macOS:**
-```bash
-brew install --cask basictex
-sudo /usr/local/texlive/2026basic/bin/universal-darwin/tlmgr install titlesec enumitem hyperref geometry parskip microtype
-```
-
-**Windows:** Download and install [MiKTeX](https://miktex.org/download). It installs missing packages automatically on first use.
-
-**Linux:**
-```bash
-sudo apt install texlive-latex-extra
-```
-
----
-
-## Run
-
-Activate the virtualenv first (every new terminal session):
+Activate the virtualenv (every new terminal session):
 
 ```bash
 # macOS / Linux
@@ -101,78 +48,118 @@ source .venv/bin/activate
 .venv\Scripts\activate
 ```
 
-Start the web UI:
+Start the app:
 
 ```bash
 python web.py
 ```
 
-Open **http://localhost:5050** in your browser.
+Open **http://localhost:5050** — the setup wizard launches automatically on first run and guides you through the rest.
 
 ---
 
-## Usage
+## Setup Wizard
 
-**Fetch new jobs** — click ⟳ Fetch new jobs in the header. Jobs are scored and deduplicated automatically.
+The wizard runs on first launch and covers 3 steps:
 
-**Build CV** — click ▶ Build CV on any row. The AI generates a tailored resume for that job in the background. Once done, click 📄 Open CV to view the PDF.
+**Step 1 — Prerequisites:** Checks Python, Node.js, AI CLI, and pdflatex. Installs missing tools with one click (macOS/Linux). Shows platform-specific instructions for Windows.
 
-**Write Letter** — appears once a CV is built. Generates a matching cover letter that reads the resume first for consistency.
+**Step 2 — Profile:** Fill in your experience, education, and certifications using a structured form. Upload an existing PDF or DOCX resume to autofill. The AI uses this exclusively to build resumes — it never invents anything not listed here.
 
-**Applied / Skip** — mark jobs to move them to the Applied or Skipped tabs.
+**Step 3 — Done:** If you filled in a profile, one click auto-configures search queries from your profile data. Or skip straight to the job list with a quick title + location form.
 
 ---
 
-## Configuration
+## Features
 
-Edit `config.yaml` to change what roles you're searching for:
+**Multi-profile support** — click the avatar in the top-right to switch between profiles, add a new one, or manage existing ones. Each profile has its own jobs database, search config, and resumes folder.
 
-```yaml
-searches:
-  - name: "LinkedIn - Product Owner USA"
-    source: linkedin          # linkedin | jobicy | himalayas | greenhouse
-    query: "Product Owner"
-    location: "United States"
-    remote: true
-    max_pages: 3
+**Job list** — sortable and searchable table of all fetched listings. Filter by title, company, location, source, or remote type.
 
-title_filter:                 # only keep jobs matching at least one of these
-  - product owner
-  - product manager
-  - business analyst
+**Build CV** — click ▶ Build CV on any job. The AI generates a tailored ATS-optimized resume as a PDF. Once done, click 📄 Open CV to view it.
 
-blacklist:                    # drop jobs containing these words
-  - internship
-  - junior
+**Write Letter** — appears after a CV is built. Generates a matching cover letter that reads the resume for consistency.
 
-company_blacklist:            # ignore these companies entirely
-  - Accentuate Staffing
+**⚙ Search Settings** — edit search queries, sources, locations, and filters directly from the job list without touching any files.
+
+**Profile Settings** — click your avatar → Manage Profiles → click a profile row. GitHub-settings-style page with sections for profile editing, search configuration, and danger zone actions.
+
+---
+
+## Sources
+
+| Source | Type |
+|---|---|
+| LinkedIn | Scrapes public job search results |
+| Jobicy | Remote-first jobs, public JSON API |
+| Himalayas | Remote jobs, public JSON API |
+| Greenhouse | Per-company job board API (no key required) |
+
+---
+
+## AI CLI
+
+The app auto-detects which CLI is installed. Claude is tried first; Gemini is used if Claude is not found.
+
+**Claude** — free tier available, login with your Anthropic account:
+```bash
+npm install -g @anthropic-ai/claude-code
+claude login
+```
+
+**Gemini** — free API key from [Google AI Studio](https://aistudio.google.com/apikey):
+```bash
+npm install -g @google/gemini-cli
+export GEMINI_API_KEY="your_key_here"   # macOS/Linux
+$env:GEMINI_API_KEY="your_key_here"     # Windows
+```
+
+---
+
+## PDF Compiler
+
+Resumes and cover letters are compiled from LaTeX to PDF.
+
+**macOS:**
+```bash
+brew install --cask basictex
+sudo /usr/local/texlive/2026basic/bin/universal-darwin/tlmgr install titlesec enumitem hyperref geometry parskip microtype
+```
+
+**Windows:** Download [MiKTeX](https://miktex.org/download) — installs missing packages automatically on first use.
+
+**Linux:**
+```bash
+sudo apt install texlive-latex-extra
 ```
 
 ---
 
 ## Output
 
-Generated files are saved per company:
+Generated files are saved under each profile's folder:
 
 ```
-resumes/<CompanyName>/
-├── Yassine_Helaoui_Resume.pdf
-├── Yassine_Helaoui_Resume.tex
-├── Yassine_Helaoui_Cover_Letter.pdf   (if generated)
-└── job_description.txt
+profiles/<name>/
+  resumes/
+    <CompanyName>/
+      <Name>_Resume.pdf
+      <Name>_Resume.tex
+      <Name>_Cover_Letter.pdf   (if generated)
+      job_description.txt
+  profile.md
+  config.yaml
+  state.db
 ```
 
 ---
 
 ## Reset
 
-Clear all saved listings and start fresh:
+Clear all jobs for the current profile from the UI: **avatar → Manage Profiles → profile row → Danger Zone → Clear jobs**.
 
+Or from the terminal (macOS/Linux):
 ```bash
-# macOS / Linux
-sqlite3 state.db "DELETE FROM jobs; DELETE FROM filter_log; DELETE FROM fetch_log;"
-
-# Windows (PowerShell)
-python -c "import sqlite3; c=sqlite3.connect('state.db'); c.execute('DELETE FROM jobs'); c.execute('DELETE FROM filter_log'); c.execute('DELETE FROM fetch_log'); c.commit()"
+source .venv/bin/activate
+python -c "from job.db import clear_all_jobs; clear_all_jobs(); print('cleared')"
 ```
