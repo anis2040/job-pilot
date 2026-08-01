@@ -3,7 +3,7 @@ import httpx
 
 from .config import SearchConfig
 from .models import RawJob
-from .utils import parse_experience
+from .utils import parse_experience, location_matches
 
 _HEADERS = {
     "User-Agent": "Mozilla/5.0 (compatible; job-scraper/1.0)",
@@ -18,9 +18,9 @@ def fetch_jobicy(search: SearchConfig) -> list[RawJob]:
         "count": 50,
         "tag": query,
     }
-    if search.location and search.location.lower() not in ("anywhere", "worldwide", ""):
-        # Jobicy uses short geo codes: usa, uk, canada, etc.
-        params["geo"] = _geo(search.location)
+    geo_code = _geo(search.location)
+    if geo_code:
+        params["geo"] = geo_code
 
     try:
         resp = httpx.get(
@@ -40,7 +40,7 @@ def fetch_jobicy(search: SearchConfig) -> list[RawJob]:
 
     for item in jobs:
         geo = item.get("jobGeo", "") or ""
-        if not _is_us_location(geo):
+        if not location_matches(geo, search.location):
             continue
 
         job_id = f"jc_{item['id']}"
@@ -68,16 +68,12 @@ def fetch_jobicy(search: SearchConfig) -> list[RawJob]:
     return results
 
 
-def _is_us_location(geo: str) -> bool:
-    if not geo:
-        return False
-    g = geo.lower()
-    return "usa" in g or "united states" in g
-
-
 def _geo(location: str) -> str:
+    """Map search.location to Jobicy's geo code, or empty string for worldwide."""
+    if not location:
+        return ""
     loc = location.lower()
-    if "united states" in loc or "usa" in loc or "us" == loc:
+    if "united states" in loc or "usa" in loc or loc == "us":
         return "usa"
     if "united kingdom" in loc or "uk" in loc:
         return "uk"
@@ -85,7 +81,20 @@ def _geo(location: str) -> str:
         return "canada"
     if "australia" in loc:
         return "australia"
-    return "usa"
+    if "germany" in loc:
+        return "germany"
+    if "france" in loc:
+        return "france"
+    if "netherlands" in loc:
+        return "netherlands"
+    if "spain" in loc:
+        return "spain"
+    if "india" in loc:
+        return "india"
+    if "singapore" in loc:
+        return "singapore"
+    # For unrecognised locations, don't pass a geo filter — let location_matches handle it
+    return ""
 
 
 def _infer_remote(title: str, job_types: list, geo: str) -> str:

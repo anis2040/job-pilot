@@ -3,7 +3,7 @@ import httpx
 
 from .config import SearchConfig
 from .models import RawJob
-from .utils import parse_experience
+from .utils import parse_experience, location_matches
 
 _BASE = "https://boards-api.greenhouse.io/v1/boards"
 _HEADERS = {
@@ -54,8 +54,8 @@ def fetch_greenhouse(search: SearchConfig) -> list[RawJob]:
 
             location_name = (job.get("location") or {}).get("name", "")
 
-            # Skip non-US locations
-            if location_name and not _is_us(location_name):
+            # Skip locations that don't match the configured search location
+            if location_name and not location_matches(location_name, search.location):
                 continue
 
             remote = _infer_remote(location_name)
@@ -86,28 +86,6 @@ def fetch_greenhouse(search: SearchConfig) -> list[RawJob]:
         time.sleep(0.15)
 
     return results
-
-
-def _is_us(location: str) -> bool:
-    loc = location.lower()
-    us_signals = [
-        "united states", ", us", " us,", "(us)", "u.s.",
-        ", al", ", ak", ", az", ", ar", ", ca", ", co", ", ct",
-        ", dc", ", fl", ", ga", ", hi", ", id", ", il", ", in",
-        ", ia", ", ks", ", ky", ", la", ", me", ", md", ", ma",
-        ", mi", ", mn", ", ms", ", mo", ", mt", ", ne", ", nv",
-        ", nh", ", nj", ", nm", ", ny", ", nc", ", nd", ", oh",
-        ", ok", ", or", ", pa", ", ri", ", sc", ", sd", ", tn",
-        ", tx", ", ut", ", vt", ", va", ", wa", ", wv", ", wi", ", wy",
-        "remote",  # remote with no country restriction — assume US given search context
-    ]
-    # Explicit non-US signals override
-    non_us = ["canada", "brazil", "uk", "united kingdom", "india", "germany",
-               "france", "australia", "mexico", "singapore", "ireland", "spain",
-               "netherlands", "poland", "hong kong", "japan", "china"]
-    if any(n in loc for n in non_us):
-        return False
-    return any(s in loc for s in us_signals)
 
 
 def _infer_remote(location: str) -> str:

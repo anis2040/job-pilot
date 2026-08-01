@@ -3,7 +3,7 @@ import httpx
 
 from .config import SearchConfig
 from .models import RawJob
-from .utils import parse_experience
+from .utils import parse_experience, location_matches
 
 _HEADERS = {
     "User-Agent": "Mozilla/5.0 (compatible; job-scraper/1.0)",
@@ -38,8 +38,10 @@ def fetch_himalayas(search: SearchConfig) -> list[RawJob]:
 
         for item in jobs:
             restrictions = item.get("locationRestrictions") or []
-            # Only keep jobs explicitly restricted to US
-            if not any("United States" in r or r == "US" for r in restrictions):
+            loc_str = ", ".join(restrictions) if restrictions else ""
+
+            # Filter by configured location
+            if restrictions and not location_matches(loc_str, search.location):
                 continue
 
             slug = item.get("guid") or item.get("applicationLink") or ""
@@ -48,7 +50,7 @@ def fetch_himalayas(search: SearchConfig) -> list[RawJob]:
 
             title = item.get("title", "")
             company = item.get("companyName", "")
-            location = ", ".join(restrictions) if restrictions else "Remote"
+            location = loc_str if loc_str else "Remote"
             description = _strip_tags(item.get("description") or item.get("excerpt") or "")
             seniority = " ".join(item.get("seniority") or [])
             experience = parse_experience(title + " " + seniority + " " + description)
