@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Profile management for multi-profile support.
 """

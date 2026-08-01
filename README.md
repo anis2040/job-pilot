@@ -8,7 +8,7 @@ Fetches job listings from LinkedIn, Jobicy, Himalayas, and Greenhouse, and gener
 
 Only two things are required before you can run the app. Everything else (AI CLI, pdflatex, your profile) is handled by the in-browser setup wizard.
 
-### 1. Python 3.11+
+### 1. Python 3.9+
 
 **macOS:**
 ```bash
