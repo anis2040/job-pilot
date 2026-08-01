@@ -124,6 +124,12 @@ python web.py
 python web.py
 ```
 
+> ⚠️ If you get `ModuleNotFoundError: No module named 'yaml'` (or any other module), it means either:
+> - You forgot to run `pip install -r requirements.txt`, or
+> - You're running `python web.py` without activating the virtualenv first
+>
+> Fix: run `source .venv/bin/activate` (macOS/Linux) or `.venv\Scripts\activate` (Windows), then `pip install -r requirements.txt`, then `python web.py`
+
 Open **http://localhost:5050** — the setup wizard launches automatically and guides you through the AI CLI, pdflatex, and your profile.
 
 > There is no `package.json` or `npm install` — this is a Python app. All dependencies are Python packages managed by `pip` via `requirements.txt`.
