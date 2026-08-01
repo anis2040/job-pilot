@@ -747,10 +747,20 @@ if __name__ == "__main__":
             if "=" in line and not line.startswith("#"):
                 k, v = line.split("=", 1)
                 os.environ.setdefault(k.strip(), v.strip())
-    # Repair symlinks on startup in case a profile folder was deleted/moved
+    # Repair symlinks and migrate legacy root resumes/ on startup
     active_slug = get_active_slug()
     if active_slug:
         from job.profiles import _update_symlinks
         _update_symlinks(PROFILES_DIR / active_slug)
         init_db()
+        # Migrate any resumes still in the legacy project-root resumes/ folder
+        import shutil as _shutil
+        legacy_resumes = BASE / "resumes"
+        profile_resumes = get_resumes_path()
+        if legacy_resumes.exists() and profile_resumes:
+            for company_dir in legacy_resumes.iterdir():
+                if company_dir.is_dir():
+                    dest = profile_resumes / company_dir.name
+                    if not dest.exists():
+                        _shutil.copytree(company_dir, dest)
     app.run(debug=False, port=5050)
