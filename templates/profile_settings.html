@@ -131,6 +131,7 @@
   }
 </style>
 <script src="/static/profile-form.js"></script>
+<script src="/static/search-settings.js"></script>
 </head>
 <body>
 
@@ -268,7 +269,7 @@
         </div>
         <div class="settings-card-body">
           <div id="search-rows"></div>
-          <button class="btn-add-row" onclick="addSearchRow()">+ Add search</button>
+          <button class="btn-add-row" onclick="addSearchRow({}, 'search-rows')">+ Add search</button>
         </div>
       </div>
 
@@ -344,7 +345,6 @@
 <script>
 const SLUG = "{{ profile.slug }}";
 const IS_ACTIVE = {{ 'true' if profile.slug == active_slug else 'false' }};
-const SOURCES = ["linkedin", "jobicy", "himalayas", "greenhouse"];
 
 // ── Nav ───────────────────────────────────────────────────────────────────────
 
@@ -374,52 +374,19 @@ async function loadProfileForm() {
 async function saveProfileForm() {
   const name  = (document.getElementById("p-name")?.value || "").trim();
   const email = (document.getElementById("p-email")?.value || "").trim();
-  const alert = document.getElementById("profile-save-alert");
-  if (!name) {
-    alert.innerHTML = `<div class="alert alert-error" style="margin-top:8px">Please enter your full name.</div>`;
-    document.getElementById("p-name").focus(); return;
-  }
-  if (!email) {
-    alert.innerHTML = `<div class="alert alert-error" style="margin-top:8px">Please enter your email address.</div>`;
-    document.getElementById("p-email").focus(); return;
-  }
+  const alertEl = document.getElementById("profile-save-alert");
+  if (!name) { alertEl.innerHTML = `<div class="alert alert-error" style="margin-top:8px">Please enter your full name.</div>`; document.getElementById("p-name").focus(); return; }
+  if (!email) { alertEl.innerHTML = `<div class="alert alert-error" style="margin-top:8px">Please enter your email.</div>`; document.getElementById("p-email").focus(); return; }
   const content = buildProfileMd();
-  const res = await fetch(`/api/profiles/${SLUG}/profile-md`, {
-    method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({content})
-  });
-  const data2 = await res.json();
-  if (data2.ok) {
-    alert.innerHTML = "";
+  const res = await fetch(`/api/profiles/${SLUG}/profile-md`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({content}) });
+  const data = await res.json();
+  if (data.ok) {
+    alertEl.innerHTML = "";
     const ok = document.getElementById("profile-save-ok");
     ok.style.display = "inline";
     setTimeout(() => ok.style.display = "none", 2500);
   } else {
-    alert.innerHTML = `<div class="alert alert-error" style="margin-top:8px">${data2.error}</div>`;
-  }
-}
-
-// ── Auto-config ───────────────────────────────────────────────────────────────
-
-async function autoConfig() {
-  if (!IS_ACTIVE) {
-    document.getElementById("auto-config-alert").innerHTML = `<div class="alert alert-error">Switch to this profile first to auto-configure searches.</div>`;
-    return;
-  }
-  const btn = document.getElementById("btn-auto-config");
-  btn.disabled = true;
-  btn.innerHTML = `<span class="spinner"></span> Analyzing…`;
-  const res = await fetch("/api/setup/suggest-config", { method: "POST" });
-  const data = await res.json();
-  if (data.ok) {
-    document.getElementById("auto-config-alert").innerHTML = `<div class="alert alert-ok">✓ Searches configured for <strong>${data.title_filter.join(", ")}</strong> in <strong>${data.location}</strong></div>`;
-    btn.innerHTML = "⚡ Configure from profile";
-    btn.disabled = false;
-    await loadSearchSettings();
-    showSection("search");
-  } else {
-    document.getElementById("auto-config-alert").innerHTML = `<div class="alert alert-error">${data.error}</div>`;
-    btn.innerHTML = "⚡ Configure from profile";
-    btn.disabled = false;
+    alertEl.innerHTML = `<div class="alert alert-error" style="margin-top:8px">${data.error}</div>`;
   }
 }
 
@@ -428,99 +395,23 @@ async function autoConfig() {
 async function loadSearchSettings() {
   const res = await fetch(`/api/profiles/${SLUG}/config`);
   const cfg = await res.json();
-  renderSearchRows(cfg.searches || []);
+  renderSearchRows(cfg.searches || [], "search-rows");
   renderTags("title-filter-wrap", "title-filter-input", cfg.title_filter || []);
   renderTags("blacklist-wrap", "blacklist-input", cfg.blacklist || []);
   renderTags("company-blacklist-wrap", "company-blacklist-input", cfg.company_blacklist || []);
 }
 
-function renderSearchRows(searches) {
-  const groups = {};
-  for (const s of searches) {
-    const key = `${s.query}||${s.location || ""}||${s.remote ?? true}`;
-    if (!groups[key]) groups[key] = { query: s.query, location: s.location || "United States", remote: s.remote !== false, sources: [] };
-    groups[key].sources.push(s.source);
-  }
-  document.getElementById("search-rows").innerHTML = "";
-  for (const g of Object.values(groups)) addSearchRow(g);
-}
-
-function toggleSourceAll(row) {
-  const cbs = row.querySelectorAll(".src-cb");
-  const allChecked = [...cbs].every(c => c.checked);
-  cbs.forEach(c => {
-    c.checked = !allChecked;
-    c.closest(".source-cb").classList.toggle("checked", !allChecked);
-  });
-}
-
-function addSearchRow(s = {}) {
-  const list = document.getElementById("search-rows");
-  const row = document.createElement("div");
-  row.className = "search-row";
-  const activeSources = Array.isArray(s.sources) ? s.sources : (s.source ? [s.source] : SOURCES);
-  const sourceCbs = SOURCES.map(src => {
-    const checked = activeSources.includes(src);
-    return `<label class="source-cb ${checked ? 'checked' : ''}" onclick="this.classList.toggle('checked',this.querySelector('input').checked)">
-      <input type="checkbox" class="src-cb" value="${src}" ${checked ? 'checked' : ''}> ${src}
-    </label>`;
-  }).join("");
-  row.innerHTML = `
-    <div class="search-row-fields">
-      <input type="text" placeholder="e.g. Product Manager" value="${s.query || ""}" data-field="query">
-      <input type="text" placeholder="United States" value="${s.location || "United States"}" data-field="location">
-      <label class="toggle-remote"><input type="checkbox" data-field="remote" ${s.remote !== false ? "checked" : ""}> Remote</label>
-      <button class="btn-icon" onclick="this.closest('.search-row').remove()">✕</button>
-    </div>
-    <div class="search-sources">
-      <span style="font-size:0.7rem;color:#475569;font-weight:600;text-transform:uppercase;margin-right:4px">Sources:</span>
-      ${sourceCbs}
-      <button class="source-all-btn" type="button" onclick="toggleSourceAll(this.closest('.search-row'))">all/none</button>
-    </div>`;
-  list.appendChild(row);
-}
-
-function collectSearchRows() {
-  const results = [];
-  document.querySelectorAll("#search-rows .search-row").forEach(row => {
-    const q = row.querySelector("[data-field=query]").value.trim();
-    const loc = row.querySelector("[data-field=location]").value.trim();
-    const remote = row.querySelector("[data-field=remote]").checked;
-    const sources = [...row.querySelectorAll(".src-cb:checked")].map(c => c.value);
-    if (!q || !sources.length) return;
-    for (const src of sources) {
-      results.push({ name: `${src} - ${q}`, source: src, query: q, location: loc, max_pages: 3, remote });
-    }
-  });
-  return results;
-}
-
 async function saveSearchSettings() {
-  const searches = collectSearchRows();
+  const searches = collectSearchRows("#search-rows .search-row");
   if (!searches.length) { alert("Add at least one search source."); return; }
-
   const titleFilter = collectTags("title-filter-wrap");
-  // Auto-add query terms to title_filter if it's empty or if queries changed,
-  // so jobs from the search actually pass the filter
   const queryTerms = [...new Set(searches.map(s => s.query.toLowerCase()).filter(Boolean))];
-  const mergedFilter = titleFilter.length
-    ? [...new Set([...titleFilter, ...queryTerms])]
-    : queryTerms;
-
-  const cfg = {
-    searches,
-    title_filter: mergedFilter,
-    blacklist: collectTags("blacklist-wrap"),
-    company_blacklist: collectTags("company-blacklist-wrap"),
-  };
-  const res = await fetch(`/api/profiles/${SLUG}/config`, {
-    method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(cfg)
-  });
+  const mergedFilter = titleFilter.length ? [...new Set([...titleFilter, ...queryTerms])] : queryTerms;
+  const cfg = { searches, title_filter: mergedFilter, blacklist: collectTags("blacklist-wrap"), company_blacklist: collectTags("company-blacklist-wrap") };
+  const res = await fetch(`/api/profiles/${SLUG}/config`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(cfg) });
   const data = await res.json();
-  const alert = document.getElementById("search-save-alert");
   if (data.ok) {
     if (IS_ACTIVE) {
-      // Redirect to main page which will show the fetch in progress
       window.location.href = "/?fetch=1";
     } else {
       const ok = document.getElementById("search-save-ok");
@@ -528,45 +419,27 @@ async function saveSearchSettings() {
       setTimeout(() => ok.style.display = "none", 2500);
     }
   } else {
-    alert.innerHTML = `<div class="alert alert-error">${data.error}</div>`;
+    document.getElementById("search-save-alert").innerHTML = `<div class="alert alert-error">${data.error}</div>`;
   }
 }
 
-function setTableFetchingIfPresent() {
-  // No-op here — fetch triggered from the settings page, main page will auto-refresh
-}
+// ── Auto-config ───────────────────────────────────────────────────────────────
 
-// ── Tag inputs ────────────────────────────────────────────────────────────────
-
-function renderTags(wrapId, inputId, tags) {
-  const wrap = document.getElementById(wrapId);
-  const input = document.getElementById(inputId);
-  wrap.querySelectorAll(".tag").forEach(t => t.remove());
-  tags.forEach(tag => wrap.insertBefore(makeTag(tag, wrapId, inputId), input));
-}
-
-function makeTag(value, wrapId, inputId) {
-  const span = document.createElement("span");
-  span.className = "tag";
-  span.dataset.value = value;
-  span.innerHTML = `${value} <button onclick="this.closest('.tag').remove()" type="button">✕</button>`;
-  return span;
-}
-
-function tagKeydown(e, wrapId, inputId) {
-  if (e.key !== "Enter" && e.key !== ",") return;
-  e.preventDefault();
-  const input = document.getElementById(inputId);
-  const val = input.value.trim().toLowerCase().replace(/,$/, "");
-  if (!val) return;
-  const wrap = document.getElementById(wrapId);
-  if (!wrap.querySelector(`.tag[data-value="${val}"]`))
-    wrap.insertBefore(makeTag(val, wrapId, inputId), input);
-  input.value = "";
-}
-
-function collectTags(wrapId) {
-  return [...document.querySelectorAll(`#${wrapId} .tag`)].map(t => t.dataset.value);
+async function autoConfig() {
+  if (!IS_ACTIVE) { document.getElementById("auto-config-alert").innerHTML = `<div class="alert alert-error">Switch to this profile first.</div>`; return; }
+  const btn = document.getElementById("btn-auto-config");
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span> Analyzing…`;
+  const res = await fetch("/api/setup/suggest-config", { method: "POST" });
+  const data = await res.json();
+  if (data.ok) {
+    document.getElementById("auto-config-alert").innerHTML = `<div class="alert alert-ok">✓ Configured for <strong>${data.title_filter.join(", ")}</strong> in <strong>${data.location}</strong></div>`;
+    btn.innerHTML = "⚡ Configure from profile"; btn.disabled = false;
+    await loadSearchSettings(); showSection("search");
+  } else {
+    document.getElementById("auto-config-alert").innerHTML = `<div class="alert alert-error">${data.error}</div>`;
+    btn.innerHTML = "⚡ Configure from profile"; btn.disabled = false;
+  }
 }
 
 // ── Danger ────────────────────────────────────────────────────────────────────
@@ -581,16 +454,11 @@ async function deleteProfile() {
 
 async function clearJobs() {
   if (!confirm("Clear all jobs for this profile? Resumes on disk are kept.")) return;
-  if (IS_ACTIVE) {
-    await fetch("/api/jobs/clear", { method: "POST" });
-    alert("Jobs cleared.");
-  } else {
-    // Clear the specific profile's DB directly
-    const res = await fetch(`/api/profiles/${SLUG}/clear-jobs`, { method: "POST" });
-    const data = await res.json();
-    if (data.ok) alert("Jobs cleared.");
-    else alert(data.error || "Failed.");
-  }
+  const url = IS_ACTIVE ? "/api/jobs/clear" : `/api/profiles/${SLUG}/clear-jobs`;
+  const res = await fetch(url, { method: "POST" });
+  const data = await res.json();
+  if (data.ok) alert("Jobs cleared.");
+  else alert(data.error || "Failed.");
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
@@ -598,5 +466,3 @@ async function clearJobs() {
 loadProfileForm();
 loadSearchSettings();
 </script>
-</body>
-</html>
