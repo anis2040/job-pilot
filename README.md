@@ -2,11 +2,13 @@
 
 Fetches job listings from LinkedIn, Jobicy, Himalayas, and Greenhouse, and generates tailored ATS-optimized resumes and cover letters with one click using Claude or Gemini. Supports multiple profiles so different people (or different job tracks) can share one installation.
 
-## Prerequisites
+---
 
-Before you start, install the following:
+## What you need to install manually
 
-### Python 3.11+
+Only two things are required before you can run the app. Everything else (AI CLI, pdflatex, your profile) is handled by the in-browser setup wizard.
+
+### 1. Python 3.11+
 
 **macOS:**
 ```bash
@@ -15,30 +17,38 @@ brew install python@3.11
 Or download from [python.org/downloads](https://www.python.org/downloads/)
 
 **Windows:**
-Download and run the installer from [python.org/downloads](https://www.python.org/downloads/).
-Check **"Add Python to PATH"** during install.
+Download the installer from [python.org/downloads](https://www.python.org/downloads/).
+✅ Check **"Add Python to PATH"** during install.
 
 **Linux:**
 ```bash
 sudo apt install python3.11 python3.11-venv
 ```
 
-Verify: `python --version` or `python3 --version`
+Verify: `python --version` (should show 3.11 or higher)
 
 ---
 
-### Node.js 18+
+### 2. Git
 
-Required to install the AI CLI (Claude or Gemini).
+**macOS:** pre-installed, or `brew install git`
+
+**Windows:** download from [git-scm.com/download/win](https://git-scm.com/download/win)
+
+**Linux:** `sudo apt install git`
+
+---
+
+### 3. Node.js 18+ *(required for CV/cover letter generation only)*
+
+Not needed to run the app or fetch jobs. Only needed if you want the AI to build resumes — the setup wizard will prompt you if it's missing.
 
 **macOS:**
 ```bash
 brew install node
 ```
 
-**Windows:**
-Download and run the installer from [nodejs.org/en/download](https://nodejs.org/en/download) (LTS version recommended).
-Or via winget:
+**Windows:** download from [nodejs.org/en/download](https://nodejs.org/en/download) (LTS), or:
 ```powershell
 winget install OpenJS.NodeJS.LTS
 ```
@@ -52,19 +62,9 @@ Verify: `node --version`
 
 ---
 
-### Git
+## Install & Run
 
-**macOS:** comes pre-installed, or `brew install git`
-
-**Windows:** download from [git-scm.com/download/win](https://git-scm.com/download/win)
-
-**Linux:** `sudo apt install git`
-
----
-
-## Setup
-
-### 1. Clone and install
+**1. Clone and install Python dependencies:**
 
 ```bash
 git clone https://github.com/anis2040/job-scraper.git
@@ -88,42 +88,36 @@ pip install -r requirements.txt
 > If you get a "running scripts is disabled" error on Windows, run once as Administrator:
 > `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`
 
-### 2. Run
-
-Activate the virtualenv (every new terminal session):
+**2. Start the app** (activate the virtualenv first every session):
 
 ```bash
 # macOS / Linux
 source .venv/bin/activate
+python web.py
 
 # Windows
 .venv\Scripts\activate
-```
-
-Start the app:
-
-```bash
 python web.py
 ```
 
-Open **http://localhost:5050** — the setup wizard launches automatically and walks you through everything else (AI CLI, pdflatex, and your profile).
+Open **http://localhost:5050** — the setup wizard launches automatically and guides you through the AI CLI, pdflatex, and your profile.
 
 ---
 
 ## Setup Wizard
 
-The wizard runs on first launch and covers 3 steps:
+Runs on first launch. 3 steps:
 
-**Step 1 — Prerequisites:** Checks Python, Node.js, AI CLI, and pdflatex.
-- If the AI CLI (Claude or Gemini) is not installed, there is a one-click install button — no terminal needed.
-- If pdflatex is not installed, there is a one-click install on macOS/Linux, and step-by-step instructions for Windows (MiKTeX).
-- Node.js is required before you can install the AI CLI. Install it from the Prerequisites section above if it's missing.
+**Step 1 — Prerequisites:** Checks Node.js, AI CLI (Claude or Gemini), and pdflatex.
+- One-click install buttons for AI CLI and pdflatex (macOS/Linux). Windows shows step-by-step instructions.
+- If Node.js is missing, install it manually (see above) — the wizard can't install it automatically on all platforms.
 
-**Step 2 — Profile:** Fill in your experience, education, and certifications using a structured form. Upload an existing PDF or DOCX resume to autofill. The AI uses this exclusively to build resumes — it never invents anything not listed here.
+**Step 2 — Profile:** Fill in your experience, education, and certifications using a structured form, or upload an existing PDF/DOCX resume to autofill. The AI uses this exclusively to build resumes — it never invents anything not in your profile.
 
-**Step 3 — Done:** If you filled in a profile, one click auto-configures search queries from your profile data. Or skip straight to the job list with a quick title + location form.
+**Step 3 — Done:** Auto-configure searches from your profile with one click, or skip with a quick title + location form to start fetching jobs immediately.
 
-> **Everything after cloning — the AI CLI, pdflatex, and your profile — is set up through the wizard in the browser. You do not need to run any additional commands manually.**
+> The AI CLI, pdflatex, Gemini API key, and your profile are all configured inside the wizard — no extra terminal commands needed after `pip install`.
+
 
 ---
 
