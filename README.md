@@ -106,7 +106,7 @@ Start the app:
 python web.py
 ```
 
-Open **http://localhost:5050** — the setup wizard launches automatically on first run and guides you through the rest.
+Open **http://localhost:5050** — the setup wizard launches automatically and walks you through everything else (AI CLI, pdflatex, and your profile).
 
 ---
 
@@ -114,11 +114,16 @@ Open **http://localhost:5050** — the setup wizard launches automatically on fi
 
 The wizard runs on first launch and covers 3 steps:
 
-**Step 1 — Prerequisites:** Checks Python, Node.js, AI CLI, and pdflatex. Installs missing tools with one click (macOS/Linux). Shows platform-specific instructions for Windows.
+**Step 1 — Prerequisites:** Checks Python, Node.js, AI CLI, and pdflatex.
+- If the AI CLI (Claude or Gemini) is not installed, there is a one-click install button — no terminal needed.
+- If pdflatex is not installed, there is a one-click install on macOS/Linux, and step-by-step instructions for Windows (MiKTeX).
+- Node.js is required before you can install the AI CLI. Install it from the Prerequisites section above if it's missing.
 
 **Step 2 — Profile:** Fill in your experience, education, and certifications using a structured form. Upload an existing PDF or DOCX resume to autofill. The AI uses this exclusively to build resumes — it never invents anything not listed here.
 
 **Step 3 — Done:** If you filled in a profile, one click auto-configures search queries from your profile data. Or skip straight to the job list with a quick title + location form.
+
+> **Everything after cloning — the AI CLI, pdflatex, and your profile — is set up through the wizard in the browser. You do not need to run any additional commands manually.**
 
 ---
 
@@ -146,44 +151,6 @@ The wizard runs on first launch and covers 3 steps:
 | Jobicy | Remote-first jobs, public JSON API |
 | Himalayas | Remote jobs, public JSON API |
 | Greenhouse | Per-company job board API (no key required) |
-
----
-
-## AI CLI
-
-The app auto-detects which CLI is installed. Claude is tried first; Gemini is used if Claude is not found.
-
-**Claude** — free tier available, login with your Anthropic account:
-```bash
-npm install -g @anthropic-ai/claude-code
-claude login
-```
-
-**Gemini** — free API key from [Google AI Studio](https://aistudio.google.com/apikey):
-```bash
-npm install -g @google/gemini-cli
-export GEMINI_API_KEY="your_key_here"   # macOS/Linux
-$env:GEMINI_API_KEY="your_key_here"     # Windows
-```
-
----
-
-## PDF Compiler
-
-Resumes and cover letters are compiled from LaTeX to PDF.
-
-**macOS:**
-```bash
-brew install --cask basictex
-sudo /usr/local/texlive/2026basic/bin/universal-darwin/tlmgr install titlesec enumitem hyperref geometry parskip microtype
-```
-
-**Windows:** Download [MiKTeX](https://miktex.org/download) — installs missing packages automatically on first use.
-
-**Linux:**
-```bash
-sudo apt install texlive-latex-extra
-```
 
 ---
 
