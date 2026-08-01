@@ -562,12 +562,15 @@ function selectProvider(p) {
            <div class="install-log" id="install-log-claude"></div>
          </div>`) +
       `<div class="install-block">
-         <p><strong style="color:#e2e8f0">Log in to your Anthropic account</strong> — required to use Claude.</p>
-         <p style="margin-top:6px">Run this in your terminal:</p>
-         <code>claude login</code>
-         <div class="hint" style="color:#475569;font-size:0.76rem;margin-top:4px">Opens a browser to authenticate. Free plan available at <a href="https://claude.ai" target="_blank">claude.ai</a>. If you've already logged in on this machine, click below.</div>
+         <p><strong style="color:#e2e8f0">Log in to your Anthropic account</strong></p>
+         <p style="font-size:0.76rem;color:#64748b;margin:6px 0 10px">Opens a browser to authenticate. Free plan available at <a href="https://claude.ai" target="_blank" style="color:#60a5fa">claude.ai</a>.</p>
+         <button class="btn btn-primary btn-sm" id="btn-claude-login" onclick="claudeLogin()">Open login in browser</button>
+         <div id="claude-login-status" style="margin-top:8px"></div>
        </div>
-       <button class="btn btn-ghost btn-sm" style="margin-top:12px" onclick="markProviderReady()">I'm logged in ✓</button>`;
+       <div id="claude-login-confirm" style="display:none;margin-top:10px">
+         <div class="alert alert-ok" style="margin-bottom:8px">✓ Browser opened — complete the login there, then click below.</div>
+         <button class="btn btn-ghost btn-sm" onclick="markProviderReady()">I'm logged in ✓</button>
+       </div>`;
     if (installed) {
       // Don't auto-mark ready — always require login confirmation
     }
@@ -590,6 +593,24 @@ function selectProvider(p) {
        <div id="key-alert"></div>
        <button class="btn btn-primary btn-sm" onclick="saveGeminiKey()">Save API Key</button>`;
     if (installed && keySet) markProviderReady();
+  }
+}
+
+async function claudeLogin() {
+  const btn = document.getElementById("btn-claude-login");
+  const statusEl = document.getElementById("claude-login-status");
+  const confirmEl = document.getElementById("claude-login-confirm");
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span> Opening browser…`;
+  const res = await fetch("/api/setup/claude-login", { method: "POST" });
+  const data = await res.json();
+  if (data.ok) {
+    btn.style.display = "none";
+    if (confirmEl) confirmEl.style.display = "block";
+  } else {
+    btn.disabled = false;
+    btn.innerHTML = "Open login in browser";
+    if (statusEl) statusEl.innerHTML = `<div class="alert alert-error" style="margin-top:6px">${data.error}</div>`;
   }
 }
 

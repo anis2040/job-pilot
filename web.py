@@ -547,6 +547,24 @@ Profile:
         return jsonify({"ok": False, "error": f"Could not parse AI response: {e}"})
 
 
+@app.route("/api/setup/claude-login", methods=["POST"])
+def api_setup_claude_login():
+    if not shutil.which("claude"):
+        return jsonify({"error": "Claude Code is not installed yet."}), 400
+    try:
+        # Launch claude login — it opens a browser on the user's machine.
+        # Run detached so it doesn't block the server.
+        subprocess.Popen(
+            ["claude", "login"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/setup/install-node", methods=["POST"])
 def api_setup_install_node():
     try:
