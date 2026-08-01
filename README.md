@@ -16,16 +16,36 @@ brew install python@3.11
 ```
 Or download from [python.org/downloads](https://www.python.org/downloads/)
 
+After installing with Homebrew, Python is added to PATH automatically. Verify with `python3 --version`. If it says "command not found", add it manually:
+```bash
+echo 'export PATH="/opt/homebrew/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc
+```
+
 **Windows:**
-Download the installer from [python.org/downloads](https://www.python.org/downloads/).
-✅ Check **"Add Python to PATH"** during install.
+
+1. Download the installer from [python.org/downloads](https://www.python.org/downloads/)
+2. Run the installer — on the **first screen**, check **"Add Python to PATH"** before clicking Install Now
+
+   > ⚠️ If you miss this checkbox, Python won't be found in the terminal. You'd need to reinstall or add it manually.
+
+3. Open a new PowerShell window and verify:
+   ```powershell
+   python --version
+   ```
+   Should show `Python 3.11.x` or higher.
+
+If Python is installed but not in PATH (you get "not recognized as a command"), add it manually:
+- Open **System Properties** → **Environment Variables**
+- Under **User variables**, find `Path`, click **Edit**
+- Add: `C:\Users\<YourName>\AppData\Local\Programs\Python\Python311\` and `C:\Users\<YourName>\AppData\Local\Programs\Python\Python311\Scripts\`
+- Open a new terminal and try again
 
 **Linux:**
 ```bash
 sudo apt install python3.11 python3.11-venv
 ```
 
-Verify: `python --version` (should show 3.11 or higher)
+Verify: `python3 --version` (should show 3.11 or higher)
 
 ---
 
