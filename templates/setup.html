@@ -507,8 +507,7 @@ async function installNode(cmd) {
     btn.className = "btn btn-success btn-sm";
     btn.innerHTML = "✓ Installed — restart the app to continue";
     status.has_node = true;
-    document.getElementById("chk-node").className = "check-icon ok";
-    document.getElementById("chk-node").textContent = "✓";
+    renderChecks(); // update all check icons
   } else {
     btn.disabled = false;
     btn.innerHTML = "Retry";
@@ -635,7 +634,8 @@ async function installCLI(provider) {
     btn.className = "btn btn-success btn-sm";
     btn.innerHTML = "✓ Installed";
     status[`has_${provider}`] = true;
-    if (provider === "gemini") selectProvider("gemini"); // re-render to show key input
+    renderChecks(); // update AI CLI check icon
+    if (provider === "gemini") selectProvider("gemini");
     if (provider === "claude") markProviderReady();
   } else {
     btn.disabled = false;
@@ -744,6 +744,7 @@ async function installPdflatex() {
     btn.className = "btn btn-success btn-sm";
     btn.innerHTML = "✓ Installed";
     status.has_pdflatex = true;
+    renderChecks(); // update the ✓ icon in the check list
     document.getElementById("pdf-status").insertAdjacentHTML("afterbegin",
       `<div class="alert alert-ok" style="margin-bottom:10px">✓ pdflatex installed successfully.</div>`);
   } else {
