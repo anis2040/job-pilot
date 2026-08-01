@@ -502,6 +502,12 @@ Profile:
     try:
         result = subprocess.run(ai_cmd, capture_output=True, text=True, timeout=60)
         output = result.stdout.strip()
+        stderr = result.stderr.strip()
+
+        if not output:
+            hint = " Make sure you have logged in ('claude login') or set your GEMINI_API_KEY."
+            return jsonify({"ok": False, "error": f"AI CLI returned no response.{hint} Detail: {stderr[:200] or 'none'}"})
+
         if output.startswith("```"):
             output = "\n".join(output.split("\n")[1:])
             output = output.rsplit("```", 1)[0].strip()
@@ -679,11 +685,25 @@ Resume text:
     try:
         result = subprocess.run(ai_cmd, capture_output=True, text=True, timeout=60)
         output = result.stdout.strip()
+        stderr = result.stderr.strip()
+
+        # Empty output means the AI CLI failed — likely not logged in
+        if not output:
+            hint = ""
+            if "claude" in ai_cmd[0]:
+                hint = " Make sure you have logged in with 'claude login' (or use the login button in the setup wizard)."
+            elif "gemini" in ai_cmd[0]:
+                hint = " Make sure your GEMINI_API_KEY is set correctly in the setup wizard."
+            err_detail = stderr[:300] if stderr else "No output from AI CLI."
+            return jsonify({"error": f"AI CLI returned no response. {hint} Detail: {err_detail}"}), 500
+
         if output.startswith("```"):
             output = "\n".join(output.split("\n")[1:])
             output = output.rsplit("```", 1)[0].strip()
         data = _json.loads(output)
         return jsonify({"ok": True, "data": data})
+    except _json.JSONDecodeError:
+        return jsonify({"error": f"AI returned unexpected output (not JSON). Raw output: {output[:200]}"}), 500
     except Exception as e:
         return jsonify({"error": f"Could not parse AI response: {e}"}), 500
 
