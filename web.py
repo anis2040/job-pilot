@@ -716,14 +716,24 @@ def api_setup_save_profile():
     if not content:
         return jsonify({"error": "Profile content is empty"}), 400
 
+    # Extract name from first H1 heading for the slug
+    name = "default"
+    for line in content.splitlines():
+        line = line.strip()
+        if line.startswith("#"):
+            name = line.lstrip("#").split("—")[0].split("-")[0].strip() or name
+            break
+
     profile_dir = active_profile_dir()
     if not profile_dir:
-        return jsonify({"error": "No active profile. Start setup first."}), 400
+        # No active profile yet (fresh install) — create one from the profile name
+        slug = create_profile(name)
+        profile_dir = PROFILES_DIR / slug
+        set_active(slug)
 
     profile_dir.mkdir(parents=True, exist_ok=True)
     (profile_dir / "profile.md").write_text(content)
     (profile_dir / "resumes").mkdir(exist_ok=True)
-    # Keep symlinks up to date
     from job.profiles import _update_symlinks
     _update_symlinks(profile_dir)
     init_db()
