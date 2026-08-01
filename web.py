@@ -23,6 +23,7 @@ BASE = Path(__file__).parent
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
+app.secret_key = os.environ.get("SECRET_KEY", "job-scraper-dev-key-change-in-prod")
 
 
 def _config_path() -> Path:
@@ -245,13 +246,13 @@ def api_profiles_active():
 
 @app.route("/api/profiles/new", methods=["POST"])
 def api_profiles_new():
-    """Create a blank profile, switch to it, and return the slug."""
+    """Create a blank profile folder but do NOT switch to it yet.
+    The switch happens in save-profile once the user has filled in their details."""
     import time as _time
     slug = create_profile(f"new-profile-{int(_time.time())}")
-    profile_dir = PROFILES_DIR / slug
-    (profile_dir / "resumes").mkdir(exist_ok=True)
-    set_active(slug)
-    clear_task_state()
+    # Store the pending slug in the session so save-profile knows which folder to use
+    from flask import session
+    session["pending_profile_slug"] = slug
     return jsonify({"ok": True, "slug": slug})
 
 
@@ -725,8 +726,18 @@ def api_setup_save_profile():
             break
 
     profile_dir = active_profile_dir()
-    if not profile_dir:
-        # No active profile yet (fresh install) — create one from the profile name
+
+    # Check if we have a pending new profile from the "Add new profile" flow
+    from flask import session
+    pending_slug = session.pop("pending_profile_slug", None)
+
+    if pending_slug and (PROFILES_DIR / pending_slug).is_dir():
+        # Use the pre-created pending folder, switch to it now
+        profile_dir = PROFILES_DIR / pending_slug
+        set_active(pending_slug)
+        clear_task_state()
+    elif not profile_dir:
+        # No active profile at all (fresh install) — create one from name
         slug = create_profile(name)
         profile_dir = PROFILES_DIR / slug
         set_active(slug)
@@ -763,4 +774,11 @@ if __name__ == "__main__":
                     dest = profile_resumes / company_dir.name
                     if not dest.exists():
                         _shutil.copytree(company_dir, dest)
+    # Clean up orphaned new-profile-* folders (created but never completed)
+    if PROFILES_DIR.exists():
+        import shutil as _shutil2
+        for d in PROFILES_DIR.iterdir():
+            if d.is_dir() and d.name.startswith("new-profile-") and not (d / "profile.md").exists():
+                _shutil2.rmtree(d, ignore_errors=True)
+
     app.run(debug=False, port=5050)
