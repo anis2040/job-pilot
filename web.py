@@ -171,7 +171,8 @@ def index():
         last_str = f"{int(hours)}h ago" if hours >= 1 else "just now"
         stale = hours > 24
     active = get_active_profile()
-    return render_template("index.html", counts=counts, last_fetch=last_str, stale=stale, active_profile=active)
+    has_pdflatex = bool(shutil.which("pdflatex"))
+    return render_template("index.html", counts=counts, last_fetch=last_str, stale=stale, active_profile=active, has_pdflatex=has_pdflatex)
 
 
 @app.route("/profiles")

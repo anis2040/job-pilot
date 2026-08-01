@@ -59,7 +59,10 @@
   .title-link { color: #e2e8f0; text-decoration: none; }
   .title-link:hover { color: #60a5fa; text-decoration: underline; }
 
-  .source-badge { font-size: 0.7rem; font-weight: 600; color: #94a3b8; background: #1e2333; padding: 2px 7px; border-radius: 99px; white-space: nowrap; }
+  .pdf-banner { display: flex; align-items: center; gap: 12px; background: #1a1200; border-bottom: 1px solid #713f12; padding: 10px 32px; font-size: 0.82rem; color: #fde68a; }
+  .pdf-banner a { color: #fbbf24; font-weight: 600; text-decoration: none; }
+  .pdf-banner a:hover { text-decoration: underline; }
+  .pdf-banner-dismiss { margin-left: auto; background: none; border: none; color: #92400e; cursor: pointer; font-size: 1rem; padding: 0; }
   .empty { text-align: center; color: #475569; padding: 48px; }
 
   .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid #7c3aed; border-top-color: transparent; border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-right: 4px; }
@@ -198,6 +201,14 @@
     </div>
   </div>
 </div>
+
+{% if not has_pdflatex %}
+<div class="pdf-banner" id="pdf-banner">
+  ⚠ <strong>pdflatex not installed</strong> — needed to compile resumes and cover letters to PDF.
+  <a href="/setup">Install it in the setup wizard →</a>
+  <button class="pdf-banner-dismiss" onclick="document.getElementById('pdf-banner').style.display='none'" title="Dismiss">✕</button>
+</div>
+{% endif %}
 
 <div class="tabs">
   <button class="tab active" data-status="pending" onclick="switchTab(this)">Pending</button>
