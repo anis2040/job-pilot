@@ -553,21 +553,24 @@ function selectProvider(p) {
 
   if (p === "claude") {
     const installed = status.has_claude;
-    block.innerHTML = installed
-      ? `<div class="alert alert-ok">✓ Claude Code is already installed. You're good to go.</div>`
-      : `<div class="install-block">
-           <p>Claude Code is not installed. Click below to install it via npm, or run this manually:</p>
+    block.innerHTML = (installed
+      ? `<div class="alert alert-ok" style="margin-bottom:10px">✓ Claude Code is already installed.</div>`
+      : `<div class="install-block" style="margin-bottom:10px">
+           <p>Claude Code is not installed. Click below to install it via npm, or run manually:</p>
            <code>npm install -g @anthropic-ai/claude-code</code>
            <button class="btn btn-primary btn-sm" id="btn-install-claude" onclick="installCLI('claude')">Install Claude Code</button>
            <div class="install-log" id="install-log-claude"></div>
-         </div>
-         <div class="install-block" style="margin-top:10px">
-           <p>After installing, run this in your terminal to log in:</p>
-           <code>claude login</code>
-           <div class="hint" style="color:#475569;font-size:0.76rem;margin-top:4px">Opens a browser to authenticate with your Anthropic account. Free plan available at <a href="https://claude.ai" target="_blank">claude.ai</a>.</div>
-         </div>
-         <button class="btn btn-ghost btn-sm" style="margin-top:12px" onclick="markProviderReady()">I've logged in ✓</button>`;
-    if (installed) markProviderReady();
+         </div>`) +
+      `<div class="install-block">
+         <p><strong style="color:#e2e8f0">Log in to your Anthropic account</strong> — required to use Claude.</p>
+         <p style="margin-top:6px">Run this in your terminal:</p>
+         <code>claude login</code>
+         <div class="hint" style="color:#475569;font-size:0.76rem;margin-top:4px">Opens a browser to authenticate. Free plan available at <a href="https://claude.ai" target="_blank">claude.ai</a>. If you've already logged in on this machine, click below.</div>
+       </div>
+       <button class="btn btn-ghost btn-sm" style="margin-top:12px" onclick="markProviderReady()">I'm logged in ✓</button>`;
+    if (installed) {
+      // Don't auto-mark ready — always require login confirmation
+    }
 
   } else {
     const installed = status.has_gemini;
