@@ -18,14 +18,13 @@ from .db import (
 from .fetcher import fetch_search
 from .linkedin_fetcher import fetch_description as li_fetch_description
 from .scorer import score_job
+from .profiles import get_resumes_path
 
 app = typer.Typer(help="Job hunt automator — fetch, track, and manage job listings.")
 console = Console()
 
 
-# ── helpers ──────────────────────────────────────────────────────────────────
-
-def _age(iso: str) -> str:
+# ── helpers ──────────────────────────────────────────────────────────────────def _age(iso: str) -> str:
     try:
         dt = datetime.fromisoformat(iso)
         if dt.tzinfo is None:
@@ -77,13 +76,14 @@ def _score_bar(score: int | None) -> str:
     return f"[dim]{s}[/dim]"
 
 
-_RESUMES_DIR = Path(__file__).parent.parent / "resumes"
-
-
 def _resume_exists(company: str) -> bool:
     if not company:
         return False
-    pdf = _RESUMES_DIR / company / "Yassine_Helaoui_Resume.pdf"
+    resumes_dir = get_resumes_path()
+    if not resumes_dir:
+        return False
+    from .web_api import _candidate_name_slug
+    pdf = resumes_dir / company / f"{_candidate_name_slug()}_Resume.pdf"
     return pdf.exists()
 
 
@@ -356,7 +356,8 @@ def resume(
         time.sleep(1.5)
 
     console.print(f"\n[bold]Generating resumes for {len(candidates)} job(s)…[/bold]\n")
-    skill_path = str((Path(__file__).parent.parent / "resume-skill").resolve())
+    from .web_api import _skill_path, _run_ai
+    skill_dir = _skill_path()
 
     for i, row in enumerate(candidates, 1):
         company = row["company"] or "Unknown"
@@ -372,11 +373,15 @@ def resume(
             f"{row['description']}"
         )
 
-        skill_instructions = (Path(skill_path) / "SKILL.md").read_text()
-        for ref_name in ("profile.md", "latex_template.md"):
-            ref_path = Path(skill_path) / "references" / ref_name
-            if ref_path.exists():
-                skill_instructions += f"\n\n## {ref_name} (embedded)\n\n{ref_path.read_text()}"
+        skill_instructions = (skill_dir / "SKILL.md").read_text()
+        latex_template = skill_dir / "references" / "latex_template.md"
+        if latex_template.exists():
+            skill_instructions += f"\n\n## latex_template.md (embedded)\n\n{latex_template.read_text()}"
+        profile_path = get_resumes_path().parent / "profile.md" if get_resumes_path() else None
+        from .profiles import get_profile_path
+        profile_path = get_profile_path()
+        if profile_path and profile_path.exists():
+            skill_instructions += f"\n\n## profile.md (embedded)\n\n{profile_path.read_text()}"
 
         result = subprocess.run(
             ["claude", "-p", prompt,
@@ -384,7 +389,7 @@ def resume(
              "--allowedTools", "Bash,Edit,Write,Read"],
             capture_output=False,
             text=True,
-            cwd=skill_path,
+            cwd=str(skill_dir),
         )
 
         if result.returncode != 0:

@@ -75,6 +75,21 @@
   .actions { display: flex; gap: 5px; flex-wrap: nowrap; }
   #fetch-progress { display: none; }
 
+  /* Profile avatar dropdown */
+  .profile-dropdown { position: relative; }
+  .avatar-btn { background: none; border: none; cursor: pointer; padding: 0; display: flex; align-items: center; }
+  .avatar { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.78rem; font-weight: 700; color: #fff; transition: transform .15s, box-shadow .15s; flex-shrink: 0; }
+  .avatar:hover { transform: scale(1.08); box-shadow: 0 0 0 3px rgba(255,255,255,.15); }
+  .profile-menu { display: none; position: absolute; right: 0; top: calc(100% + 8px); background: #1a1f2e; border: 1px solid #2d3748; border-radius: 8px; min-width: 210px; box-shadow: 0 10px 25px rgba(0,0,0,.5); z-index: 200; overflow: hidden; }
+  .profile-menu.open { display: block; }
+  .profile-menu-header { padding: 10px 14px 6px; font-size: 0.7rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: .06em; }
+  .profile-menu-item { display: flex; align-items: center; gap: 10px; padding: 9px 14px; color: #e2e8f0; text-decoration: none; font-size: 0.82rem; cursor: pointer; transition: background .1s; border: none; background: none; width: 100%; text-align: left; }
+  .profile-menu-item:hover { background: #2d3748; }
+  .profile-menu-item.active-profile { background: #1e2a3a; }
+  .mini-avatar { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 700; color: #fff; flex-shrink: 0; }
+  .profile-check { color: #4ade80; margin-left: auto; font-size: 0.85rem; }
+  .profile-menu-divider { height: 1px; background: #2d3748; margin: 4px 0; }
+
   /* Settings modal */
   .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 100; align-items: center; justify-content: center; }
   .modal-backdrop.open { display: flex; }
@@ -123,8 +138,19 @@
   <div class="toolbar">
     <span id="fetch-progress" class="fetch-msg"></span>
     <span class="save-notice" id="save-notice">✓ Settings saved</span>
-    <a href="/setup" class="btn btn-ghost" style="text-decoration:none">⚙ Setup</a>
     <button class="btn btn-primary" id="btn-fetch" onclick="runFetch()">⟳ Fetch new jobs</button>
+    <div class="profile-dropdown" id="profile-dropdown">
+      <button class="avatar-btn" onclick="toggleProfileMenu(event)">
+        <span class="avatar" id="header-avatar" style="background:{{ active_profile.color if active_profile else '#3b82f6' }}">{{ active_profile.initials if active_profile else '?' }}</span>
+      </button>
+      <div class="profile-menu" id="profile-menu">
+        <div class="profile-menu-header">Switch profile</div>
+        <div id="profile-menu-list"></div>
+        <div class="profile-menu-divider"></div>
+        <a href="/setup" class="profile-menu-item">+ Add new profile</a>
+        <a href="/manage-profiles" class="profile-menu-item">Manage profiles</a>
+      </div>
+    </div>
   </div>
 </header>
 
@@ -463,6 +489,7 @@ async function runFetch() {
   btn.disabled = true;
   prog.style.display = "inline";
   prog.textContent = "Fetching…";
+  setTableFetching("Starting fetch…");
   await fetch("/api/fetch", { method: "POST" });
   pollFetch();
 }
@@ -472,13 +499,29 @@ async function pollFetch() {
   const data = await res.json();
   const prog = document.getElementById("fetch-progress");
   const btn = document.getElementById("btn-fetch");
-  prog.textContent = data.message || "Fetching…";
+  const msg = data.message || "Fetching…";
+  prog.textContent = msg;
   if (data.status === "running") {
+    setTableFetching(msg);
     setTimeout(pollFetch, 1500);
   } else {
     btn.disabled = false;
     setTimeout(() => { prog.style.display = "none"; prog.textContent = ""; }, 3000);
     loadJobs();
+  }
+}
+
+function setTableFetching(msg) {
+  const tbody = document.getElementById("jobs-body");
+  // Only replace if the table is currently empty or already showing a fetch indicator
+  if (!tbody.querySelector("tr[data-fetch]") && tbody.querySelectorAll("tr[id^='row-']").length === 0) {
+    tbody.innerHTML = `<tr data-fetch="1"><td colspan="13" class="empty">
+      <span class="spinner" style="border-color:#3b82f6;border-top-color:transparent;width:16px;height:16px;margin-right:8px"></span>
+      <span id="fetch-table-msg">${msg}</span>
+    </td></tr>`;
+  } else {
+    const el = document.getElementById("fetch-table-msg");
+    if (el) el.textContent = msg;
   }
 }
 
@@ -609,7 +652,36 @@ async function saveSettings() {
   }
 }
 
-// Set initial sort indicator on Score column
+// ── Profile dropdown ─────────────────────────────────────────────────────────
+
+async function toggleProfileMenu(e) {
+  e.stopPropagation();
+  const menu = document.getElementById("profile-menu");
+  const isOpen = menu.classList.contains("open");
+  menu.classList.toggle("open");
+  if (!isOpen) {
+    const res = await fetch("/api/profiles");
+    const data = await res.json();
+    const list = document.getElementById("profile-menu-list");
+    list.innerHTML = data.profiles.map(p => `
+      <button class="profile-menu-item ${p.active ? 'active-profile' : ''}" onclick="switchProfile('${p.slug}')">
+        <span class="mini-avatar" style="background:${p.color}">${p.initials}</span>
+        <span>${p.name}</span>
+        ${p.active ? '<span class="profile-check">✓</span>' : ''}
+      </button>`).join("");
+  }
+}
+
+document.addEventListener("click", () => {
+  document.getElementById("profile-menu")?.classList.remove("open");
+});
+
+async function switchProfile(slug) {
+  await fetch(`/api/profiles/switch/${slug}`, { method: "POST" });
+  window.location.reload();
+}
+
+// ── Sort init ─────────────────────────────────────────────────────────────────
 document.querySelector('th[data-key="score"]').classList.add("sort-desc");
 document.querySelector('th[data-key="score"] .sort-icon').textContent = "↓";
 
@@ -618,6 +690,7 @@ setInterval(loadJobs, 30000);
 
 if (new URLSearchParams(window.location.search).get("fetch") === "1") {
   history.replaceState({}, "", "/");
+  setTableFetching("Starting fetch…");
   runFetch();
 }
 </script>

@@ -1,5 +1,6 @@
 import os
 import sys
+import json as _json
 import yaml
 import shutil
 import subprocess
@@ -10,27 +11,45 @@ from flask import Flask, render_template, jsonify, request, send_file, abort, re
 from job.db import init_db, get_pending_deduped, get_jobs_by_status, update_status, get_job, stats, last_fetch_at, clear_all_jobs
 from job.web_api import trigger_resume, get_task_status, trigger_cover_letter, get_cl_task_status, trigger_fetch, get_fetch_status, clear_task_state
 from job.web_api import _candidate_name_slug
+from job.profiles import (
+    list_profiles, get_active_slug, get_active_profile, set_active,
+    create_profile, delete_profile, has_any_profiles, slugify,
+    get_profile_path, get_config_path, get_resumes_path, active_profile_dir,
+    PROFILES_DIR,
+)
 
 BASE = Path(__file__).parent
-CONFIG_PATH = BASE / "config.yaml"
-SKILL_PATH = BASE / "resume-skill"
-PROFILE_PATH = SKILL_PATH / "references" / "profile.md"
-RESUMES_PATH = BASE / "resumes"
 
 app = Flask(__name__, template_folder="templates")
-init_db()
+
+
+def _config_path() -> Path:
+    p = get_config_path()
+    if not p:
+        raise RuntimeError("No active profile")
+    return p
+
+
+def _profile_path() -> Path:
+    p = get_profile_path()
+    if not p:
+        raise RuntimeError("No active profile")
+    return p
+
+
+def _resumes_path() -> Path:
+    p = get_resumes_path()
+    if not p:
+        raise RuntimeError("No active profile")
+    return p
 
 
 def _source_label(search_name: str) -> str:
     n = search_name.lower()
-    if "linkedin" in n:
-        return "LinkedIn"
-    if "jobicy" in n:
-        return "Jobicy"
-    if "himalayas" in n:
-        return "Himalayas"
-    if "greenhouse" in n:
-        return "Greenhouse"
+    if "linkedin" in n:  return "LinkedIn"
+    if "jobicy" in n:    return "Jobicy"
+    if "himalayas" in n: return "Himalayas"
+    if "greenhouse" in n: return "Greenhouse"
     return search_name.split("-")[0].strip() if search_name else ""
 
 
@@ -42,7 +61,6 @@ def _serialize_job(row, task_status: dict, cl_task_status: dict) -> dict:
     elif r.get("salary_min"):
         salary = f"${r['salary_min']//1000}k+"
 
-    # Age
     age = ""
     try:
         dt = datetime.fromisoformat(r["first_seen_at"])
@@ -50,56 +68,49 @@ def _serialize_job(row, task_status: dict, cl_task_status: dict) -> dict:
             dt = dt.replace(tzinfo=timezone.utc)
         delta = datetime.now(timezone.utc) - dt
         mins = int(delta.total_seconds() // 60)
-        if mins < 60:
-            age = f"{mins}m"
-        elif mins < 1440:
-            age = f"{mins//60}h"
-        else:
-            age = f"{mins//1440}d"
+        if mins < 60:       age = f"{mins}m"
+        elif mins < 1440:   age = f"{mins//60}h"
+        else:               age = f"{mins//1440}d"
     except Exception:
         pass
 
-    # Resume state
     ts = task_status.get(r["job_id"], {})
     resume_status = ts.get("status", "idle")
     pdf_path = ts.get("pdf_path")
 
-    # Cover letter state
     cl_ts = cl_task_status.get(r["job_id"], {})
     cl_status = cl_ts.get("status", "idle")
     cl_pdf_path = cl_ts.get("pdf_path")
 
-    # Check if PDF already exists on disk (from previous run).
-    # Skill may sanitize the company name for the folder, so try a few variants then fall back to scanning.
-    if resume_status == "idle" and not pdf_path:
+    try:
+        resumes = _resumes_path()
         company = r.get("company") or ""
         name_slug = _candidate_name_slug()
-        target = f"{name_slug}_Resume.pdf"
-        for candidate in [
-            RESUMES_PATH / company / target,
-            RESUMES_PATH / company.replace(" ", "") / target,
-            RESUMES_PATH / company.replace(" ", "").replace("/", "") / target,
-        ]:
-            if candidate.exists():
-                resume_status = "done"
-                pdf_path = str(candidate)
-                break
+        if resume_status == "idle" and not pdf_path:
+            target = f"{name_slug}_Resume.pdf"
+            for candidate in [
+                resumes / company / target,
+                resumes / company.replace(" ", "") / target,
+                resumes / company.replace(" ", "").replace("/", "") / target,
+            ]:
+                if candidate.exists():
+                    resume_status = "done"
+                    pdf_path = str(candidate)
+                    break
+        if cl_status == "idle" and not cl_pdf_path:
+            cl_target = f"{name_slug}_Cover_Letter.pdf"
+            for candidate in [
+                resumes / company / cl_target,
+                resumes / company.replace(" ", "") / cl_target,
+                resumes / company.replace(" ", "").replace("/", "") / cl_target,
+            ]:
+                if candidate.exists():
+                    cl_status = "done"
+                    cl_pdf_path = str(candidate)
+                    break
+    except RuntimeError:
+        pass
 
-    if cl_status == "idle" and not cl_pdf_path:
-        company = r.get("company") or ""
-        name_slug = _candidate_name_slug()
-        cl_target = f"{name_slug}_Cover_Letter.pdf"
-        for candidate in [
-            RESUMES_PATH / company / cl_target,
-            RESUMES_PATH / company.replace(" ", "") / cl_target,
-            RESUMES_PATH / company.replace(" ", "").replace("/", "") / cl_target,
-        ]:
-            if candidate.exists():
-                cl_status = "done"
-                cl_pdf_path = str(candidate)
-                break
-
-    # Posted age
     posted = ""
     try:
         if r.get("posted_at"):
@@ -108,12 +119,9 @@ def _serialize_job(row, task_status: dict, cl_task_status: dict) -> dict:
                 dt = dt.replace(tzinfo=timezone.utc)
             delta = datetime.now(timezone.utc) - dt
             days = int(delta.total_seconds() // 86400)
-            if days == 0:
-                posted = "today"
-            elif days == 1:
-                posted = "1d ago"
-            else:
-                posted = f"{days}d ago"
+            if days == 0:   posted = "today"
+            elif days == 1: posted = "1d ago"
+            else:           posted = f"{days}d ago"
     except Exception:
         pass
 
@@ -143,9 +151,16 @@ def _serialize_job(row, task_status: dict, cl_task_status: dict) -> dict:
     }
 
 
+# ── Main routes ───────────────────────────────────────────────────────────────
+
 @app.route("/")
 def index():
-    if not PROFILE_PATH.exists():
+    if not has_any_profiles():
+        return redirect(url_for("setup"))
+    if not get_active_slug():
+        return redirect(url_for("profile_picker"))
+    profile_md = get_profile_path()
+    if not profile_md or not profile_md.exists():
         return redirect(url_for("setup"))
     counts = stats()
     last = last_fetch_at()
@@ -158,8 +173,65 @@ def index():
         hours = (datetime.now(timezone.utc) - dt).total_seconds() / 3600
         last_str = f"{int(hours)}h ago" if hours >= 1 else "just now"
         stale = hours > 24
-    return render_template("index.html", counts=counts, last_fetch=last_str, stale=stale)
+    active = get_active_profile()
+    return render_template("index.html", counts=counts, last_fetch=last_str, stale=stale, active_profile=active)
 
+
+@app.route("/profiles")
+def profile_picker():
+    profiles = list_profiles()
+    if not profiles:
+        return redirect(url_for("setup"))
+    return render_template("profiles.html", profiles=profiles)
+
+
+@app.route("/manage-profiles")
+def manage_profiles():
+    return render_template("manage_profiles.html")
+
+
+# ── Profile API ───────────────────────────────────────────────────────────────
+
+@app.route("/api/profiles")
+def api_profiles_list():
+    profiles = list_profiles()
+    active_slug = get_active_slug()
+    return jsonify({
+        "profiles": [
+            {"slug": p.slug, "name": p.name, "initials": p.initials, "color": p.color, "active": p.slug == active_slug}
+            for p in profiles
+        ],
+        "active_slug": active_slug,
+    })
+
+
+@app.route("/api/profiles/active")
+def api_profiles_active():
+    active = get_active_profile()
+    if not active:
+        return jsonify({"active": None})
+    return jsonify({"active": {"slug": active.slug, "name": active.name, "initials": active.initials, "color": active.color}})
+
+
+@app.route("/api/profiles/switch/<slug>", methods=["POST"])
+def api_profiles_switch(slug):
+    if not set_active(slug):
+        return jsonify({"error": "Profile not found"}), 404
+    clear_task_state()
+    init_db()
+    return jsonify({"ok": True, "slug": slug})
+
+
+@app.route("/api/profiles/delete/<slug>", methods=["POST"])
+def api_profiles_delete(slug):
+    if slug == get_active_slug():
+        return jsonify({"error": "Cannot delete the active profile. Switch to another profile first."}), 400
+    if not delete_profile(slug):
+        return jsonify({"error": "Profile not found"}), 404
+    return jsonify({"ok": True})
+
+
+# ── Job routes ────────────────────────────────────────────────────────────────
 
 @app.route("/api/jobs")
 def api_jobs():
@@ -186,12 +258,7 @@ def api_resume_status(job_id):
     if ts.get("pdf_path"):
         folder = Path(ts["pdf_path"]).parent.name
         pdf_url = f"/pdf/{folder}"
-    return jsonify({
-        "status": ts.get("status", "idle"),
-        "stage": ts.get("stage", ""),
-        "pdf_url": pdf_url,
-        "error": ts.get("error"),
-    })
+    return jsonify({"status": ts.get("status", "idle"), "stage": ts.get("stage", ""), "pdf_url": pdf_url, "error": ts.get("error")})
 
 
 @app.route("/api/cover-letter/<job_id>", methods=["POST"])
@@ -210,12 +277,7 @@ def api_cover_letter_status(job_id):
     if ts.get("pdf_path"):
         folder = Path(ts["pdf_path"]).parent.name
         pdf_url = f"/pdf/{folder}/cover"
-    return jsonify({
-        "status": ts.get("status", "idle"),
-        "stage": ts.get("stage", ""),
-        "pdf_url": pdf_url,
-        "error": ts.get("error"),
-    })
+    return jsonify({"status": ts.get("status", "idle"), "stage": ts.get("stage", ""), "pdf_url": pdf_url, "error": ts.get("error")})
 
 
 @app.route("/api/job-status/<job_id>/<new_status>", methods=["POST"])
@@ -228,7 +290,10 @@ def api_job_status(job_id, new_status):
 
 @app.route("/api/config", methods=["GET"])
 def api_config_get():
-    with open(CONFIG_PATH) as f:
+    config_p = _config_path()
+    if not config_p.exists():
+        return jsonify({"searches": [], "title_filter": [], "blacklist": [], "company_blacklist": []})
+    with open(config_p) as f:
         data = yaml.safe_load(f)
     return jsonify(data)
 
@@ -238,14 +303,15 @@ def api_config_save():
     data = request.get_json()
     if not data:
         return jsonify({"error": "No data"}), 400
-    # Basic validation
     if not isinstance(data.get("searches"), list) or not data["searches"]:
         return jsonify({"error": "At least one search entry required"}), 400
     required = {"name", "source", "query"}
     for s in data["searches"]:
         if not required.issubset(s.keys()):
             return jsonify({"error": f"Search entry missing fields: {required - s.keys()}"}), 400
-    with open(CONFIG_PATH, "w") as f:
+    config_p = _config_path()
+    config_p.parent.mkdir(parents=True, exist_ok=True)
+    with open(config_p, "w") as f:
         yaml.dump(data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
     return jsonify({"ok": True})
 
@@ -264,7 +330,7 @@ def api_fetch_status():
 @app.route("/pdf/<company>")
 def serve_pdf(company):
     name_slug = _candidate_name_slug()
-    pdf = RESUMES_PATH / company / f"{name_slug}_Resume.pdf"
+    pdf = _resumes_path() / company / f"{name_slug}_Resume.pdf"
     if not pdf.exists():
         abort(404)
     return send_file(str(pdf), mimetype="application/pdf")
@@ -273,11 +339,13 @@ def serve_pdf(company):
 @app.route("/pdf/<company>/cover")
 def serve_cover_letter(company):
     name_slug = _candidate_name_slug()
-    pdf = RESUMES_PATH / company / f"{name_slug}_Cover_Letter.pdf"
+    pdf = _resumes_path() / company / f"{name_slug}_Cover_Letter.pdf"
     if not pdf.exists():
         abort(404)
     return send_file(str(pdf), mimetype="application/pdf")
 
+
+# ── Setup routes ──────────────────────────────────────────────────────────────
 
 @app.route("/setup")
 def setup():
@@ -286,32 +354,25 @@ def setup():
 
 @app.route("/api/setup/status")
 def api_setup_status():
-    platform = sys.platform  # darwin, win32, linux
-    has_claude = bool(shutil.which("claude"))
-    has_gemini = bool(shutil.which("gemini"))
-    has_pdflatex = bool(shutil.which("pdflatex"))
-    has_node = bool(shutil.which("node"))
-    has_profile = PROFILE_PATH.exists()
-    # Read GEMINI_API_KEY from env
-    gemini_key_set = bool(os.environ.get("GEMINI_API_KEY"))
+    profile_p = get_profile_path()
     return jsonify({
-        "platform": platform,
-        "has_claude": has_claude,
-        "has_gemini": has_gemini,
-        "has_pdflatex": has_pdflatex,
-        "has_node": has_node,
-        "has_profile": has_profile,
-        "gemini_key_set": gemini_key_set,
+        "platform": sys.platform,
+        "has_claude": bool(shutil.which("claude")),
+        "has_gemini": bool(shutil.which("gemini")),
+        "has_pdflatex": bool(shutil.which("pdflatex")),
+        "has_node": bool(shutil.which("node")),
+        "has_profile": bool(profile_p and profile_p.exists()),
+        "gemini_key_set": bool(os.environ.get("GEMINI_API_KEY")),
     })
 
 
 @app.route("/api/setup/suggest-config", methods=["POST"])
 def api_setup_suggest_config():
-    if not PROFILE_PATH.exists():
+    profile_p = get_profile_path()
+    if not profile_p or not profile_p.exists():
         return jsonify({"ok": False, "error": "Profile not found. Complete Step 4 first."})
 
-    profile_text = PROFILE_PATH.read_text()
-
+    profile_text = profile_p.read_text()
     prompt = """Analyze this professional profile and extract job search preferences. Return ONLY valid JSON with this exact structure (no markdown, no explanation):
 
 {
@@ -329,12 +390,8 @@ Rules:
 Profile:
 """ + profile_text[:6000]
 
-    ai_cmd = None
-    if shutil.which("claude"):
-        ai_cmd = ["claude", "-p", prompt, "--output-format", "text"]
-    elif shutil.which("gemini"):
-        ai_cmd = ["gemini", "-p", prompt]
-
+    ai_cmd = ["claude", "-p", prompt, "--output-format", "text"] if shutil.which("claude") else \
+              (["gemini", "-p", prompt] if shutil.which("gemini") else None)
     if not ai_cmd:
         return jsonify({"ok": False, "error": "No AI CLI installed. Complete Step 2 first."})
 
@@ -344,7 +401,6 @@ Profile:
         if output.startswith("```"):
             output = "\n".join(output.split("\n")[1:])
             output = output.rsplit("```", 1)[0].strip()
-        import json as _json
         extracted = _json.loads(output)
 
         titles = extracted.get("titles", [])
@@ -354,44 +410,34 @@ Profile:
         if not titles:
             return jsonify({"ok": False, "error": "Could not extract job titles from profile."})
 
-        primary_title = titles[0]
-
+        config_p = _config_path()
         existing = {}
-        if CONFIG_PATH.exists():
-            with open(CONFIG_PATH) as f:
+        if config_p.exists():
+            with open(config_p) as f:
                 existing = yaml.safe_load(f) or {}
 
-        searches = []
-        for source, max_pages in [("linkedin", 3), ("jobicy", 3), ("himalayas", 2), ("greenhouse", 3)]:
-            searches.append({
-                "name": f"{source.capitalize()} - {primary_title}",
-                "source": source,
-                "query": primary_title,
-                "location": location,
-                "max_pages": max_pages,
-                "remote": remote,
-            })
-
-        title_filter = [t.lower() for t in titles]
-        blacklist = existing.get("blacklist", ["internship", "junior", "unpaid", "staffing"])
-        company_blacklist = existing.get("company_blacklist", [])
+        primary_title = titles[0]
+        searches = [
+            {"name": f"{src.capitalize()} - {primary_title}", "source": src,
+             "query": primary_title, "location": location, "max_pages": mp, "remote": remote}
+            for src, mp in [("linkedin", 3), ("jobicy", 3), ("himalayas", 2), ("greenhouse", 3)]
+        ]
 
         new_config = {
             "searches": searches,
-            "title_filter": title_filter,
-            "blacklist": blacklist,
-            "company_blacklist": company_blacklist,
+            "title_filter": [t.lower() for t in titles],
+            "blacklist": existing.get("blacklist", ["internship", "junior", "unpaid", "staffing"]),
+            "company_blacklist": existing.get("company_blacklist", []),
         }
 
-        # Clear old jobs and in-memory state so the list only shows results for the new profile
         clear_all_jobs()
         clear_task_state()
 
-        with open(CONFIG_PATH, "w") as f:
+        config_p.parent.mkdir(parents=True, exist_ok=True)
+        with open(config_p, "w") as f:
             yaml.dump(new_config, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
-        return jsonify({"ok": True, "searches": searches, "title_filter": title_filter, "location": location})
-
+        return jsonify({"ok": True, "searches": searches, "title_filter": new_config["title_filter"], "location": location})
     except subprocess.TimeoutExpired:
         return jsonify({"ok": False, "error": "AI extraction timed out. Try again."})
     except Exception as e:
@@ -400,25 +446,14 @@ Profile:
 
 @app.route("/api/setup/install-node", methods=["POST"])
 def api_setup_install_node():
-    platform = sys.platform
     try:
-        if platform == "darwin":
-            result = subprocess.run(
-                ["brew", "install", "node"],
-                capture_output=True, text=True, timeout=300
-            )
-        elif platform == "linux":
-            result = subprocess.run(
-                ["sudo", "apt-get", "install", "-y", "nodejs", "npm"],
-                capture_output=True, text=True, timeout=300
-            )
+        if sys.platform == "darwin":
+            r = subprocess.run(["brew", "install", "node"], capture_output=True, text=True, timeout=300)
+        elif sys.platform == "linux":
+            r = subprocess.run(["sudo", "apt-get", "install", "-y", "nodejs", "npm"], capture_output=True, text=True, timeout=300)
         else:
-            return jsonify({"ok": False, "output": "Auto-install not supported on Windows. Please download Node.js from https://nodejs.org/en/download and run the installer."})
-        if result.returncode == 0:
-            return jsonify({"ok": True, "output": result.stdout[-500:]})
-        return jsonify({"ok": False, "output": (result.stderr or result.stdout)[-500:]})
-    except subprocess.TimeoutExpired:
-        return jsonify({"ok": False, "output": "Install timed out."})
+            return jsonify({"ok": False, "output": "Auto-install not supported on Windows. Download from https://nodejs.org/en/download"})
+        return jsonify({"ok": r.returncode == 0, "output": (r.stdout or r.stderr)[-500:]})
     except Exception as e:
         return jsonify({"ok": False, "output": str(e)})
 
@@ -426,20 +461,13 @@ def api_setup_install_node():
 @app.route("/api/setup/install-cli", methods=["POST"])
 def api_setup_install_cli():
     data = request.get_json()
-    provider = data.get("provider")  # "claude" or "gemini"
+    provider = data.get("provider")
     if provider not in ("claude", "gemini"):
         return jsonify({"error": "Invalid provider"}), 400
     pkg = "@anthropic-ai/claude-code" if provider == "claude" else "@google/gemini-cli"
     try:
-        result = subprocess.run(
-            ["npm", "install", "-g", pkg],
-            capture_output=True, text=True, timeout=180
-        )
-        if result.returncode == 0:
-            return jsonify({"ok": True, "output": result.stdout[-1000:]})
-        return jsonify({"ok": False, "output": result.stderr[-1000:]})
-    except subprocess.TimeoutExpired:
-        return jsonify({"ok": False, "output": "Install timed out after 3 minutes."})
+        r = subprocess.run(["npm", "install", "-g", pkg], capture_output=True, text=True, timeout=180)
+        return jsonify({"ok": r.returncode == 0, "output": (r.stdout or r.stderr)[-1000:]})
     except Exception as e:
         return jsonify({"ok": False, "output": str(e)})
 
@@ -450,11 +478,8 @@ def api_setup_save_gemini_key():
     key = (data.get("key") or "").strip()
     if not key:
         return jsonify({"error": "No key provided"}), 400
-    # Persist to a .env file the app loads on startup
     env_path = BASE / ".env"
-    lines = []
-    if env_path.exists():
-        lines = [l for l in env_path.read_text().splitlines() if not l.startswith("GEMINI_API_KEY=")]
+    lines = [l for l in env_path.read_text().splitlines() if not l.startswith("GEMINI_API_KEY=")] if env_path.exists() else []
     lines.append(f"GEMINI_API_KEY={key}")
     env_path.write_text("\n".join(lines) + "\n")
     os.environ["GEMINI_API_KEY"] = key
@@ -463,25 +488,14 @@ def api_setup_save_gemini_key():
 
 @app.route("/api/setup/install-pdflatex", methods=["POST"])
 def api_setup_install_pdflatex():
-    platform = sys.platform
     try:
-        if platform == "darwin":
-            result = subprocess.run(
-                ["brew", "install", "--cask", "basictex"],
-                capture_output=True, text=True, timeout=600
-            )
-        elif platform == "linux":
-            result = subprocess.run(
-                ["sudo", "apt-get", "install", "-y", "texlive-latex-extra"],
-                capture_output=True, text=True, timeout=600
-            )
+        if sys.platform == "darwin":
+            r = subprocess.run(["brew", "install", "--cask", "basictex"], capture_output=True, text=True, timeout=600)
+        elif sys.platform == "linux":
+            r = subprocess.run(["sudo", "apt-get", "install", "-y", "texlive-latex-extra"], capture_output=True, text=True, timeout=600)
         else:
-            return jsonify({"ok": False, "output": "Auto-install not supported on Windows. Please install MiKTeX manually from https://miktex.org/download"})
-        if result.returncode == 0:
-            return jsonify({"ok": True, "output": result.stdout[-1000:]})
-        return jsonify({"ok": False, "output": (result.stderr or result.stdout)[-1000:]})
-    except subprocess.TimeoutExpired:
-        return jsonify({"ok": False, "output": "Install timed out."})
+            return jsonify({"ok": False, "output": "Auto-install not supported on Windows. Install MiKTeX from https://miktex.org/download"})
+        return jsonify({"ok": r.returncode == 0, "output": (r.stdout or r.stderr)[-1000:]})
     except Exception as e:
         return jsonify({"ok": False, "output": str(e)})
 
@@ -491,10 +505,8 @@ def api_setup_parse_resume():
     f = request.files.get("file")
     if not f:
         return jsonify({"error": "No file uploaded"}), 400
-
     filename = f.filename.lower()
     raw_text = ""
-
     try:
         if filename.endswith(".pdf"):
             import pypdf, io
@@ -507,10 +519,7 @@ def api_setup_parse_resume():
             xml = zf.read("word/document.xml")
             root = ET.fromstring(xml)
             ns = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
-            raw_text = "\n".join(
-                "".join(t.text or "" for t in para.iter(f"{ns}t"))
-                for para in root.iter(f"{ns}p")
-            )
+            raw_text = "\n".join("".join(t.text or "" for t in p.iter(f"{ns}t")) for p in root.iter(f"{ns}p"))
         elif filename.endswith(".txt"):
             raw_text = f.read().decode("utf-8", errors="ignore")
         else:
@@ -524,66 +533,35 @@ def api_setup_parse_resume():
     prompt = f"""Extract structured information from this resume text and return ONLY valid JSON with exactly this structure (no markdown, no explanation):
 
 {{
-  "name": "Full Name",
-  "email": "email@example.com",
-  "phone": "+1 555-000-0000",
-  "location": "City, State",
-  "linkedin": "https://linkedin.com/in/...",
-  "auth": "",
+  "name": "Full Name", "email": "email@example.com", "phone": "+1 555-000-0000",
+  "location": "City, State", "linkedin": "https://linkedin.com/in/...", "auth": "",
   "summary": "2-3 sentence professional summary",
   "competencies": ["skill 1", "skill 2"],
-  "experience": [
-    {{
-      "title": "Job Title",
-      "company": "Company Name",
-      "location": "City, Country",
-      "start": "Mon Year",
-      "end": "Mon Year or Present",
-      "bullets": ["achievement 1", "achievement 2"],
-      "projects": [{{"name": "Project", "desc": "description and outcome"}}]
-    }}
-  ],
-  "education": [
-    {{
-      "degree": "Full Degree Name",
-      "school": "Institution Name",
-      "year": "2024",
-      "location": "City, Country"
-    }}
-  ],
+  "experience": [{{"title": "Job Title", "company": "Company Name", "location": "City, Country",
+    "start": "Mon Year", "end": "Mon Year or Present",
+    "bullets": ["achievement 1"], "projects": [{{"name": "Project", "desc": "description"}}]}}],
+  "education": [{{"degree": "Full Degree Name", "school": "Institution", "year": "2024", "location": "City, Country"}}],
   "certifications": ["Cert Name, Issuer (Year)"]
 }}
 
-Rules:
-- Use empty string "" for missing text fields, empty array [] for missing lists
-- Keep bullets concise and outcome-focused
-- For auth: if US work authorization is mentioned use that text, otherwise leave empty
-- Return ONLY the JSON object, nothing else
+Rules: empty string for missing text, empty array for missing lists, return ONLY JSON.
 
 Resume text:
 {raw_text[:8000]}"""
 
-    ai_cmd = None
-    if shutil.which("claude"):
-        ai_cmd = ["claude", "-p", prompt, "--output-format", "text"]
-    elif shutil.which("gemini"):
-        ai_cmd = ["gemini", "-p", prompt]
-
+    ai_cmd = ["claude", "-p", prompt, "--output-format", "text"] if shutil.which("claude") else \
+              (["gemini", "-p", prompt] if shutil.which("gemini") else None)
     if not ai_cmd:
         return jsonify({"error": "No AI CLI installed. Complete Step 2 first."}), 400
 
     try:
         result = subprocess.run(ai_cmd, capture_output=True, text=True, timeout=60)
         output = result.stdout.strip()
-        # Strip markdown code fences if present
         if output.startswith("```"):
             output = "\n".join(output.split("\n")[1:])
             output = output.rsplit("```", 1)[0].strip()
-        import json as _json
         data = _json.loads(output)
         return jsonify({"ok": True, "data": data})
-    except subprocess.TimeoutExpired:
-        return jsonify({"error": "AI extraction timed out. Try again."}), 500
     except Exception as e:
         return jsonify({"error": f"Could not parse AI response: {e}"}), 500
 
@@ -594,17 +572,39 @@ def api_setup_save_profile():
     content = (data.get("content") or "").strip()
     if not content:
         return jsonify({"error": "Profile content is empty"}), 400
-    PROFILE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    PROFILE_PATH.write_text(content)
+
+    # Extract name from H1 heading
+    name = "New Profile"
+    for line in content.splitlines():
+        line = line.strip()
+        if line.startswith("#"):
+            name = line.lstrip("#").split("—")[0].split("-")[0].strip() or name
+            break
+
+    existing_slug = get_active_slug()
+    if existing_slug:
+        profile_dir = active_profile_dir()
+    else:
+        slug = create_profile(name)
+        profile_dir = PROFILES_DIR / slug
+        set_active(slug)
+
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    (profile_dir / "profile.md").write_text(content)
+    # Ensure resumes subdir exists
+    (profile_dir / "resumes").mkdir(exist_ok=True)
+    # Initialize the DB for this profile
+    init_db()
     return jsonify({"ok": True})
 
 
 if __name__ == "__main__":
-    # Load .env if present (for GEMINI_API_KEY etc.)
     env_path = BASE / ".env"
     if env_path.exists():
         for line in env_path.read_text().splitlines():
             if "=" in line and not line.startswith("#"):
                 k, v = line.split("=", 1)
                 os.environ.setdefault(k.strip(), v.strip())
+    if get_active_slug():
+        init_db()
     app.run(debug=False, port=5050)

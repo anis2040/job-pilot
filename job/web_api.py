@@ -9,17 +9,30 @@ from .linkedin_fetcher import fetch_description as li_fetch_description
 from .config import load_config
 from .fetcher import fetch_search
 from .scorer import score_job
+from .profiles import get_profile_path, get_resumes_path
 
 _BASE = Path(__file__).parent.parent
-_SKILL_PATH = _BASE / "resume-skill"
-_CL_SKILL_PATH = _BASE / "cover-letter-skill"
-_RESUMES_PATH = _BASE / "resumes"
 
 # In-memory task state: { job_id: { "status": "idle|building|done|error", "pdf_path": str|None, "error": str|None } }
 _task_status: dict[str, dict] = {}
 _cl_task_status: dict[str, dict] = {}
 _fetch_status: dict = {"status": "idle", "message": ""}
 _lock = threading.Lock()
+
+
+def _skill_path() -> Path:
+    return _BASE / "resume-skill"
+
+
+def _cl_skill_path() -> Path:
+    return _BASE / "cover-letter-skill"
+
+
+def _resumes_path() -> Path:
+    path = get_resumes_path()
+    if not path:
+        raise RuntimeError("No active profile")
+    return path
 
 
 def clear_task_state() -> None:
@@ -85,8 +98,8 @@ def _set_cl_stage(job_id: str, stage: str) -> None:
 
 def _validate_profile() -> None:
     """Raise a clear error if profile.md is missing or still the example template."""
-    profile = _SKILL_PATH / "references" / "profile.md"
-    if not profile.exists():
+    profile = get_profile_path()
+    if not profile or not profile.exists():
         raise ValueError(
             "profile.md not found. Complete the setup wizard at http://localhost:5050/setup"
         )
@@ -95,7 +108,6 @@ def _validate_profile() -> None:
         raise ValueError(
             "profile.md is empty. Complete the setup wizard at http://localhost:5050/setup"
         )
-    # Detect unedited example template by checking for the placeholder email
     if "you@example.com" in text or "City, State" in text:
         raise ValueError(
             "profile.md still contains the example template. "
@@ -106,10 +118,12 @@ def _validate_profile() -> None:
 def _candidate_name_slug() -> str:
     """Read the candidate's name from profile.md and return a filename-safe slug like 'John_Smith'."""
     try:
-        text = (_SKILL_PATH / "references" / "profile.md").read_text()
+        profile = get_profile_path()
+        if not profile:
+            return "Candidate"
+        text = profile.read_text()
         for line in text.splitlines():
             line = line.strip()
-            # Matches: "# John Smith — Full Profile" or "# John Smith"
             if line.startswith("#"):
                 name = line.lstrip("#").split("—")[0].split("-")[0].strip()
                 if name:
@@ -187,16 +201,18 @@ def _build_resume(job_id: str) -> None:
             f"{row['description']}"
         )
 
-        skill_instructions = (_SKILL_PATH / "SKILL.md").read_text()
-        for ref_name in ("profile.md", "latex_template.md"):
-            ref_path = _SKILL_PATH / "references" / ref_name
-            if ref_path.exists():
-                skill_instructions += f"\n\n## {ref_name} (embedded)\n\n{ref_path.read_text()}"
+        skill_instructions = (_skill_path() / "SKILL.md").read_text()
+        latex_template = _skill_path() / "references" / "latex_template.md"
+        if latex_template.exists():
+            skill_instructions += f"\n\n## latex_template.md (embedded)\n\n{latex_template.read_text()}"
+        profile_path = get_profile_path()
+        if profile_path and profile_path.exists():
+            skill_instructions += f"\n\n## profile.md (embedded)\n\n{profile_path.read_text()}"
 
         name_slug = _candidate_name_slug()
         skill_instructions = _inject_name(skill_instructions, name_slug)
 
-        proc = _run_ai(prompt, skill_instructions, cwd=str(_SKILL_PATH))
+        proc = _run_ai(prompt, skill_instructions, cwd=str(_skill_path()))
 
         # Stream stdout and detect stages from Claude's output
         for line in proc.stdout:
@@ -228,15 +244,15 @@ def _build_resume(job_id: str) -> None:
         pdf_path = None
         target = f"{name_slug}_Resume.pdf"
         for candidate in [
-            _RESUMES_PATH / company / target,
-            _RESUMES_PATH / company.replace(" ", "") / target,
-            _RESUMES_PATH / company.replace(" ", "").replace("/", "") / target,
+            _resumes_path() / company / target,
+            _resumes_path() / company.replace(" ", "") / target,
+            _resumes_path() / company.replace(" ", "").replace("/", "") / target,
         ]:
             if candidate.exists():
                 pdf_path = str(candidate)
                 break
         if not pdf_path:
-            for p in sorted(_RESUMES_PATH.rglob(target), key=lambda f: f.stat().st_mtime, reverse=True):
+            for p in sorted(_resumes_path().rglob(target), key=lambda f: f.stat().st_mtime, reverse=True):
                 pdf_path = str(p)
                 break
 
@@ -276,9 +292,9 @@ def _build_cover_letter(job_id: str) -> None:
         name_slug = _candidate_name_slug()
         resume_tex = None
         for candidate in [
-            _RESUMES_PATH / company / f"{name_slug}_Resume.tex",
-            _RESUMES_PATH / company.replace(" ", "") / f"{name_slug}_Resume.tex",
-            _RESUMES_PATH / company.replace(" ", "").replace("/", "") / f"{name_slug}_Resume.tex",
+            _resumes_path() / company / f"{name_slug}_Resume.tex",
+            _resumes_path() / company.replace(" ", "") / f"{name_slug}_Resume.tex",
+            _resumes_path() / company.replace(" ", "").replace("/", "") / f"{name_slug}_Resume.tex",
         ]:
             if candidate.exists():
                 resume_tex = str(candidate)
@@ -296,13 +312,13 @@ def _build_cover_letter(job_id: str) -> None:
             + (f"\n\nThe resume for this role is at: {resume_tex}" if resume_tex else "")
         )
 
-        skill_instructions = (_CL_SKILL_PATH / "SKILL.md").read_text()
-        profile_path = _CL_SKILL_PATH / "references" / "profile.md"
-        if profile_path.exists():
+        skill_instructions = (_cl_skill_path() / "SKILL.md").read_text()
+        profile_path = get_profile_path()
+        if profile_path and profile_path.exists():
             skill_instructions += f"\n\n## profile.md (embedded)\n\n{profile_path.read_text()}"
         skill_instructions = _inject_name(skill_instructions, name_slug)
 
-        proc = _run_ai(prompt, skill_instructions, cwd=str(_CL_SKILL_PATH))
+        proc = _run_ai(prompt, skill_instructions, cwd=str(_cl_skill_path()))
 
         for line in proc.stdout:
             line_lower = line.lower()
@@ -332,15 +348,15 @@ def _build_cover_letter(job_id: str) -> None:
         target = f"{name_slug}_Cover_Letter.pdf"
         pdf_path = None
         for candidate in [
-            _RESUMES_PATH / company / target,
-            _RESUMES_PATH / company.replace(" ", "") / target,
-            _RESUMES_PATH / company.replace(" ", "").replace("/", "") / target,
+            _resumes_path() / company / target,
+            _resumes_path() / company.replace(" ", "") / target,
+            _resumes_path() / company.replace(" ", "").replace("/", "") / target,
         ]:
             if candidate.exists():
                 pdf_path = str(candidate)
                 break
         if not pdf_path:
-            for p in sorted(_RESUMES_PATH.rglob(target), key=lambda f: f.stat().st_mtime, reverse=True):
+            for p in sorted(_resumes_path().rglob(target), key=lambda f: f.stat().st_mtime, reverse=True):
                 pdf_path = str(p)
                 break
 

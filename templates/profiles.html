@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Job Scraper — Select Profile</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 32px 16px; }
+  .wrap { width: 560px; max-width: 100%; text-align: center; }
+  h1 { font-size: 1.5rem; font-weight: 800; color: #fff; margin-bottom: 6px; }
+  p { color: #64748b; font-size: 0.88rem; margin-bottom: 32px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+  .card { background: #1a1f2e; border: 2px solid #2d3748; border-radius: 12px; padding: 24px 16px; cursor: pointer; transition: all .15s; text-decoration: none; color: inherit; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .card:hover { border-color: #3b82f6; background: #1e2a3a; transform: translateY(-2px); }
+  .avatar { width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: 700; color: #fff; }
+  .name { font-size: 0.9rem; font-weight: 600; color: #e2e8f0; }
+  .add-card { border-style: dashed; color: #64748b; }
+  .add-card:hover { border-color: #60a5fa; color: #60a5fa; background: #1e2333; }
+  .add-icon { width: 60px; height: 60px; border-radius: 50%; background: #1e2333; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; color: inherit; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🔍 Job Scraper</h1>
+  <p>Select a profile to continue</p>
+  <div class="grid">
+    {% for p in profiles %}
+    <div class="card" onclick="selectProfile('{{ p.slug }}')">
+      <div class="avatar" style="background:{{ p.color }}">{{ p.initials }}</div>
+      <div class="name">{{ p.name }}</div>
+    </div>
+    {% endfor %}
+    <a href="/setup" class="card add-card">
+      <div class="add-icon">+</div>
+      <div class="name">Add Profile</div>
+    </a>
+  </div>
+</div>
+<script>
+async function selectProfile(slug) {
+  const res = await fetch(`/api/profiles/switch/${slug}`, { method: "POST" });
+  const data = await res.json();
+  if (data.ok) window.location.href = "/";
+}
+</script>
+</body>
+</html>

@@ -11,6 +11,7 @@ resumes/
 resume-skill/references/profile.md
 resume-skill/references/profile.pdf
 cover-letter-skill/references/
+profiles/
 
 # Secrets
 .env

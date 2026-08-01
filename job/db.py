@@ -2,11 +2,12 @@ import sqlite3
 from datetime import datetime, timezone
 
 
-DB_PATH = "state.db"
-
-
 def _connect() -> sqlite3.Connection:
-    con = sqlite3.connect(DB_PATH)
+    from .profiles import get_db_path
+    db_path = get_db_path()
+    if not db_path:
+        raise RuntimeError("No active profile. Complete setup first.")
+    con = sqlite3.connect(db_path)
     con.row_factory = sqlite3.Row
     return con
 

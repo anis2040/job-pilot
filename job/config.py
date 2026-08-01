@@ -21,7 +21,13 @@ class Config:
     title_filter: list[str] = field(default_factory=list)
 
 
-def load_config(path: str = "config.yaml") -> Config:
+def load_config(path: str | None = None) -> Config:
+    if path is None:
+        from .profiles import get_config_path
+        config_path = get_config_path()
+        if not config_path:
+            raise ValueError("No active profile")
+        path = str(config_path)
     with open(path) as f:
         data = yaml.safe_load(f)
 
