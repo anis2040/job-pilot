@@ -2,13 +2,65 @@
 
 Fetches job listings from LinkedIn, Jobicy, Himalayas, and Greenhouse, and generates tailored ATS-optimized resumes and cover letters with one click using Claude or Gemini. Supports multiple profiles so different people (or different job tracks) can share one installation.
 
-## Requirements
+## Prerequisites
 
-- Python 3.11+
-- Node.js (for AI CLI)
-- One of:
-  - [Claude Code CLI](https://claude.ai/code) — `npm install -g @anthropic-ai/claude-code`
-  - [Gemini CLI](https://github.com/google-gemini/gemini-cli) — `npm install -g @google/gemini-cli`
+Before you start, install the following:
+
+### Python 3.11+
+
+**macOS:**
+```bash
+brew install python@3.11
+```
+Or download from [python.org/downloads](https://www.python.org/downloads/)
+
+**Windows:**
+Download and run the installer from [python.org/downloads](https://www.python.org/downloads/).
+Check **"Add Python to PATH"** during install.
+
+**Linux:**
+```bash
+sudo apt install python3.11 python3.11-venv
+```
+
+Verify: `python --version` or `python3 --version`
+
+---
+
+### Node.js 18+
+
+Required to install the AI CLI (Claude or Gemini).
+
+**macOS:**
+```bash
+brew install node
+```
+
+**Windows:**
+Download and run the installer from [nodejs.org/en/download](https://nodejs.org/en/download) (LTS version recommended).
+Or via winget:
+```powershell
+winget install OpenJS.NodeJS.LTS
+```
+
+**Linux:**
+```bash
+sudo apt install nodejs npm
+```
+
+Verify: `node --version`
+
+---
+
+### Git
+
+**macOS:** comes pre-installed, or `brew install git`
+
+**Windows:** download from [git-scm.com/download/win](https://git-scm.com/download/win)
+
+**Linux:** `sudo apt install git`
+
+---
 
 ## Setup
 
