@@ -1,0 +1,24 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Personal data — never commit
+state.db
+resumes/
+resume-skill/references/profile.md
+resume-skill/references/profile.pdf
+cover-letter-skill/references/
+
+# Claude settings
+.claude/
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Logs
+logs/
+*.log

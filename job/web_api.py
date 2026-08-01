@@ -1,0 +1,345 @@
+import threading
+import subprocess
+import time
+from pathlib import Path
+
+from .db import get_job, update_description, init_db, already_seen, is_duplicate, insert_job, insert_filter_log, log_fetch
+from .linkedin_fetcher import fetch_description as li_fetch_description
+from .config import load_config
+from .fetcher import fetch_search
+from .scorer import score_job
+
+_BASE = Path(__file__).parent.parent
+_SKILL_PATH = _BASE / "resume-skill"
+_CL_SKILL_PATH = _BASE / "cover-letter-skill"
+_RESUMES_PATH = _BASE / "resumes"
+
+# In-memory task state: { job_id: { "status": "idle|building|done|error", "pdf_path": str|None, "error": str|None } }
+_task_status: dict[str, dict] = {}
+_cl_task_status: dict[str, dict] = {}
+_fetch_status: dict = {"status": "idle", "message": ""}
+_lock = threading.Lock()
+
+
+def get_task_status(job_id: str) -> dict:
+    with _lock:
+        return dict(_task_status.get(job_id, {"status": "idle", "pdf_path": None, "error": None, "stage": ""}))
+
+
+def get_cl_task_status(job_id: str) -> dict:
+    with _lock:
+        return dict(_cl_task_status.get(job_id, {"status": "idle", "pdf_path": None, "error": None, "stage": ""}))
+
+
+def get_fetch_status() -> dict:
+    with _lock:
+        return dict(_fetch_status)
+
+
+def trigger_resume(job_id: str) -> None:
+    with _lock:
+        if _task_status.get(job_id, {}).get("status") == "building":
+            return
+        _task_status[job_id] = {"status": "building", "pdf_path": None, "error": None, "stage": "Starting…"}
+    t = threading.Thread(target=_build_resume, args=(job_id,), daemon=True)
+    t.start()
+
+
+def trigger_cover_letter(job_id: str) -> None:
+    with _lock:
+        if _cl_task_status.get(job_id, {}).get("status") == "building":
+            return
+        _cl_task_status[job_id] = {"status": "building", "pdf_path": None, "error": None, "stage": "Starting…"}
+    t = threading.Thread(target=_build_cover_letter, args=(job_id,), daemon=True)
+    t.start()
+
+
+def trigger_fetch() -> None:
+    with _lock:
+        if _fetch_status.get("status") == "running":
+            return
+        _fetch_status["status"] = "running"
+        _fetch_status["message"] = "Starting…"
+    t = threading.Thread(target=_run_fetch, daemon=True)
+    t.start()
+
+
+def _set_stage(job_id: str, stage: str) -> None:
+    with _lock:
+        if job_id in _task_status:
+            _task_status[job_id]["stage"] = stage
+
+
+def _set_cl_stage(job_id: str, stage: str) -> None:
+    with _lock:
+        if job_id in _cl_task_status:
+            _cl_task_status[job_id]["stage"] = stage
+
+
+def _build_resume(job_id: str) -> None:
+    try:
+        init_db()
+        row = get_job(job_id)
+        if not row:
+            raise ValueError(f"Job {job_id} not found")
+
+        row = dict(row)
+
+        # Stage 1 — fetch description for LinkedIn jobs
+        if job_id.startswith("li_") and (not row.get("description") or len(row["description"]) < 100):
+            _set_stage(job_id, "Fetching job description…")
+            desc = li_fetch_description(row["url"])
+            if desc:
+                update_description(job_id, desc)
+                row["description"] = desc
+
+        if not row.get("description"):
+            raise ValueError("No job description available — cannot build resume")
+
+        company = row.get("company") or "Unknown"
+        title = row.get("title") or "Job"
+
+        _set_stage(job_id, "Analyzing job description…")
+
+        prompt = (
+            f"Apply to this job for me. Here is the job description:\n\n"
+            f"Company: {company}\n"
+            f"Title: {title}\n"
+            f"Location: {row.get('location') or ''}\n"
+            f"URL: {row.get('url') or ''}\n\n"
+            f"{row['description']}"
+        )
+
+        skill_instructions = (_SKILL_PATH / "SKILL.md").read_text()
+        for ref_name in ("profile.md", "latex_template.md"):
+            ref_path = _SKILL_PATH / "references" / ref_name
+            if ref_path.exists():
+                skill_instructions += f"\n\n## {ref_name} (embedded)\n\n{ref_path.read_text()}"
+
+        proc = subprocess.Popen(
+            ["claude", "-p", prompt,
+             "--append-system-prompt", skill_instructions,
+             "--allowedTools", "Bash,Edit,Write,Read"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            cwd=str(_SKILL_PATH),
+        )
+
+        # Stream stdout and detect stages from Claude's output
+        for line in proc.stdout:
+            line_lower = line.lower()
+            if any(k in line_lower for k in ("step 1", "analyz", "job description", "keyword")):
+                _set_stage(job_id, "Analyzing job description…")
+            elif any(k in line_lower for k in ("step 2", "step 3", "writing", "bullet", "summary", "competenc")):
+                _set_stage(job_id, "Writing resume content…")
+            elif any(k in line_lower for k in ("step 4", "latex", ".tex", "generate", "\\documentclass")):
+                _set_stage(job_id, "Generating LaTeX…")
+            elif any(k in line_lower for k in ("pdflatex", "compil", "step 5")):
+                _set_stage(job_id, "Compiling PDF…")
+            elif any(k in line_lower for k in ("step 6", "deliver", "cover note", "output path")):
+                _set_stage(job_id, "Finalizing…")
+
+        try:
+            proc.wait(timeout=600)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            raise RuntimeError("Resume build timed out after 10 minutes")
+
+        if proc.returncode != 0:
+            err = proc.stderr.read() if proc.stderr else "claude subprocess failed"
+            raise RuntimeError(err)
+
+        _set_stage(job_id, "Locating PDF…")
+
+        # Scan for the PDF — skill may sanitize the company name for the folder
+        pdf_path = None
+        target = "Yassine_Helaoui_Resume.pdf"
+        for candidate in [
+            _RESUMES_PATH / company / target,
+            _RESUMES_PATH / company.replace(" ", "") / target,
+            _RESUMES_PATH / company.replace(" ", "").replace("/", "") / target,
+        ]:
+            if candidate.exists():
+                pdf_path = str(candidate)
+                break
+        if not pdf_path:
+            for p in sorted(_RESUMES_PATH.rglob(target), key=lambda f: f.stat().st_mtime, reverse=True):
+                pdf_path = str(p)
+                break
+
+        with _lock:
+            _task_status[job_id] = {
+                "status": "done",
+                "pdf_path": pdf_path,
+                "error": None,
+            }
+
+    except Exception as e:
+        with _lock:
+            _task_status[job_id] = {
+                "status": "error",
+                "pdf_path": None,
+                "error": str(e),
+            }
+
+
+def _build_cover_letter(job_id: str) -> None:
+    try:
+        init_db()
+        row = get_job(job_id)
+        if not row:
+            raise ValueError(f"Job {job_id} not found")
+
+        row = dict(row)
+
+        if not row.get("description"):
+            raise ValueError("No job description available — cannot build cover letter")
+
+        company = row.get("company") or "Unknown"
+        title = row.get("title") or "Job"
+
+        # Find the resume tex for this job so the skill can read it
+        resume_tex = None
+        for candidate in [
+            _RESUMES_PATH / company / "Yassine_Helaoui_Resume.tex",
+            _RESUMES_PATH / company.replace(" ", "") / "Yassine_Helaoui_Resume.tex",
+            _RESUMES_PATH / company.replace(" ", "").replace("/", "") / "Yassine_Helaoui_Resume.tex",
+        ]:
+            if candidate.exists():
+                resume_tex = str(candidate)
+                break
+
+        _set_cl_stage(job_id, "Reading resume…")
+
+        prompt = (
+            f"Write a cover letter for this job application.\n\n"
+            f"Company: {company}\n"
+            f"Title: {title}\n"
+            f"Location: {row.get('location') or ''}\n"
+            f"URL: {row.get('url') or ''}\n\n"
+            f"Job description:\n{row['description']}"
+            + (f"\n\nThe resume for this role is at: {resume_tex}" if resume_tex else "")
+        )
+
+        skill_instructions = (_CL_SKILL_PATH / "SKILL.md").read_text()
+        profile_path = _CL_SKILL_PATH / "references" / "profile.md"
+        if profile_path.exists():
+            skill_instructions += f"\n\n## profile.md (embedded)\n\n{profile_path.read_text()}"
+
+        proc = subprocess.Popen(
+            ["claude", "-p", prompt,
+             "--append-system-prompt", skill_instructions,
+             "--allowedTools", "Bash,Edit,Write,Read"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            cwd=str(_CL_SKILL_PATH),
+        )
+
+        for line in proc.stdout:
+            line_lower = line.lower()
+            if any(k in line_lower for k in ("analyz", "job description", "reading")):
+                _set_cl_stage(job_id, "Analyzing job…")
+            elif any(k in line_lower for k in ("paragraph", "writing", "draft")):
+                _set_cl_stage(job_id, "Writing letter…")
+            elif any(k in line_lower for k in ("latex", ".tex", "generate")):
+                _set_cl_stage(job_id, "Generating LaTeX…")
+            elif any(k in line_lower for k in ("pdflatex", "compil")):
+                _set_cl_stage(job_id, "Compiling PDF…")
+            elif any(k in line_lower for k in ("deliver", "output")):
+                _set_cl_stage(job_id, "Finalizing…")
+
+        try:
+            proc.wait(timeout=600)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            raise RuntimeError("Cover letter build timed out after 10 minutes")
+
+        if proc.returncode != 0:
+            err = proc.stderr.read() if proc.stderr else "claude subprocess failed"
+            raise RuntimeError(err)
+
+        _set_cl_stage(job_id, "Locating PDF…")
+
+        target = "Yassine_Helaoui_Cover_Letter.pdf"
+        pdf_path = None
+        for candidate in [
+            _RESUMES_PATH / company / target,
+            _RESUMES_PATH / company.replace(" ", "") / target,
+            _RESUMES_PATH / company.replace(" ", "").replace("/", "") / target,
+        ]:
+            if candidate.exists():
+                pdf_path = str(candidate)
+                break
+        if not pdf_path:
+            for p in sorted(_RESUMES_PATH.rglob(target), key=lambda f: f.stat().st_mtime, reverse=True):
+                pdf_path = str(p)
+                break
+
+        with _lock:
+            _cl_task_status[job_id] = {
+                "status": "done",
+                "pdf_path": pdf_path,
+                "error": None,
+            }
+
+    except Exception as e:
+        with _lock:
+            _cl_task_status[job_id] = {
+                "status": "error",
+                "pdf_path": None,
+                "error": str(e),
+            }
+
+
+def _run_fetch() -> None:
+    try:
+        init_db()
+        config = load_config()
+        total_new = 0
+
+        for search in config.searches:
+            with _lock:
+                _fetch_status["message"] = f"Fetching {search.name}…"
+
+            jobs = fetch_search(search)
+            new_count = 0
+
+            for job in jobs:
+                if already_seen(job.job_id):
+                    continue
+                if job.company and job.company.lower() in config.company_blacklist:
+                    continue
+                if config.title_filter:
+                    if not any(kw in job.title.lower() for kw in config.title_filter):
+                        continue
+                from .cli import _blacklisted
+                kw = _blacklisted(job.title + " " + job.description, config.blacklist)
+                if kw:
+                    insert_filter_log(job.job_id, job.title, kw)
+                    continue
+                if is_duplicate(job.title, job.company):
+                    continue
+                job_score = score_job(job)
+                insert_job(
+                    job_id=job.job_id, url=job.url, title=job.title,
+                    company=job.company, location=job.location, remote=job.remote,
+                    experience=job.experience, description=job.description,
+                    posted_at=job.posted_at, search_name=search.name,
+                    salary_min=job.salary_min, salary_max=job.salary_max,
+                    score=job_score,
+                )
+                new_count += 1
+
+            log_fetch(search.source, new_count)
+            total_new += new_count
+
+        with _lock:
+            _fetch_status["status"] = "done"
+            _fetch_status["message"] = f"Done — {total_new} new job(s) found"
+
+    except Exception as e:
+        with _lock:
+            _fetch_status["status"] = "error"
+            _fetch_status["message"] = str(e)

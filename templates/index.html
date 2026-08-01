@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Job Scraper</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
+
+  header { padding: 20px 32px; border-bottom: 1px solid #1e2333; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  header h1 { font-size: 1.25rem; font-weight: 700; color: #fff; }
+  .badge { padding: 3px 10px; border-radius: 99px; font-size: 0.75rem; font-weight: 600; }
+  .badge-pending { background: #1e3a5f; color: #60a5fa; }
+  .badge-applied { background: #14532d; color: #4ade80; }
+  .badge-skipped { background: #2d1b1b; color: #f87171; }
+  .spacer { flex: 1; }
+
+  .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .btn { padding: 7px 14px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; border: none; cursor: pointer; transition: opacity .15s; }
+  .btn:hover { opacity: 0.85; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-primary { background: #3b82f6; color: #fff; }
+  .btn-success { background: #16a34a; color: #fff; }
+  .btn-danger  { background: #dc2626; color: #fff; }
+  .btn-ghost   { background: #1e2333; color: #94a3b8; }
+  .btn-sm { padding: 4px 10px; font-size: 0.72rem; }
+  .btn-resume { background: #7c3aed; color: #fff; }
+  .btn-resume-done { background: #0f5132; color: #4ade80; }
+  .btn-cl { background: #0369a1; color: #fff; }
+  .btn-cl-done { background: #0f5132; color: #4ade80; }
+
+  .stale-warn { font-size: 0.78rem; color: #fbbf24; }
+  .fetch-msg  { font-size: 0.78rem; color: #94a3b8; }
+
+  .tabs { padding: 12px 32px 0; display: flex; gap: 4px; border-bottom: 1px solid #1e2333; }
+  .tab { padding: 8px 16px; font-size: 0.82rem; font-weight: 600; border: none; background: none; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent; transition: color .15s; }
+  .tab.active { color: #60a5fa; border-bottom-color: #3b82f6; }
+
+  .table-wrap { overflow-x: auto; padding: 0 32px 32px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 16px; }
+  th { text-align: left; padding: 8px 10px; color: #60a5fa; font-weight: 700; border-bottom: 1px solid #1e2333; white-space: nowrap; }
+  td { padding: 8px 10px; border-bottom: 1px solid #1a1f2e; vertical-align: middle; }
+  tr:hover td { background: #141824; }
+
+  .score { font-weight: 700; text-align: center; border-radius: 4px; padding: 2px 6px; font-size: 0.75rem; }
+  .score-high { color: #4ade80; }
+  .score-mid  { color: #fbbf24; }
+  .score-low  { color: #64748b; }
+
+  .remote-remote  { color: #4ade80; }
+  .remote-hybrid  { color: #fbbf24; }
+  .remote-onsite  { color: #f87171; }
+
+  .title-link { color: #e2e8f0; text-decoration: none; }
+  .title-link:hover { color: #60a5fa; text-decoration: underline; }
+
+  .salary { color: #a78bfa; font-weight: 600; }
+  .source-badge { font-size: 0.7rem; font-weight: 600; color: #94a3b8; background: #1e2333; padding: 2px 7px; border-radius: 99px; white-space: nowrap; }
+  .empty { text-align: center; color: #475569; padding: 48px; }
+
+  .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid #7c3aed; border-top-color: transparent; border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-right: 4px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error-dot { color: #f87171; font-size: 0.7rem; }
+  .actions { display: flex; gap: 5px; flex-wrap: nowrap; }
+  #fetch-progress { display: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🔍 Job Scraper</h1>
+  <span class="badge badge-pending" id="cnt-pending">{{ counts.get('pending', 0) }} pending</span>
+  <span class="badge badge-applied" id="cnt-applied">{{ counts.get('applied', 0) }} applied</span>
+  <span class="badge badge-skipped" id="cnt-skipped">{{ counts.get('skipped', 0) }} skipped</span>
+  {% if stale %}<span class="stale-warn">⚠ Last fetch: {{ last_fetch }}</span>{% elif last_fetch %}<span class="fetch-msg">Last fetch: {{ last_fetch }}</span>{% endif %}
+  <div class="spacer"></div>
+  <div class="toolbar">
+    <span id="fetch-progress" class="fetch-msg"></span>
+    <button class="btn btn-primary" id="btn-fetch" onclick="runFetch()">⟳ Fetch new jobs</button>
+  </div>
+</header>
+
+<div class="tabs">
+  <button class="tab active" data-status="pending" onclick="switchTab(this)">Pending</button>
+  <button class="tab" data-status="applied" onclick="switchTab(this)">Applied</button>
+  <button class="tab" data-status="skipped" onclick="switchTab(this)">Skipped</button>
+</div>
+
+<div class="table-wrap">
+  <table id="jobs-table">
+    <thead>
+      <tr>
+        <th>Score</th>
+        <th>Title</th>
+        <th>Company</th>
+        <th>Source</th>
+        <th>Remote</th>
+        <th>Location</th>
+        <th>Salary</th>
+        <th>Exp.</th>
+        <th>Posted</th>
+        <th>Age</th>
+        <th>Resume</th>
+        <th>Cover Letter</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="jobs-body">
+      <tr><td colspan="12" class="empty">Loading…</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+let currentStatus = "pending";
+let jobs = [];
+let pollTimer = null;
+let fetchPollTimer = null;
+
+function switchTab(el) {
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  el.classList.add("active");
+  currentStatus = el.dataset.status;
+  loadJobs();
+}
+
+function remoteClass(r) {
+  if (!r) return "";
+  if (r.toLowerCase() === "remote") return "remote-remote";
+  if (r.toLowerCase() === "hybrid") return "remote-hybrid";
+  return "remote-onsite";
+}
+
+function scoreClass(s) {
+  if (s >= 80) return "score-high";
+  if (s >= 60) return "score-mid";
+  return "score-low";
+}
+
+function resumeCell(job) {
+  const rs = job.resume_status;
+  if (rs === "building") {
+    const stage = job.resume_stage || "Building…";
+    return `<span><span class="spinner"></span>${stage}</span>`;
+  }
+  if (rs === "done" && job.pdf_url) {
+    return `<a href="${job.pdf_url}" target="_blank" class="btn btn-sm btn-resume-done">📄 Open CV</a>`;
+  }
+  if (rs === "error") {
+    return `<span class="error-dot" title="${job.resume_error || ''}">⚠ Error</span>
+            <button class="btn btn-sm btn-resume" onclick="buildResume('${job.job_id}')">Retry</button>`;
+  }
+  return `<button class="btn btn-sm btn-resume" onclick="buildResume('${job.job_id}')">▶ Build CV</button>`;
+}
+
+function clCell(job) {
+  const rs = job.cl_status;
+  if (rs === "building") {
+    const stage = job.cl_stage || "Building…";
+    return `<span><span class="spinner" style="border-color:#0369a1"></span>${stage}</span>`;
+  }
+  if (rs === "done" && job.cl_pdf_url) {
+    return `<a href="${job.cl_pdf_url}" target="_blank" class="btn btn-sm btn-cl-done">✉ Open Letter</a>`;
+  }
+  if (rs === "error") {
+    return `<span class="error-dot" title="${job.cl_error || ''}">⚠ Error</span>
+            <button class="btn btn-sm btn-cl" onclick="buildCL('${job.job_id}')">Retry</button>`;
+  }
+  // Only show the button once a resume exists (cover letter reads the resume tex)
+  if (job.resume_status === "done") {
+    return `<button class="btn btn-sm btn-cl" onclick="buildCL('${job.job_id}')">✉ Write Letter</button>`;
+  }
+  return `<span style="color:#475569;font-size:0.72rem">—</span>`;
+}
+
+function actionsCell(job) {
+  if (job.status === "pending") {
+    return `<div class="actions">
+      <button class="btn btn-sm btn-success" onclick="setStatus('${job.job_id}','applied')">✓ Applied</button>
+      <button class="btn btn-sm btn-danger"  onclick="setStatus('${job.job_id}','skipped')">✗ Skip</button>
+    </div>`;
+  }
+  return `<button class="btn btn-sm btn-ghost" onclick="setStatus('${job.job_id}','pending')">↩ Restore</button>`;
+}
+
+function renderJobs(data) {
+  const tbody = document.getElementById("jobs-body");
+  if (!data.length) {
+    tbody.innerHTML = `<tr><td colspan="12" class="empty">No ${currentStatus} listings.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = data.map(job => `
+    <tr id="row-${job.job_id}">
+      <td><span class="score ${scoreClass(job.score)}">${job.score}</span></td>
+      <td><a class="title-link" href="${job.url}" target="_blank" title="${job.title}">${job.title.length > 42 ? job.title.slice(0,42)+'…' : job.title}</a></td>
+      <td>${job.company}</td>
+      <td><span class="source-badge">${job.source}</span></td>
+      <td><span class="${remoteClass(job.remote)}">${job.remote}</span></td>
+      <td>${job.location}</td>
+      <td class="salary">${job.salary}</td>
+      <td>${job.experience}</td>
+      <td>${job.posted || '<span style="color:#475569">—</span>'}</td>
+      <td>${job.age}</td>
+      <td id="cv-${job.job_id}">${resumeCell(job)}</td>
+      <td id="cl-${job.job_id}">${clCell(job)}</td>
+      <td>${actionsCell(job)}</td>
+    </tr>
+  `).join("");
+}
+
+async function loadJobs() {
+  const res = await fetch(`/api/jobs?status=${currentStatus}`);
+  jobs = await res.json();
+  renderJobs(jobs);
+  updateCounts();
+  scheduleResumePolls();
+  scheduleCLPolls();
+}
+
+function updateCounts() {
+  const pending = jobs.filter(j => j.status === "pending").length;
+  // Reload counts from server on tab switch
+  fetch("/api/jobs?status=applied").then(r => r.json()).then(d => {
+    document.getElementById("cnt-applied").textContent = d.length + " applied";
+  });
+  fetch("/api/jobs?status=skipped").then(r => r.json()).then(d => {
+    document.getElementById("cnt-skipped").textContent = d.length + " skipped";
+  });
+  document.getElementById("cnt-pending").textContent = jobs.filter(j => j.status === "pending").length + " pending";
+}
+
+function scheduleResumePolls() {
+  const building = jobs.filter(j => j.resume_status === "building");
+  if (building.length === 0) return;
+  building.forEach(job => pollResumeStatus(job.job_id));
+}
+
+function scheduleCLPolls() {
+  const building = jobs.filter(j => j.cl_status === "building");
+  if (building.length === 0) return;
+  building.forEach(job => pollCLStatus(job.job_id));
+}
+
+async function pollResumeStatus(job_id) {
+  const res = await fetch(`/api/resume-status/${job_id}`);
+  const data = await res.json();
+  const cell = document.getElementById(`cv-${job_id}`);
+  if (!cell) return;
+
+  const job = jobs.find(j => j.job_id === job_id);
+  if (job) {
+    job.resume_status = data.status;
+    job.resume_stage = data.stage || "";
+    job.pdf_url = data.pdf_url;
+    job.resume_error = data.error;
+    cell.innerHTML = resumeCell(job);
+    // Refresh CL cell so "Write Letter" button appears once resume is done
+    const cl = document.getElementById(`cl-${job_id}`);
+    if (cl) cl.innerHTML = clCell(job);
+  }
+
+  if (data.status === "building") {
+    setTimeout(() => pollResumeStatus(job_id), 2000);
+  }
+}
+
+async function pollCLStatus(job_id) {
+  const res = await fetch(`/api/cover-letter-status/${job_id}`);
+  const data = await res.json();
+  const cell = document.getElementById(`cl-${job_id}`);
+  if (!cell) return;
+
+  const job = jobs.find(j => j.job_id === job_id);
+  if (job) {
+    job.cl_status = data.status;
+    job.cl_stage = data.stage || "";
+    job.cl_pdf_url = data.pdf_url;
+    job.cl_error = data.error;
+    cell.innerHTML = clCell(job);
+  }
+
+  if (data.status === "building") {
+    setTimeout(() => pollCLStatus(job_id), 2000);
+  }
+}
+
+async function buildResume(job_id) {
+  const cell = document.getElementById(`cv-${job_id}`);
+  if (cell) cell.innerHTML = `<span><span class="spinner"></span>Building…</span>`;
+  await fetch(`/api/resume/${job_id}`, { method: "POST" });
+  const job = jobs.find(j => j.job_id === job_id);
+  if (job) job.resume_status = "building";
+  setTimeout(() => pollResumeStatus(job_id), 3000);
+}
+
+async function buildCL(job_id) {
+  const cell = document.getElementById(`cl-${job_id}`);
+  if (cell) cell.innerHTML = `<span><span class="spinner" style="border-color:#0369a1"></span>Building…</span>`;
+  await fetch(`/api/cover-letter/${job_id}`, { method: "POST" });
+  const job = jobs.find(j => j.job_id === job_id);
+  if (job) job.cl_status = "building";
+  setTimeout(() => pollCLStatus(job_id), 3000);
+}
+
+async function setStatus(job_id, newStatus) {
+  await fetch(`/api/job-status/${job_id}/${newStatus}`, { method: "POST" });
+  loadJobs();
+}
+
+async function runFetch() {
+  const btn = document.getElementById("btn-fetch");
+  const prog = document.getElementById("fetch-progress");
+  btn.disabled = true;
+  prog.style.display = "inline";
+  prog.textContent = "Fetching…";
+  await fetch("/api/fetch", { method: "POST" });
+  pollFetch();
+}
+
+async function pollFetch() {
+  const res = await fetch("/api/fetch-status");
+  const data = await res.json();
+  const prog = document.getElementById("fetch-progress");
+  const btn = document.getElementById("btn-fetch");
+  prog.textContent = data.message || "Fetching…";
+  if (data.status === "running") {
+    setTimeout(pollFetch, 1500);
+  } else {
+    btn.disabled = false;
+    setTimeout(() => {
+      prog.style.display = "none";
+      prog.textContent = "";
+    }, 3000);
+    loadJobs();
+  }
+}
+
+// Initial load + auto-refresh every 30s
+loadJobs();
+setInterval(loadJobs, 30000);
+</script>
+</body>
+</html>
