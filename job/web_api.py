@@ -218,6 +218,11 @@ def _build_resume(job_id: str) -> None:
         name_slug = _candidate_name_slug()
         skill_instructions = _inject_name(skill_instructions, name_slug)
 
+        # Replace relative ../resumes with the absolute profile resumes path
+        # so the AI writes to profiles/<slug>/resumes/ not the project root
+        resumes_abs = str(_resumes_path())
+        skill_instructions = skill_instructions.replace("../resumes", resumes_abs)
+
         proc = _run_ai(prompt, skill_instructions, cwd=str(_skill_path()))
 
         # Stream stdout and detect stages from Claude's output
@@ -323,6 +328,10 @@ def _build_cover_letter(job_id: str) -> None:
         if profile_path and profile_path.exists():
             skill_instructions += f"\n\n## profile.md (embedded)\n\n{profile_path.read_text()}"
         skill_instructions = _inject_name(skill_instructions, name_slug)
+
+        # Replace relative ../resumes with absolute profile resumes path
+        resumes_abs = str(_resumes_path())
+        skill_instructions = skill_instructions.replace("../resumes", resumes_abs)
 
         proc = _run_ai(prompt, skill_instructions, cwd=str(_cl_skill_path()))
 
