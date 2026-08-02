@@ -14,7 +14,7 @@ from job.web_api import trigger_resume, get_task_status, trigger_cover_letter, g
 from job.web_api import _candidate_name_slug
 from job.web_api import (
     _get_groq_client, _get_anthropic_client, _get_gemini_client,
-    _get_model, _build_with_groq, _build_with_sdk, _build_with_gemini,
+    _get_model, _list_models, _clear_model_cache, _build_with_groq, _build_with_sdk, _build_with_gemini,
     _GROQ_MODELS, _ANTHROPIC_MODELS, _GEMINI_MODELS, _MODEL_DEFAULTS,
 )
 from job.profiles import (
@@ -61,83 +61,95 @@ def _source_label(search_name: str) -> str:
     return search_name.split("-")[0].strip() if search_name else ""
 
 
-def _serialize_job(row, task_status: dict, cl_task_status: dict) -> dict:
-    r = dict(row)
+def _write_env_var(env_path: Path, key: str, value: str) -> None:
+    """Upsert a KEY=value line in the .env file, removing any prior occurrence."""
+    lines = [l for l in env_path.read_text().splitlines() if not l.startswith(f"{key}=")] if env_path.exists() else []
+    lines.append(f"{key}={value}")
+    env_path.write_text("\n".join(lines) + "\n")
 
-    age = ""
+
+def _save_api_key(env_key: str, provider: str):
+    data = request.get_json()
+    key = (data.get("key") or "").strip()
+    if not key:
+        return jsonify({"error": "No key provided"}), 400
+    _write_env_var(BASE / ".env", env_key, key)
+    os.environ[env_key] = key
+    _clear_model_cache(provider)
+    return jsonify({"ok": True})
+
+
+def _format_relative_age(dt_str: str | None, *, days_only: bool = False) -> str:
+    """Return a human age string ('5m', '3h', '2d ago') from an ISO datetime string."""
+    if not dt_str:
+        return ""
     try:
-        dt = datetime.fromisoformat(r["first_seen_at"])
+        dt = datetime.fromisoformat(dt_str)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         delta = datetime.now(timezone.utc) - dt
+        if days_only:
+            days = int(delta.total_seconds() // 86400)
+            if days == 0:   return "today"
+            if days == 1:   return "1d ago"
+            return f"{days}d ago"
         mins = int(delta.total_seconds() // 60)
-        if mins < 60:       age = f"{mins}m"
-        elif mins < 1440:   age = f"{mins//60}h"
-        else:               age = f"{mins//1440}d"
+        if mins < 60:       return f"{mins}m"
+        if mins < 1440:     return f"{mins//60}h"
+        return f"{mins//1440}d"
     except Exception:
-        pass
+        return ""
 
-    ts = task_status.get(r["job_id"], {})
+
+def _find_pdf_path(resumes: Path, company: str, target: str) -> str | None:
+    """Search 3 company-name variants for a PDF file. Returns path string or None."""
+    for candidate in [
+        resumes / company / target,
+        resumes / company.replace(" ", "") / target,
+        resumes / company.replace(" ", "").replace("/", "") / target,
+    ]:
+        if candidate.exists():
+            return str(candidate)
+    return None
+
+
+def _serialize_job(row, task_status: dict, cl_task_status: dict) -> dict:
+    r = dict(row)
+    job_id = r["job_id"]
+    company = r.get("company") or ""
+    name_slug = _candidate_name_slug()
+
+    ts = task_status.get(job_id, {})
     resume_status = ts.get("status", "idle")
     pdf_path = ts.get("pdf_path")
 
-    cl_ts = cl_task_status.get(r["job_id"], {})
+    cl_ts = cl_task_status.get(job_id, {})
     cl_status = cl_ts.get("status", "idle")
     cl_pdf_path = cl_ts.get("pdf_path")
 
     try:
         resumes = _resumes_path()
-        company = r.get("company") or ""
-        name_slug = _candidate_name_slug()
         if resume_status == "idle" and not pdf_path:
-            target = f"{name_slug}_Resume.pdf"
-            for candidate in [
-                resumes / company / target,
-                resumes / company.replace(" ", "") / target,
-                resumes / company.replace(" ", "").replace("/", "") / target,
-            ]:
-                if candidate.exists():
-                    resume_status = "done"
-                    pdf_path = str(candidate)
-                    break
+            pdf_path = _find_pdf_path(resumes, company, f"{name_slug}_Resume.pdf")
+            if pdf_path:
+                resume_status = "done"
         if cl_status == "idle" and not cl_pdf_path:
-            cl_target = f"{name_slug}_Cover_Letter.pdf"
-            for candidate in [
-                resumes / company / cl_target,
-                resumes / company.replace(" ", "") / cl_target,
-                resumes / company.replace(" ", "").replace("/", "") / cl_target,
-            ]:
-                if candidate.exists():
-                    cl_status = "done"
-                    cl_pdf_path = str(candidate)
-                    break
+            cl_pdf_path = _find_pdf_path(resumes, company, f"{name_slug}_Cover_Letter.pdf")
+            if cl_pdf_path:
+                cl_status = "done"
     except RuntimeError:
         pass
 
-    posted = ""
-    try:
-        if r.get("posted_at"):
-            dt = datetime.fromisoformat(r["posted_at"])
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
-            delta = datetime.now(timezone.utc) - dt
-            days = int(delta.total_seconds() // 86400)
-            if days == 0:   posted = "today"
-            elif days == 1: posted = "1d ago"
-            else:           posted = f"{days}d ago"
-    except Exception:
-        pass
-
     return {
-        "job_id": r["job_id"],
+        "job_id": job_id,
         "url": r.get("url") or "",
         "title": r.get("title") or "",
-        "company": r.get("company") or "",
+        "company": company,
         "location": r.get("location") or "",
         "remote": r.get("remote") or "",
         "experience": r.get("experience") or "",
-        "age": age,
-        "posted": posted,
+        "age": _format_relative_age(r.get("first_seen_at")),
+        "posted": _format_relative_age(r.get("posted_at"), days_only=True),
         "status": r.get("status") or "pending",
         "source": _source_label(r.get("search_name") or ""),
         "resume_status": resume_status,
@@ -224,6 +236,11 @@ def profile_settings(slug):
 @app.route("/manage-profiles")
 def manage_profiles():
     return render_template("manage_profiles.html")
+
+
+@app.route("/ai-settings")
+def ai_settings_page():
+    return render_template("ai_settings.html")
 
 
 # ── Profile API ───────────────────────────────────────────────────────────────
@@ -428,32 +445,46 @@ def api_ai_settings_get():
     anthropic_ok = _get_anthropic_client() is not None
     gemini_ok    = _get_gemini_client() is not None or bool(shutil.which("gemini"))
 
-    if groq_ok:          active = "groq"
-    elif anthropic_ok:   active = "anthropic"
-    elif gemini_ok:      active = "gemini"
-    else:                active = None
+    preferred = os.environ.get("PREFERRED_PROVIDER", "").strip().lower()
 
-    import os
+    # active = preferred if it's available, else first available in default order
+    if preferred == "groq" and groq_ok:           active = "groq"
+    elif preferred == "anthropic" and anthropic_ok: active = "anthropic"
+    elif preferred == "gemini" and gemini_ok:     active = "gemini"
+    elif groq_ok:                                 active = "groq"
+    elif anthropic_ok:                            active = "anthropic"
+    elif gemini_ok:                               active = "gemini"
+    else:                                         active = None
+
+    def _models_for(provider):
+        """Live list with the currently-selected model guaranteed present."""
+        models = _list_models(provider)
+        current = _get_model(provider)
+        if current and current not in models:
+            models = [current] + models
+        return models
+
     return jsonify({
-        "active_provider": active,
+        "active_provider":    active,
+        "preferred_provider": preferred or None,
         "providers": {
             "groq": {
                 "configured": groq_ok,
-                "model": _get_model("groq"),
+                "model":   _get_model("groq"),
                 "key_set": bool(os.environ.get("GROQ_API_KEY")),
-                "models": _GROQ_MODELS,
+                "models":  _models_for("groq"),
             },
             "anthropic": {
                 "configured": anthropic_ok,
-                "model": _get_model("anthropic"),
+                "model":   _get_model("anthropic"),
                 "key_set": bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN") or shutil.which("claude")),
-                "models": _ANTHROPIC_MODELS,
+                "models":  _models_for("anthropic"),
             },
             "gemini": {
                 "configured": gemini_ok,
-                "model": _get_model("gemini"),
+                "model":   _get_model("gemini"),
                 "key_set": bool(os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or shutil.which("gemini")),
-                "models": _GEMINI_MODELS,
+                "models":  _models_for("gemini"),
             },
         }
     })
@@ -465,13 +496,27 @@ def api_ai_settings_save():
     env_path = BASE / ".env"
     lines = env_path.read_text().splitlines() if env_path.exists() else []
     updated_keys = set()
+
+    # Save model choices
     for field, env_key in [("groq_model", "GROQ_MODEL"), ("anthropic_model", "ANTHROPIC_MODEL"), ("gemini_model", "GEMINI_MODEL")]:
         val = (data.get(field) or "").strip()
         if val:
             lines = [l for l in lines if not l.startswith(f"{env_key}=")]
             lines.append(f"{env_key}={val}")
-            import os; os.environ[env_key] = val
+            os.environ[env_key] = val
             updated_keys.add(env_key)
+
+    # Save preferred provider
+    preferred = (data.get("preferred_provider") or "").strip().lower()
+    if preferred in ("groq", "anthropic", "gemini", ""):
+        lines = [l for l in lines if not l.startswith("PREFERRED_PROVIDER=")]
+        if preferred:
+            lines.append(f"PREFERRED_PROVIDER={preferred}")
+            os.environ["PREFERRED_PROVIDER"] = preferred
+        else:
+            os.environ.pop("PREFERRED_PROVIDER", None)
+        updated_keys.add("PREFERRED_PROVIDER")
+
     env_path.write_text("\n".join(lines) + "\n")
     return jsonify({"ok": True, "updated": list(updated_keys)})
 
@@ -481,6 +526,7 @@ def api_ai_settings_test():
     import time
     data = request.get_json() or {}
     provider = data.get("provider", "groq")
+    backend = None
     try:
         t0 = time.time()
         if provider == "groq":
@@ -489,11 +535,14 @@ def api_ai_settings_test():
             result = _build_with_sdk("You are a test.", "Say OK in one word.")
         elif provider == "gemini":
             from job.web_api import _skill_path
-            result = _build_with_gemini("You are a test.", "Say OK in one word.", cwd=str(_skill_path()))
+            backend_out = []
+            result = _build_with_gemini("You are a test.", "Say OK in one word.", cwd=str(_skill_path()), backend_out=backend_out)
+            backend = backend_out[0] if backend_out else None
         else:
             return jsonify({"ok": False, "error": f"Unknown provider: {provider}"}), 400
         latency = round((time.time() - t0) * 1000)
-        return jsonify({"ok": True, "model": _get_model(provider), "latency_ms": latency, "response": result.strip()[:50]})
+        return jsonify({"ok": True, "model": _get_model(provider), "latency_ms": latency,
+                        "backend": backend, "response": result.strip()[:50]})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
 
@@ -668,30 +717,17 @@ def api_setup_install_cli():
 
 @app.route("/api/setup/save-groq-key", methods=["POST"])
 def api_setup_save_groq_key():
-    data = request.get_json()
-    key = (data.get("key") or "").strip()
-    if not key:
-        return jsonify({"error": "No key provided"}), 400
-    env_path = BASE / ".env"
-    lines = [l for l in env_path.read_text().splitlines() if not l.startswith("GROQ_API_KEY=")] if env_path.exists() else []
-    lines.append(f"GROQ_API_KEY={key}")
-    env_path.write_text("\n".join(lines) + "\n")
-    os.environ["GROQ_API_KEY"] = key
-    return jsonify({"ok": True})
+    return _save_api_key("GROQ_API_KEY", "groq")
 
 
 @app.route("/api/setup/save-gemini-key", methods=["POST"])
 def api_setup_save_gemini_key():
-    data = request.get_json()
-    key = (data.get("key") or "").strip()
-    if not key:
-        return jsonify({"error": "No key provided"}), 400
-    env_path = BASE / ".env"
-    lines = [l for l in env_path.read_text().splitlines() if not l.startswith("GEMINI_API_KEY=")] if env_path.exists() else []
-    lines.append(f"GEMINI_API_KEY={key}")
-    env_path.write_text("\n".join(lines) + "\n")
-    os.environ["GEMINI_API_KEY"] = key
-    return jsonify({"ok": True})
+    return _save_api_key("GEMINI_API_KEY", "gemini")
+
+
+@app.route("/api/setup/save-anthropic-key", methods=["POST"])
+def api_setup_save_anthropic_key():
+    return _save_api_key("ANTHROPIC_API_KEY", "anthropic")
 
 
 @app.route("/api/setup/install-pdflatex", methods=["POST"])
@@ -859,4 +895,4 @@ if __name__ == "__main__":
     from job.web_api import _prewarm_cache
     _threading.Thread(target=_prewarm_cache, daemon=True).start()
 
-    app.run(debug=False, port=5050)
+    app.run(debug=True, port=5050)

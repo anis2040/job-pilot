@@ -1,407 +1,1093 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Job Scraper</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Job Scraper</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #0f1117;
+        color: #e2e8f0;
+        min-height: 100vh;
+      }
 
-  header { padding: 20px 32px; border-bottom: 1px solid #1e2333; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-  header h1 { font-size: 1.25rem; font-weight: 700; color: #fff; }
-  .badge { padding: 3px 10px; border-radius: 99px; font-size: 0.75rem; font-weight: 600; }
-  .badge-pending { background: #1e3a5f; color: #60a5fa; }
-  .badge-applied { background: #14532d; color: #4ade80; }
-  .badge-skipped { background: #2d1b1b; color: #f87171; }
-  .spacer { flex: 1; }
+      header {
+        padding: 20px 32px;
+        border-bottom: 1px solid #1e2333;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      header h1 {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #fff;
+      }
+      .badge {
+        padding: 3px 10px;
+        border-radius: 99px;
+        font-size: 0.75rem;
+        font-weight: 600;
+      }
+      .badge-pending {
+        background: #1e3a5f;
+        color: #60a5fa;
+      }
+      .badge-applied {
+        background: #14532d;
+        color: #4ade80;
+      }
+      .badge-skipped {
+        background: #2d1b1b;
+        color: #f87171;
+      }
+      .spacer {
+        flex: 1;
+      }
 
-  .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .btn { padding: 7px 14px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; border: none; cursor: pointer; transition: opacity .15s; }
-  .btn:hover { opacity: 0.85; }
-  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-  .btn-primary { background: #3b82f6; color: #fff; }
-  .btn-success { background: #16a34a; color: #fff; }
-  .btn-danger  { background: #dc2626; color: #fff; }
-  .btn-ghost   { background: #1e2333; color: #94a3b8; }
-  .btn-sm { padding: 4px 10px; font-size: 0.72rem; }
-  .btn-resume { background: #7c3aed; color: #fff; }
-  .btn-resume-done { background: #0f5132; color: #4ade80; }
-  .btn-cl { background: #0369a1; color: #fff; }
-  .btn-cl-done { background: #0f5132; color: #4ade80; }
+      .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .btn {
+        padding: 7px 14px;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+        transition: opacity 0.15s;
+      }
+      .btn:hover {
+        opacity: 0.85;
+      }
+      .btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .btn-primary {
+        background: #3b82f6;
+        color: #fff;
+      }
+      .btn-success {
+        background: #16a34a;
+        color: #fff;
+      }
+      .btn-danger {
+        background: #dc2626;
+        color: #fff;
+      }
+      .btn-ghost {
+        background: #1e2333;
+        color: #94a3b8;
+      }
+      .btn-sm {
+        padding: 4px 10px;
+        font-size: 0.72rem;
+      }
+      .btn-resume {
+        background: #7c3aed;
+        color: #fff;
+      }
+      .btn-resume-done {
+        background: #0f5132;
+        color: #4ade80;
+      }
+      .btn-cl {
+        background: #0369a1;
+        color: #fff;
+      }
+      .btn-cl-done {
+        background: #0f5132;
+        color: #4ade80;
+      }
 
-  .stale-warn { font-size: 0.78rem; color: #fbbf24; }
-  .fetch-msg  { font-size: 0.78rem; color: #94a3b8; }
+      .stale-warn {
+        font-size: 0.78rem;
+        color: #fbbf24;
+      }
+      .fetch-msg {
+        font-size: 0.78rem;
+        color: #94a3b8;
+      }
 
-  .tabs { padding: 12px 32px 0; display: flex; gap: 4px; border-bottom: 1px solid #1e2333; }
-  .tab { padding: 8px 16px; font-size: 0.82rem; font-weight: 600; border: none; background: none; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent; transition: color .15s; }
-  .tab.active { color: #60a5fa; border-bottom-color: #3b82f6; }
+      .tabs {
+        padding: 12px 32px 0;
+        display: flex;
+        gap: 4px;
+        border-bottom: 1px solid #1e2333;
+      }
+      .tab {
+        padding: 8px 16px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        border: none;
+        background: none;
+        color: #64748b;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        transition: color 0.15s;
+      }
+      .tab.active {
+        color: #60a5fa;
+        border-bottom-color: #3b82f6;
+      }
 
-  .search-bar { padding: 12px 32px 0; display: flex; align-items: center; gap: 10px; }
-  .search-bar input { flex: 1; max-width: 420px; padding: 7px 12px; background: #1e2333; border: 1px solid #2d3748; border-radius: 6px; color: #e2e8f0; font-size: 0.82rem; outline: none; }
-  .search-bar input:focus { border-color: #3b82f6; }
-  .search-bar input::placeholder { color: #475569; }
+      .search-bar {
+        padding: 12px 32px 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .search-bar input {
+        flex: 1;
+        max-width: 420px;
+        padding: 7px 12px;
+        background: #1e2333;
+        border: 1px solid #2d3748;
+        border-radius: 6px;
+        color: #e2e8f0;
+        font-size: 0.82rem;
+        outline: none;
+      }
+      .search-bar input:focus {
+        border-color: #3b82f6;
+      }
+      .search-bar input::placeholder {
+        color: #475569;
+      }
 
-  .table-wrap { overflow-x: auto; padding: 0 32px 32px; }
-  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 16px; }
-  th { text-align: left; padding: 8px 10px; color: #60a5fa; font-weight: 700; border-bottom: 1px solid #1e2333; white-space: nowrap; }
-  th.sortable { cursor: pointer; user-select: none; }
-  th.sortable:hover { color: #93c5fd; }
-  th .sort-icon { margin-left: 4px; opacity: 0.4; font-size: 0.65rem; }
-  th.sort-asc .sort-icon, th.sort-desc .sort-icon { opacity: 1; color: #fff; }
-  td { padding: 8px 10px; border-bottom: 1px solid #1a1f2e; vertical-align: middle; }
-  tr:hover td { background: #141824; }
+      .table-wrap {
+        overflow-x: auto;
+        padding: 0 32px 32px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+        margin-top: 16px;
+      }
+      th {
+        text-align: left;
+        padding: 8px 10px;
+        color: #60a5fa;
+        font-weight: 700;
+        border-bottom: 1px solid #1e2333;
+        white-space: nowrap;
+      }
+      th.sortable {
+        cursor: pointer;
+        user-select: none;
+      }
+      th.sortable:hover {
+        color: #93c5fd;
+      }
+      th .sort-icon {
+        margin-left: 4px;
+        opacity: 0.4;
+        font-size: 0.65rem;
+      }
+      th.sort-asc .sort-icon,
+      th.sort-desc .sort-icon {
+        opacity: 1;
+        color: #fff;
+      }
+      td {
+        padding: 8px 10px;
+        border-bottom: 1px solid #1a1f2e;
+        vertical-align: middle;
+      }
+      tr:hover td {
+        background: #141824;
+      }
 
-  .remote-remote  { color: #4ade80; }
-  .remote-hybrid  { color: #fbbf24; }
-  .remote-onsite  { color: #f87171; }
+      .remote-remote {
+        color: #4ade80;
+      }
+      .remote-hybrid {
+        color: #fbbf24;
+      }
+      .remote-onsite {
+        color: #f87171;
+      }
 
-  .title-link { color: #e2e8f0; text-decoration: none; }
-  .title-link:hover { color: #60a5fa; text-decoration: underline; }
+      .title-link {
+        color: #e2e8f0;
+        text-decoration: none;
+      }
+      .title-link:hover {
+        color: #60a5fa;
+        text-decoration: underline;
+      }
 
-  .pdf-banner { display: flex; align-items: center; gap: 12px; background: #1a1200; border-bottom: 1px solid #713f12; padding: 10px 32px; font-size: 0.82rem; color: #fde68a; }
-  .pdf-banner a { color: #fbbf24; font-weight: 600; text-decoration: none; }
-  .pdf-banner a:hover { text-decoration: underline; }
-  .pdf-banner-dismiss { margin-left: auto; background: none; border: none; color: #92400e; cursor: pointer; font-size: 1rem; padding: 0; }
-  .empty { text-align: center; color: #475569; padding: 48px; }
+      .pdf-banner {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: #1a1200;
+        border-bottom: 1px solid #713f12;
+        padding: 10px 32px;
+        font-size: 0.82rem;
+        color: #fde68a;
+      }
+      .pdf-banner a {
+        color: #fbbf24;
+        font-weight: 600;
+        text-decoration: none;
+      }
+      .pdf-banner a:hover {
+        text-decoration: underline;
+      }
+      .pdf-banner-dismiss {
+        margin-left: auto;
+        background: none;
+        border: none;
+        color: #92400e;
+        cursor: pointer;
+        font-size: 1rem;
+        padding: 0;
+      }
+      .empty {
+        text-align: center;
+        color: #475569;
+        padding: 48px;
+      }
 
-  .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid #7c3aed; border-top-color: transparent; border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-right: 4px; }
-  @keyframes spin { to { transform: rotate(360deg); } }
+      .spinner {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border: 2px solid #7c3aed;
+        border-top-color: transparent;
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+        vertical-align: middle;
+        margin-right: 4px;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
 
-  .error-dot { color: #f87171; font-size: 0.7rem; }
-  .actions { display: flex; gap: 5px; flex-wrap: nowrap; }
-  #fetch-progress { display: none; }
+      .error-dot {
+        color: #f87171;
+        font-size: 0.7rem;
+      }
+      .actions {
+        display: flex;
+        gap: 5px;
+        flex-wrap: nowrap;
+      }
+      #fetch-progress {
+        display: none;
+      }
 
-  /* Profile avatar dropdown */
-  .profile-dropdown { position: relative; }
-  .avatar-btn { background: none; border: none; cursor: pointer; padding: 0; display: flex; align-items: center; }
-  .avatar { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.78rem; font-weight: 700; color: #fff; transition: transform .15s, box-shadow .15s; flex-shrink: 0; }
-  .avatar:hover { transform: scale(1.08); box-shadow: 0 0 0 3px rgba(255,255,255,.15); }
-  .profile-menu { display: none; position: absolute; right: 0; top: calc(100% + 8px); background: #1a1f2e; border: 1px solid #2d3748; border-radius: 8px; min-width: 210px; box-shadow: 0 10px 25px rgba(0,0,0,.5); z-index: 200; overflow: hidden; }
-  .profile-menu.open { display: block; }
-  .profile-menu-header { padding: 10px 14px 6px; font-size: 0.7rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: .06em; }
-  .profile-menu-item { display: flex; align-items: center; gap: 10px; padding: 9px 14px; color: #e2e8f0; text-decoration: none; font-size: 0.82rem; cursor: pointer; transition: background .1s; border: none; background: none; width: 100%; text-align: left; }
-  .profile-menu-item:hover { background: #2d3748; }
-  .profile-menu-item.active-profile { background: #1e2a3a; }
-  .mini-avatar { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 700; color: #fff; flex-shrink: 0; }
-  .profile-check { color: #4ade80; margin-left: auto; font-size: 0.85rem; }
-  .profile-menu-divider { height: 1px; background: #2d3748; margin: 4px 0; }
+      /* Profile avatar dropdown */
+      .profile-dropdown {
+        position: relative;
+      }
+      .avatar-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 0;
+        display: flex;
+        align-items: center;
+      }
+      .avatar {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: #fff;
+        transition: transform 0.15s, box-shadow 0.15s;
+        flex-shrink: 0;
+      }
+      .avatar:hover {
+        transform: scale(1.08);
+        box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.15);
+      }
+      .profile-menu {
+        display: none;
+        position: absolute;
+        right: 0;
+        top: calc(100% + 8px);
+        background: #1a1f2e;
+        border: 1px solid #2d3748;
+        border-radius: 8px;
+        min-width: 210px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+        z-index: 200;
+        overflow: hidden;
+      }
+      .profile-menu.open {
+        display: block;
+      }
+      .profile-menu-header {
+        padding: 10px 14px 6px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: #475569;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      .profile-menu-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 14px;
+        color: #e2e8f0;
+        text-decoration: none;
+        font-size: 0.82rem;
+        cursor: pointer;
+        transition: background 0.1s;
+        border: none;
+        background: none;
+        width: 100%;
+        text-align: left;
+      }
+      .profile-menu-item:hover {
+        background: #2d3748;
+      }
+      .profile-menu-item.active-profile {
+        background: #1e2a3a;
+      }
+      .mini-avatar {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.65rem;
+        font-weight: 700;
+        color: #fff;
+        flex-shrink: 0;
+      }
+      .profile-check {
+        color: #4ade80;
+        margin-left: auto;
+        font-size: 0.85rem;
+      }
+      .profile-menu-divider {
+        height: 1px;
+        background: #2d3748;
+        margin: 4px 0;
+      }
 
-  /* Settings modal */
-  .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 100; align-items: center; justify-content: center; }
-  .modal-backdrop.open { display: flex; }
-  .modal { background: #1a1f2e; border: 1px solid #2d3748; border-radius: 10px; width: 720px; max-width: 95vw; max-height: 88vh; display: flex; flex-direction: column; }
-  .modal-header { padding: 18px 24px 14px; border-bottom: 1px solid #2d3748; display: flex; align-items: center; justify-content: space-between; }
-  .modal-header h2 { font-size: 1rem; font-weight: 700; color: #fff; }
-  .modal-close { background: none; border: none; color: #64748b; font-size: 1.3rem; cursor: pointer; line-height: 1; }
-  .modal-close:hover { color: #e2e8f0; }
-  .modal-body { padding: 20px 24px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 24px; }
-  .modal-footer { padding: 14px 24px; border-top: 1px solid #2d3748; display: flex; justify-content: flex-end; gap: 10px; }
+      /* Settings modal */
+      .modal-backdrop {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.6);
+        z-index: 100;
+        align-items: center;
+        justify-content: center;
+      }
+      .modal-backdrop.open {
+        display: flex;
+      }
+      .modal {
+        background: #1a1f2e;
+        border: 1px solid #2d3748;
+        border-radius: 10px;
+        width: 720px;
+        max-width: 95vw;
+        max-height: 88vh;
+        display: flex;
+        flex-direction: column;
+      }
+      .modal-header {
+        padding: 18px 24px 14px;
+        border-bottom: 1px solid #2d3748;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .modal-header h2 {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #fff;
+      }
+      .modal-close {
+        background: none;
+        border: none;
+        color: #64748b;
+        font-size: 1.3rem;
+        cursor: pointer;
+        line-height: 1;
+      }
+      .modal-close:hover {
+        color: #e2e8f0;
+      }
+      .modal-body {
+        padding: 20px 24px;
+        overflow-y: auto;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+      .modal-footer {
+        padding: 14px 24px;
+        border-top: 1px solid #2d3748;
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+      }
 
-  .settings-section h3 { font-size: 0.78rem; font-weight: 700; color: #60a5fa; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
+      .settings-section h3 {
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: #60a5fa;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-bottom: 10px;
+      }
 
-  /* Search rows */
-  .search-row { background: #0f1117; border: 1px solid #2d3748; border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; }
-  .search-row-fields { display: grid; grid-template-columns: 1fr 1fr 60px 28px; gap: 6px; align-items: center; margin-bottom: 8px; }
-  .search-row-fields input { background: #1a1f2e; border: 1px solid #2d3748; border-radius: 5px; color: #e2e8f0; padding: 5px 8px; font-size: 0.78rem; width: 100%; outline: none; }
-  .search-row-fields input:focus { border-color: #3b82f6; }
-  .search-sources { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-  .source-cb { display: flex; align-items: center; gap: 4px; font-size: 0.72rem; color: #94a3b8; cursor: pointer; padding: 3px 8px; border-radius: 99px; border: 1px solid #2d3748; transition: all .1s; user-select: none; }
-  .source-cb:hover { border-color: #3b82f6; color: #e2e8f0; }
-  .source-cb input[type=checkbox] { accent-color: #3b82f6; width: 12px; height: 12px; }
-  .source-cb.checked { background: #1e2a3a; border-color: #3b82f6; color: #60a5fa; }
-  .source-all-btn { font-size: 0.7rem; color: #60a5fa; background: none; border: none; cursor: pointer; padding: 3px 6px; margin-left: 4px; }
-  .source-all-btn:hover { text-decoration: underline; }
-  .toggle-remote { display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 0.72rem; cursor: pointer; }
-  .toggle-remote input[type=checkbox] { accent-color: #3b82f6; width: 14px; height: 14px; }
-  .btn-icon { background: none; border: none; color: #475569; cursor: pointer; font-size: 1rem; padding: 0; line-height: 1; }
-  .btn-icon:hover { color: #f87171; }
-  .btn-add { background: none; border: 1px dashed #2d3748; color: #60a5fa; border-radius: 5px; padding: 5px 12px; font-size: 0.78rem; cursor: pointer; width: 100%; margin-top: 4px; }
-  .btn-add:hover { border-color: #3b82f6; background: #1e2333; }
+      /* Search rows */
+      .search-row {
+        background: #0f1117;
+        border: 1px solid #2d3748;
+        border-radius: 6px;
+        padding: 10px 12px;
+        margin-bottom: 8px;
+      }
+      .search-row-fields {
+        display: grid;
+        grid-template-columns: 1fr 1fr 60px 28px;
+        gap: 6px;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+      .search-row-fields input {
+        background: #1a1f2e;
+        border: 1px solid #2d3748;
+        border-radius: 5px;
+        color: #e2e8f0;
+        padding: 5px 8px;
+        font-size: 0.78rem;
+        width: 100%;
+        outline: none;
+      }
+      .search-row-fields input:focus {
+        border-color: #3b82f6;
+      }
+      .search-sources {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .source-cb {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.72rem;
+        color: #94a3b8;
+        cursor: pointer;
+        padding: 3px 8px;
+        border-radius: 99px;
+        border: 1px solid #2d3748;
+        transition: all 0.1s;
+        user-select: none;
+      }
+      .source-cb:hover {
+        border-color: #3b82f6;
+        color: #e2e8f0;
+      }
+      .source-cb input[type="checkbox"] {
+        accent-color: #3b82f6;
+        width: 12px;
+        height: 12px;
+      }
+      .source-cb.checked {
+        background: #1e2a3a;
+        border-color: #3b82f6;
+        color: #60a5fa;
+      }
+      .source-all-btn {
+        font-size: 0.7rem;
+        color: #60a5fa;
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 3px 6px;
+        margin-left: 4px;
+      }
+      .source-all-btn:hover {
+        text-decoration: underline;
+      }
+      .toggle-remote {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        font-size: 0.72rem;
+        cursor: pointer;
+      }
+      .toggle-remote input[type="checkbox"] {
+        accent-color: #3b82f6;
+        width: 14px;
+        height: 14px;
+      }
+      .btn-icon {
+        background: none;
+        border: none;
+        color: #475569;
+        cursor: pointer;
+        font-size: 1rem;
+        padding: 0;
+        line-height: 1;
+      }
+      .btn-icon:hover {
+        color: #f87171;
+      }
+      .btn-add {
+        background: none;
+        border: 1px dashed #2d3748;
+        color: #60a5fa;
+        border-radius: 5px;
+        padding: 5px 12px;
+        font-size: 0.78rem;
+        cursor: pointer;
+        width: 100%;
+        margin-top: 4px;
+      }
+      .btn-add:hover {
+        border-color: #3b82f6;
+        background: #1e2333;
+      }
 
-  /* Tag inputs */
-  .tag-input-wrap { display: flex; flex-wrap: wrap; gap: 5px; background: #0f1117; border: 1px solid #2d3748; border-radius: 5px; padding: 6px 8px; min-height: 38px; cursor: text; }
-  .tag-input-wrap:focus-within { border-color: #3b82f6; }
-  .tag { display: inline-flex; align-items: center; gap: 4px; background: #1e2333; border-radius: 99px; padding: 2px 8px 2px 10px; font-size: 0.75rem; color: #e2e8f0; }
-  .tag button { background: none; border: none; color: #64748b; cursor: pointer; font-size: 0.75rem; padding: 0; line-height: 1; }
-  .tag button:hover { color: #f87171; }
-  .tag-input { background: none; border: none; outline: none; color: #e2e8f0; font-size: 0.78rem; min-width: 120px; flex: 1; padding: 1px 0; }
-  .save-notice { font-size: 0.75rem; color: #4ade80; display: none; }
+      /* Tag inputs */
+      .tag-input-wrap {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        background: #0f1117;
+        border: 1px solid #2d3748;
+        border-radius: 5px;
+        padding: 6px 8px;
+        min-height: 38px;
+        cursor: text;
+      }
+      .tag-input-wrap:focus-within {
+        border-color: #3b82f6;
+      }
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: #1e2333;
+        border-radius: 99px;
+        padding: 2px 8px 2px 10px;
+        font-size: 0.75rem;
+        color: #e2e8f0;
+      }
+      .tag button {
+        background: none;
+        border: none;
+        color: #64748b;
+        cursor: pointer;
+        font-size: 0.75rem;
+        padding: 0;
+        line-height: 1;
+      }
+      .tag button:hover {
+        color: #f87171;
+      }
+      .tag-input {
+        background: none;
+        border: none;
+        outline: none;
+        color: #e2e8f0;
+        font-size: 0.78rem;
+        min-width: 120px;
+        flex: 1;
+        padding: 1px 0;
+      }
+      .save-notice {
+        font-size: 0.75rem;
+        color: #4ade80;
+        display: none;
+      }
 
-  /* AI Settings */
-  .ai-provider-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #1e2333; }
-  .ai-provider-row:last-child { border-bottom: none; }
-  .ai-provider-name { font-size: 0.82rem; font-weight: 600; color: #e2e8f0; width: 80px; flex-shrink: 0; }
-  .ai-provider-row select { background: #0f1117; border: 1px solid #2d3748; border-radius: 5px; color: #e2e8f0; padding: 5px 8px; font-size: 0.78rem; flex: 1; outline: none; }
-  .ai-provider-row select:focus { border-color: #3b82f6; }
-  .ai-provider-row select:disabled { opacity: 0.4; cursor: not-allowed; }
-  .ai-active-badge { background: #14532d; color: #4ade80; font-size: 0.65rem; font-weight: 700; padding: 2px 7px; border-radius: 99px; white-space: nowrap; }
-  .ai-test-btn { background: #1e2333; border: 1px solid #2d3748; border-radius: 5px; color: #94a3b8; padding: 4px 10px; font-size: 0.72rem; cursor: pointer; white-space: nowrap; }
-  .ai-test-btn:hover { border-color: #3b82f6; color: #60a5fa; }
-  .ai-test-ok  { color: #4ade80; font-size: 0.72rem; white-space: nowrap; }
-  .ai-test-err { color: #f87171; font-size: 0.72rem; white-space: nowrap; }
-  .ai-key-hint { font-size: 0.7rem; color: #475569; white-space: nowrap; }
-</style>
-</head>
-<body>
+      /* AI Settings */
+      .ai-provider-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 0;
+        border-bottom: 1px solid #1e2333;
+      }
+      .ai-provider-row:last-child {
+        border-bottom: none;
+      }
+      .ai-provider-name {
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: #e2e8f0;
+        width: 80px;
+        flex-shrink: 0;
+      }
+      .ai-provider-row select {
+        background: #0f1117;
+        border: 1px solid #2d3748;
+        border-radius: 5px;
+        color: #e2e8f0;
+        padding: 5px 8px;
+        font-size: 0.78rem;
+        flex: 1;
+        outline: none;
+      }
+      .ai-provider-row select:focus {
+        border-color: #3b82f6;
+      }
+      .ai-provider-row select:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .ai-active-badge {
+        background: #14532d;
+        color: #4ade80;
+        font-size: 0.65rem;
+        font-weight: 700;
+        padding: 2px 7px;
+        border-radius: 99px;
+        white-space: nowrap;
+      }
+      .ai-test-btn {
+        background: #1e2333;
+        border: 1px solid #2d3748;
+        border-radius: 5px;
+        color: #94a3b8;
+        padding: 4px 10px;
+        font-size: 0.72rem;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .ai-test-btn:hover {
+        border-color: #3b82f6;
+        color: #60a5fa;
+      }
+      .ai-test-ok {
+        color: #4ade80;
+        font-size: 0.72rem;
+        white-space: nowrap;
+      }
+      .ai-test-err {
+        color: #f87171;
+        font-size: 0.72rem;
+        white-space: nowrap;
+      }
+      .ai-key-hint {
+        font-size: 0.7rem;
+        color: #475569;
+        white-space: nowrap;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>🔍 Job Scraper</h1>
+      <span class="badge badge-pending" id="cnt-pending"
+        >{{ counts.get('pending', 0) }} pending</span
+      >
+      <span class="badge badge-applied" id="cnt-applied"
+        >{{ counts.get('applied', 0) }} applied</span
+      >
+      <span class="badge badge-skipped" id="cnt-skipped"
+        >{{ counts.get('skipped', 0) }} skipped</span
+      >
+      {% if stale %}<span class="stale-warn"
+        >⚠ Last fetch: {{ last_fetch }}</span
+      >{% elif last_fetch %}<span class="fetch-msg"
+        >Last fetch: {{ last_fetch }}</span
+      >{% endif %}
+      <div class="spacer"></div>
+      <div class="toolbar">
+        <span id="fetch-progress" class="fetch-msg"></span>
+        <span class="save-notice" id="save-notice">✓ Settings saved</span>
+        <a
+          href="/ai-settings"
+          class="btn"
+          style="
+            text-decoration: none;
+            background: #312e81;
+            color: #a5b4fc;
+            border: 1px solid #4338ca;
+          "
+          >⚡ AI Models</a
+        >
+        <button class="btn btn-primary" id="btn-fetch" onclick="runFetch()">
+          ⟳ Fetch new jobs
+        </button>
+        <div class="profile-dropdown" id="profile-dropdown">
+          <button class="avatar-btn" onclick="toggleProfileMenu(event)">
+            <span
+              class="avatar"
+              id="header-avatar"
+              style="background:{{ active_profile.color if active_profile else '#3b82f6' }}"
+              >{{ active_profile.initials if active_profile else '?' }}</span
+            >
+          </button>
+          <div class="profile-menu" id="profile-menu">
+            <div class="profile-menu-header">Switch profile</div>
+            <div id="profile-menu-list"></div>
+            <div class="profile-menu-divider"></div>
+            <button class="profile-menu-item" onclick="addNewProfile()">
+              + Add new profile
+            </button>
+            <a href="/manage-profiles" class="profile-menu-item"
+              >Manage profiles</a
+            >
+          </div>
+        </div>
+      </div>
+    </header>
 
-<header>
-  <h1>🔍 Job Scraper</h1>
-  <span class="badge badge-pending" id="cnt-pending">{{ counts.get('pending', 0) }} pending</span>
-  <span class="badge badge-applied" id="cnt-applied">{{ counts.get('applied', 0) }} applied</span>
-  <span class="badge badge-skipped" id="cnt-skipped">{{ counts.get('skipped', 0) }} skipped</span>
-  {% if stale %}<span class="stale-warn">⚠ Last fetch: {{ last_fetch }}</span>{% elif last_fetch %}<span class="fetch-msg">Last fetch: {{ last_fetch }}</span>{% endif %}
-  <div class="spacer"></div>
-  <div class="toolbar">
-    <span id="fetch-progress" class="fetch-msg"></span>
-    <span class="save-notice" id="save-notice">✓ Settings saved</span>
-    <button class="btn btn-primary" id="btn-fetch" onclick="runFetch()">⟳ Fetch new jobs</button>
-    <div class="profile-dropdown" id="profile-dropdown">
-      <button class="avatar-btn" onclick="toggleProfileMenu(event)">
-        <span class="avatar" id="header-avatar" style="background:{{ active_profile.color if active_profile else '#3b82f6' }}">{{ active_profile.initials if active_profile else '?' }}</span>
+    <!-- Settings modal -->
+    <div
+      class="modal-backdrop"
+      id="settings-modal"
+      onclick="closeSettingsOnBackdrop(event)"
+    >
+      <div class="modal">
+        <div class="modal-header">
+          <h2>⚙ Search Settings</h2>
+          <button class="modal-close" onclick="closeSettings()">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="settings-section">
+            <h3>Search Sources</h3>
+            <div id="searches-list"></div>
+            <button class="btn-add" onclick="addSearchRow()">
+              + Add search
+            </button>
+          </div>
+
+          <div class="settings-section">
+            <h3>
+              Title Filter
+              <small
+                style="
+                  color: #475569;
+                  font-weight: 400;
+                  text-transform: none;
+                  letter-spacing: 0;
+                "
+                >(only keep jobs whose title matches one of these)</small
+              >
+            </h3>
+            <div
+              class="tag-input-wrap"
+              id="title-filter-wrap"
+              onclick="focusTagInput('title-filter-input')"
+            >
+              <input
+                class="tag-input"
+                id="title-filter-input"
+                placeholder="add keyword, press Enter"
+                onkeydown="tagKeydown(event,'title-filter-wrap','title-filter-input')"
+              />
+            </div>
+          </div>
+
+          <div class="settings-section">
+            <h3>
+              Blacklist
+              <small
+                style="
+                  color: #475569;
+                  font-weight: 400;
+                  text-transform: none;
+                  letter-spacing: 0;
+                "
+                >(drop jobs containing these words)</small
+              >
+            </h3>
+            <div
+              class="tag-input-wrap"
+              id="blacklist-wrap"
+              onclick="focusTagInput('blacklist-input')"
+            >
+              <input
+                class="tag-input"
+                id="blacklist-input"
+                placeholder="add keyword, press Enter"
+                onkeydown="tagKeydown(event,'blacklist-wrap','blacklist-input')"
+              />
+            </div>
+          </div>
+
+          <div class="settings-section">
+            <h3>Company Blacklist</h3>
+            <div
+              class="tag-input-wrap"
+              id="company-blacklist-wrap"
+              onclick="focusTagInput('company-blacklist-input')"
+            >
+              <input
+                class="tag-input"
+                id="company-blacklist-input"
+                placeholder="add company name, press Enter"
+                onkeydown="tagKeydown(event,'company-blacklist-wrap','company-blacklist-input')"
+              />
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <span class="save-notice" id="save-notice">✓ Saved</span>
+          <button class="btn btn-ghost" onclick="closeSettings()">
+            Cancel
+          </button>
+          <button class="btn btn-primary" onclick="saveSettings()">Save</button>
+        </div>
+      </div>
+    </div>
+
+    {% if not has_pdflatex %}
+    <div class="pdf-banner" id="pdf-banner">
+      ⚠ <strong>pdflatex not installed</strong> — needed to compile resumes and
+      cover letters to PDF.
+      <a href="/setup">Install it in the setup wizard →</a>
+      <button
+        class="pdf-banner-dismiss"
+        onclick="document.getElementById('pdf-banner').style.display='none'"
+        title="Dismiss"
+      >
+        ✕
       </button>
-      <div class="profile-menu" id="profile-menu">
-        <div class="profile-menu-header">Switch profile</div>
-        <div id="profile-menu-list"></div>
-        <div class="profile-menu-divider"></div>
-        <button class="profile-menu-item" onclick="addNewProfile()">+ Add new profile</button>
-        <a href="/manage-profiles" class="profile-menu-item">Manage profiles</a>
-      </div>
     </div>
-  </div>
-</header>
+    {% endif %}
 
-<!-- Settings modal -->
-<div class="modal-backdrop" id="settings-modal" onclick="closeSettingsOnBackdrop(event)">
-  <div class="modal">
-    <div class="modal-header">
-      <h2>⚙ Search Settings</h2>
-      <button class="modal-close" onclick="closeSettings()">✕</button>
+    <div class="tabs">
+      <button
+        class="tab active"
+        data-status="pending"
+        onclick="switchTab(this)"
+      >
+        Pending
+      </button>
+      <button class="tab" data-status="applied" onclick="switchTab(this)">
+        Applied
+      </button>
+      <button class="tab" data-status="skipped" onclick="switchTab(this)">
+        Skipped
+      </button>
     </div>
-    <div class="modal-body">
 
-      <div class="settings-section">
-        <h3>Search Sources</h3>
-        <div id="searches-list"></div>
-        <button class="btn-add" onclick="addSearchRow()">+ Add search</button>
-      </div>
-
-      <div class="settings-section">
-        <h3>Title Filter <small style="color:#475569;font-weight:400;text-transform:none;letter-spacing:0">(only keep jobs whose title matches one of these)</small></h3>
-        <div class="tag-input-wrap" id="title-filter-wrap" onclick="focusTagInput('title-filter-input')">
-          <input class="tag-input" id="title-filter-input" placeholder="add keyword, press Enter" onkeydown="tagKeydown(event,'title-filter-wrap','title-filter-input')">
-        </div>
-      </div>
-
-      <div class="settings-section">
-        <h3>Blacklist <small style="color:#475569;font-weight:400;text-transform:none;letter-spacing:0">(drop jobs containing these words)</small></h3>
-        <div class="tag-input-wrap" id="blacklist-wrap" onclick="focusTagInput('blacklist-input')">
-          <input class="tag-input" id="blacklist-input" placeholder="add keyword, press Enter" onkeydown="tagKeydown(event,'blacklist-wrap','blacklist-input')">
-        </div>
-      </div>
-
-      <div class="settings-section">
-        <h3>Company Blacklist</h3>
-        <div class="tag-input-wrap" id="company-blacklist-wrap" onclick="focusTagInput('company-blacklist-input')">
-          <input class="tag-input" id="company-blacklist-input" placeholder="add company name, press Enter" onkeydown="tagKeydown(event,'company-blacklist-wrap','company-blacklist-input')">
-        </div>
-      </div>
-
-      <!-- AI Model Settings -->
-      <div class="settings-section">
-        <h3>⚡ AI Model</h3>
-        <div id="ai-settings-body">
-          <div style="color:#475569;font-size:0.78rem">Loading…</div>
-        </div>
-      </div>
-
+    <div class="search-bar">
+      <input
+        type="text"
+        id="search-input"
+        placeholder="Search title, company, location…"
+        oninput="applyFiltersAndSort()"
+      />
+      <button
+        class="btn btn-ghost btn-sm"
+        onclick="openSettings()"
+        style="white-space: nowrap"
+      >
+        ⚙ Search Settings
+      </button>
     </div>
-    <div class="modal-footer">
-      <span class="save-notice" id="save-notice">✓ Saved</span>
-      <button class="btn btn-ghost" onclick="closeSettings()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveSettings()">Save</button>
+
+    <div class="table-wrap">
+      <table id="jobs-table">
+        <thead>
+          <tr>
+            <th class="sortable" data-key="title" onclick="sortBy('title')">
+              Title <span class="sort-icon">↕</span>
+            </th>
+            <th class="sortable" data-key="company" onclick="sortBy('company')">
+              Company <span class="sort-icon">↕</span>
+            </th>
+            <th class="sortable" data-key="source" onclick="sortBy('source')">
+              Source <span class="sort-icon">↕</span>
+            </th>
+            <th class="sortable" data-key="remote" onclick="sortBy('remote')">
+              Remote <span class="sort-icon">↕</span>
+            </th>
+            <th>Location</th>
+            <th>Exp.</th>
+            <th>Posted</th>
+            <th>Age</th>
+            <th>Resume</th>
+            <th>Cover Letter</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="jobs-body">
+          <tr>
+            <td colspan="11" class="empty">Loading…</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
-  </div>
-</div>
 
-{% if not has_pdflatex %}
-<div class="pdf-banner" id="pdf-banner">
-  ⚠ <strong>pdflatex not installed</strong> — needed to compile resumes and cover letters to PDF.
-  <a href="/setup">Install it in the setup wizard →</a>
-  <button class="pdf-banner-dismiss" onclick="document.getElementById('pdf-banner').style.display='none'" title="Dismiss">✕</button>
-</div>
-{% endif %}
+    <script src="/static/search-settings.js"></script>
+    <script>
+      let currentStatus = "pending";
+      let jobs = [];
+      let sortKey = "title";
+      let sortDir = 1;
 
-<div class="tabs">
-  <button class="tab active" data-status="pending" onclick="switchTab(this)">Pending</button>
-  <button class="tab" data-status="applied" onclick="switchTab(this)">Applied</button>
-  <button class="tab" data-status="skipped" onclick="switchTab(this)">Skipped</button>
-</div>
+      function switchTab(el) {
+        document
+          .querySelectorAll(".tab")
+          .forEach((t) => t.classList.remove("active"));
+        el.classList.add("active");
+        currentStatus = el.dataset.status;
+        loadJobs();
+      }
 
-<div class="search-bar">
-  <input type="text" id="search-input" placeholder="Search title, company, location…" oninput="applyFiltersAndSort()">
-  <button class="btn btn-ghost btn-sm" onclick="openSettings()" style="white-space:nowrap">⚙ Search Settings</button>
-</div>
+      function remoteClass(r) {
+        if (!r) return "";
+        if (r.toLowerCase() === "remote") return "remote-remote";
+        if (r.toLowerCase() === "hybrid") return "remote-hybrid";
+        return "remote-onsite";
+      }
 
-<div class="table-wrap">
-  <table id="jobs-table">
-    <thead>
-      <tr>
-        <th class="sortable" data-key="title" onclick="sortBy('title')">Title <span class="sort-icon">↕</span></th>
-        <th class="sortable" data-key="company" onclick="sortBy('company')">Company <span class="sort-icon">↕</span></th>
-        <th class="sortable" data-key="source" onclick="sortBy('source')">Source <span class="sort-icon">↕</span></th>
-        <th class="sortable" data-key="remote" onclick="sortBy('remote')">Remote <span class="sort-icon">↕</span></th>
-        <th>Location</th>
-        <th>Exp.</th>
-        <th>Posted</th>
-        <th>Age</th>
-        <th>Resume</th>
-        <th>Cover Letter</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody id="jobs-body">
-      <tr><td colspan="11" class="empty">Loading…</td></tr>
-    </tbody>
-  </table>
-</div>
+      // ── Sort ──────────────────────────────────────────────────────────────────────
 
-<script src="/static/search-settings.js"></script>
-<script>
-let currentStatus = "pending";
-let jobs = [];
-let sortKey = "title";
-let sortDir = 1;
+      function sortBy(key) {
+        if (sortKey === key) {
+          sortDir *= -1;
+        } else {
+          sortKey = key;
+          sortDir = 1;
+        }
+        document.querySelectorAll("th.sortable").forEach((th) => {
+          th.classList.remove("sort-asc", "sort-desc");
+          const icon = th.querySelector(".sort-icon");
+          if (icon) icon.textContent = "↕";
+        });
+        const active = document.querySelector(`th[data-key="${key}"]`);
+        if (active) {
+          active.classList.add(sortDir === 1 ? "sort-asc" : "sort-desc");
+          const icon = active.querySelector(".sort-icon");
+          if (icon) icon.textContent = sortDir === 1 ? "↑" : "↓";
+        }
+        applyFiltersAndSort();
+      }
 
-function switchTab(el) {
-  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-  el.classList.add("active");
-  currentStatus = el.dataset.status;
-  loadJobs();
-}
+      function jobSortValue(job, key) {
+        return (job[key] || "").toLowerCase();
+      }
 
-function remoteClass(r) {
-  if (!r) return "";
-  if (r.toLowerCase() === "remote") return "remote-remote";
-  if (r.toLowerCase() === "hybrid") return "remote-hybrid";
-  return "remote-onsite";
-}
+      // ── Search + render ───────────────────────────────────────────────────────────
 
-// ── Sort ──────────────────────────────────────────────────────────────────────
+      function applyFiltersAndSort() {
+        const q = (document.getElementById("search-input")?.value || "")
+          .toLowerCase()
+          .trim();
+        let filtered = jobs;
+        if (q) {
+          filtered = jobs.filter(
+            (j) =>
+              (j.title || "").toLowerCase().includes(q) ||
+              (j.company || "").toLowerCase().includes(q) ||
+              (j.location || "").toLowerCase().includes(q) ||
+              (j.source || "").toLowerCase().includes(q) ||
+              (j.remote || "").toLowerCase().includes(q)
+          );
+        }
+        const sorted = [...filtered].sort((a, b) => {
+          const av = jobSortValue(a, sortKey);
+          const bv = jobSortValue(b, sortKey);
+          if (av < bv) return -sortDir;
+          if (av > bv) return sortDir;
+          return 0;
+        });
+        renderJobs(sorted);
+      }
 
-function sortBy(key) {
-  if (sortKey === key) {
-    sortDir *= -1;
-  } else {
-    sortKey = key;
-    sortDir = 1;
-  }
-  document.querySelectorAll("th.sortable").forEach(th => {
-    th.classList.remove("sort-asc", "sort-desc");
-    const icon = th.querySelector(".sort-icon");
-    if (icon) icon.textContent = "↕";
-  });
-  const active = document.querySelector(`th[data-key="${key}"]`);
-  if (active) {
-    active.classList.add(sortDir === 1 ? "sort-asc" : "sort-desc");
-    const icon = active.querySelector(".sort-icon");
-    if (icon) icon.textContent = sortDir === 1 ? "↑" : "↓";
-  }
-  applyFiltersAndSort();
-}
+      // ── Cell renderers ────────────────────────────────────────────────────────────
 
-function jobSortValue(job, key) {
-  return (job[key] || "").toLowerCase();
-}
-
-// ── Search + render ───────────────────────────────────────────────────────────
-
-function applyFiltersAndSort() {
-  const q = (document.getElementById("search-input")?.value || "").toLowerCase().trim();
-  let filtered = jobs;
-  if (q) {
-    filtered = jobs.filter(j =>
-      (j.title || "").toLowerCase().includes(q) ||
-      (j.company || "").toLowerCase().includes(q) ||
-      (j.location || "").toLowerCase().includes(q) ||
-      (j.source || "").toLowerCase().includes(q) ||
-      (j.remote || "").toLowerCase().includes(q)
-    );
-  }
-  const sorted = [...filtered].sort((a, b) => {
-    const av = jobSortValue(a, sortKey);
-    const bv = jobSortValue(b, sortKey);
-    if (av < bv) return -sortDir;
-    if (av > bv) return sortDir;
-    return 0;
-  });
-  renderJobs(sorted);
-}
-
-// ── Cell renderers ────────────────────────────────────────────────────────────
-
-function resumeCell(job) {
-  const rs = job.resume_status;
-  if (rs === "building") {
-    const stage = job.resume_stage || "Building…";
-    return `<span><span class="spinner"></span>${stage}</span>`;
-  }
-  if (rs === "done" && job.pdf_url) {
-    return `<a href="${job.pdf_url}" target="_blank" class="btn btn-sm btn-resume-done">📄 Open CV</a>`;
-  }
-  if (rs === "error") {
-    const isSetupError = (job.resume_error || "").includes("profile.md");
-    const errMsg = isSetupError
-      ? `<a href="/setup" style="color:#f87171">Profile not set up — click to fix</a>`
-      : `<span title="${job.resume_error || ''}">⚠ Error</span>`;
-    return `${errMsg}
+      function resumeCell(job) {
+        const rs = job.resume_status;
+        if (rs === "building") {
+          const stage = job.resume_stage || "Building…";
+          return `<span><span class="spinner"></span>${stage}</span>`;
+        }
+        if (rs === "done" && job.pdf_url) {
+          return `<a href="${job.pdf_url}" target="_blank" class="btn btn-sm btn-resume-done">📄 Open CV</a>`;
+        }
+        if (rs === "error") {
+          const isSetupError = (job.resume_error || "").includes("profile.md");
+          const errMsg = isSetupError
+            ? `<a href="/setup" style="color:#f87171">Profile not set up — click to fix</a>`
+            : `<span title="${job.resume_error || ""}">⚠ Error</span>`;
+          return `${errMsg}
             <button class="btn btn-sm btn-resume" onclick="buildResume('${job.job_id}')">Retry</button>`;
-  }
-  return `<button class="btn btn-sm btn-resume" onclick="buildResume('${job.job_id}')">▶ Build CV</button>`;
-}
+        }
+        return `<button class="btn btn-sm btn-resume" onclick="buildResume('${job.job_id}')">▶ Build CV</button>`;
+      }
 
-function clCell(job) {
-  const rs = job.cl_status;
-  if (rs === "building") {
-    const stage = job.cl_stage || "Building…";
-    return `<span><span class="spinner" style="border-color:#0369a1"></span>${stage}</span>`;
-  }
-  if (rs === "done" && job.cl_pdf_url) {
-    return `<a href="${job.cl_pdf_url}" target="_blank" class="btn btn-sm btn-cl-done">✉ Open Letter</a>`;
-  }
-  if (rs === "error") {
-    const isSetupError = (job.cl_error || "").includes("profile.md");
-    const errMsg = isSetupError
-      ? `<a href="/setup" style="color:#f87171">Profile not set up — click to fix</a>`
-      : `<span title="${job.cl_error || ''}">⚠ Error</span>`;
-    return `${errMsg}
+      function clCell(job) {
+        const rs = job.cl_status;
+        if (rs === "building") {
+          const stage = job.cl_stage || "Building…";
+          return `<span><span class="spinner" style="border-color:#0369a1"></span>${stage}</span>`;
+        }
+        if (rs === "done" && job.cl_pdf_url) {
+          return `<a href="${job.cl_pdf_url}" target="_blank" class="btn btn-sm btn-cl-done">✉ Open Letter</a>`;
+        }
+        if (rs === "error") {
+          const isSetupError = (job.cl_error || "").includes("profile.md");
+          const errMsg = isSetupError
+            ? `<a href="/setup" style="color:#f87171">Profile not set up — click to fix</a>`
+            : `<span title="${job.cl_error || ""}">⚠ Error</span>`;
+          return `${errMsg}
             <button class="btn btn-sm btn-cl" onclick="buildCL('${job.job_id}')">Retry</button>`;
-  }
-  if (job.resume_status === "done") {
-    return `<button class="btn btn-sm btn-cl" onclick="buildCL('${job.job_id}')">✉ Write Letter</button>`;
-  }
-  return `<span style="color:#475569;font-size:0.72rem">—</span>`;
-}
+        }
+        if (job.resume_status === "done") {
+          return `<button class="btn btn-sm btn-cl" onclick="buildCL('${job.job_id}')">✉ Write Letter</button>`;
+        }
+        return `<span style="color:#475569;font-size:0.72rem">—</span>`;
+      }
 
-function actionsCell(job) {
-  if (job.status === "pending") {
-    return `<div class="actions">
+      function actionsCell(job) {
+        if (job.status === "pending") {
+          return `<div class="actions">
       <button class="btn btn-sm btn-success" onclick="setStatus('${job.job_id}','applied')">✓ Applied</button>
       <button class="btn btn-sm btn-danger"  onclick="setStatus('${job.job_id}','skipped')">✗ Skip</button>
     </div>`;
-  }
-  return `<button class="btn btn-sm btn-ghost" onclick="setStatus('${job.job_id}','pending')">↩ Restore</button>`;
-}
+        }
+        return `<button class="btn btn-sm btn-ghost" onclick="setStatus('${job.job_id}','pending')">↩ Restore</button>`;
+      }
 
-function renderJobs(data) {
-  const tbody = document.getElementById("jobs-body");
-  if (!data.length) {
-    tbody.innerHTML = `<tr><td colspan="11" class="empty">No ${currentStatus} listings.</td></tr>`;
-    return;
-  }
-  tbody.innerHTML = data.map(job => `
+      function renderJobs(data) {
+        const tbody = document.getElementById("jobs-body");
+        if (!data.length) {
+          tbody.innerHTML = `<tr><td colspan="11" class="empty">No ${currentStatus} listings.</td></tr>`;
+          return;
+        }
+        tbody.innerHTML = data
+          .map(
+            (job) => `
     <tr id="row-${job.job_id}">
-      <td><a class="title-link" href="${job.url}" target="_blank" title="${job.title}">${job.title.length > 42 ? job.title.slice(0,42)+'…' : job.title}</a></td>
+      <td><a class="title-link" href="${job.url}" target="_blank" title="${
+              job.title
+            }">${
+              job.title.length > 42 ? job.title.slice(0, 42) + "…" : job.title
+            }</a></td>
       <td>${job.company}</td>
       <td><span class="source-badge">${job.source}</span></td>
       <td><span class="${remoteClass(job.remote)}">${job.remote}</span></td>
@@ -413,309 +1099,287 @@ function renderJobs(data) {
       <td id="cl-${job.job_id}">${clCell(job)}</td>
       <td>${actionsCell(job)}</td>
     </tr>
-  `).join("");
-}
+  `
+          )
+          .join("");
+      }
 
-// ── Data loading ──────────────────────────────────────────────────────────────
+      // ── Data loading ──────────────────────────────────────────────────────────────
 
-async function loadJobs() {
-  const res = await fetch(`/api/jobs?status=${currentStatus}`);
-  jobs = await res.json();
-  applyFiltersAndSort();
-  updateCounts();
-  scheduleResumePolls();
-  scheduleCLPolls();
-}
+      async function loadJobs() {
+        const res = await fetch(`/api/jobs?status=${currentStatus}`);
+        jobs = await res.json();
+        applyFiltersAndSort();
+        updateCounts();
+        scheduleResumePolls();
+        scheduleCLPolls();
+      }
 
-function updateCounts() {
-  fetch("/api/jobs?status=applied").then(r => r.json()).then(d => {
-    document.getElementById("cnt-applied").textContent = d.length + " applied";
-  });
-  fetch("/api/jobs?status=skipped").then(r => r.json()).then(d => {
-    document.getElementById("cnt-skipped").textContent = d.length + " skipped";
-  });
-  document.getElementById("cnt-pending").textContent = jobs.filter(j => j.status === "pending").length + " pending";
-}
+      function updateCounts() {
+        fetch("/api/jobs?status=applied")
+          .then((r) => r.json())
+          .then((d) => {
+            document.getElementById("cnt-applied").textContent =
+              d.length + " applied";
+          });
+        fetch("/api/jobs?status=skipped")
+          .then((r) => r.json())
+          .then((d) => {
+            document.getElementById("cnt-skipped").textContent =
+              d.length + " skipped";
+          });
+        document.getElementById("cnt-pending").textContent =
+          jobs.filter((j) => j.status === "pending").length + " pending";
+      }
 
-// ── Polling ───────────────────────────────────────────────────────────────────
+      // ── Polling ───────────────────────────────────────────────────────────────────
 
-function scheduleResumePolls() {
-  jobs.filter(j => j.resume_status === "building").forEach(job => pollResumeStatus(job.job_id));
-}
+      function scheduleResumePolls() {
+        jobs
+          .filter((j) => j.resume_status === "building")
+          .forEach((job) => _pollDocStatus(job.job_id, "resume"));
+      }
 
-function scheduleCLPolls() {
-  jobs.filter(j => j.cl_status === "building").forEach(job => pollCLStatus(job.job_id));
-}
+      function scheduleCLPolls() {
+        jobs
+          .filter((j) => j.cl_status === "building")
+          .forEach((job) => _pollDocStatus(job.job_id, "cl"));
+      }
 
-async function pollResumeStatus(job_id) {
-  const res = await fetch(`/api/resume-status/${job_id}`);
-  const data = await res.json();
-  const job = jobs.find(j => j.job_id === job_id);
-  if (job) {
-    job.resume_status = data.status;
-    job.resume_stage = data.stage || "";
-    job.pdf_url = data.pdf_url;
-    job.resume_error = data.error;
-    const cell = document.getElementById(`cv-${job_id}`);
-    if (cell) cell.innerHTML = resumeCell(job);
-    const cl = document.getElementById(`cl-${job_id}`);
-    if (cl) cl.innerHTML = clCell(job);
-  }
-  if (data.status === "building") setTimeout(() => pollResumeStatus(job_id), 2000);
-}
+      async function _pollDocStatus(job_id, docType) {
+        const isResume = docType === "resume";
+        const endpoint = isResume ? `/api/resume-status/${job_id}` : `/api/cover-letter-status/${job_id}`;
+        const res = await fetch(endpoint);
+        const data = await res.json();
+        const job = jobs.find((j) => j.job_id === job_id);
+        if (job) {
+          if (isResume) {
+            job.resume_status = data.status;
+            job.resume_stage = data.stage || "";
+            job.pdf_url = data.pdf_url;
+            job.resume_error = data.error;
+            const cell = document.getElementById(`cv-${job_id}`);
+            if (cell) cell.innerHTML = resumeCell(job);
+            const cl = document.getElementById(`cl-${job_id}`);
+            if (cl) cl.innerHTML = clCell(job);
+          } else {
+            job.cl_status = data.status;
+            job.cl_stage = data.stage || "";
+            job.cl_pdf_url = data.pdf_url;
+            job.cl_error = data.error;
+            const cell = document.getElementById(`cl-${job_id}`);
+            if (cell) cell.innerHTML = clCell(job);
+          }
+        }
+        if (data.status === "building")
+          setTimeout(() => _pollDocStatus(job_id, docType), 2000);
+      }
 
-async function pollCLStatus(job_id) {
-  const res = await fetch(`/api/cover-letter-status/${job_id}`);
-  const data = await res.json();
-  const job = jobs.find(j => j.job_id === job_id);
-  if (job) {
-    job.cl_status = data.status;
-    job.cl_stage = data.stage || "";
-    job.cl_pdf_url = data.pdf_url;
-    job.cl_error = data.error;
-    const cell = document.getElementById(`cl-${job_id}`);
-    if (cell) cell.innerHTML = clCell(job);
-  }
-  if (data.status === "building") setTimeout(() => pollCLStatus(job_id), 2000);
-}
+      async function _triggerBuild(job_id, docType) {
+        const isResume = docType === "resume";
+        const cellId = isResume ? `cv-${job_id}` : `cl-${job_id}`;
+        const spinnerStyle = isResume ? "" : ` style="border-color:#0369a1"`;
+        const cell = document.getElementById(cellId);
+        if (cell)
+          cell.innerHTML = `<span><span class="spinner"${spinnerStyle}></span>Building…</span>`;
+        await fetch(isResume ? `/api/resume/${job_id}` : `/api/cover-letter/${job_id}`, { method: "POST" });
+        const job = jobs.find((j) => j.job_id === job_id);
+        if (job) {
+          if (isResume) job.resume_status = "building";
+          else job.cl_status = "building";
+        }
+        setTimeout(() => _pollDocStatus(job_id, docType), 3000);
+      }
 
-async function buildResume(job_id) {
-  const cell = document.getElementById(`cv-${job_id}`);
-  if (cell) cell.innerHTML = `<span><span class="spinner"></span>Building…</span>`;
-  await fetch(`/api/resume/${job_id}`, { method: "POST" });
-  const job = jobs.find(j => j.job_id === job_id);
-  if (job) job.resume_status = "building";
-  setTimeout(() => pollResumeStatus(job_id), 3000);
-}
+      function buildResume(job_id) { return _triggerBuild(job_id, "resume"); }
+      function buildCL(job_id)     { return _triggerBuild(job_id, "cl"); }
 
-async function buildCL(job_id) {
-  const cell = document.getElementById(`cl-${job_id}`);
-  if (cell) cell.innerHTML = `<span><span class="spinner" style="border-color:#0369a1"></span>Building…</span>`;
-  await fetch(`/api/cover-letter/${job_id}`, { method: "POST" });
-  const job = jobs.find(j => j.job_id === job_id);
-  if (job) job.cl_status = "building";
-  setTimeout(() => pollCLStatus(job_id), 3000);
-}
+      async function setStatus(job_id, newStatus) {
+        await fetch(`/api/job-status/${job_id}/${newStatus}`, {
+          method: "POST",
+        });
+        loadJobs();
+      }
 
-async function setStatus(job_id, newStatus) {
-  await fetch(`/api/job-status/${job_id}/${newStatus}`, { method: "POST" });
-  loadJobs();
-}
+      async function runFetch() {
+        const btn = document.getElementById("btn-fetch");
+        const prog = document.getElementById("fetch-progress");
+        btn.disabled = true;
+        prog.style.display = "inline";
+        prog.textContent = "Fetching…";
+        setTableFetching("Starting fetch…");
+        await fetch("/api/fetch", { method: "POST" });
+        pollFetch();
+      }
 
-async function runFetch() {
-  const btn = document.getElementById("btn-fetch");
-  const prog = document.getElementById("fetch-progress");
-  btn.disabled = true;
-  prog.style.display = "inline";
-  prog.textContent = "Fetching…";
-  setTableFetching("Starting fetch…");
-  await fetch("/api/fetch", { method: "POST" });
-  pollFetch();
-}
+      async function pollFetch() {
+        const res = await fetch("/api/fetch-status");
+        const data = await res.json();
+        const prog = document.getElementById("fetch-progress");
+        const btn = document.getElementById("btn-fetch");
+        const msg = data.message || "Fetching…";
+        prog.textContent = msg;
+        if (data.status === "running") {
+          setTableFetching(msg);
+          setTimeout(pollFetch, 1500);
+        } else {
+          btn.disabled = false;
+          setTimeout(() => {
+            prog.style.display = "none";
+            prog.textContent = "";
+          }, 3000);
+          loadJobs();
+        }
+      }
 
-async function pollFetch() {
-  const res = await fetch("/api/fetch-status");
-  const data = await res.json();
-  const prog = document.getElementById("fetch-progress");
-  const btn = document.getElementById("btn-fetch");
-  const msg = data.message || "Fetching…";
-  prog.textContent = msg;
-  if (data.status === "running") {
-    setTableFetching(msg);
-    setTimeout(pollFetch, 1500);
-  } else {
-    btn.disabled = false;
-    setTimeout(() => { prog.style.display = "none"; prog.textContent = ""; }, 3000);
-    loadJobs();
-  }
-}
-
-function setTableFetching(msg) {
-  const tbody = document.getElementById("jobs-body");
-  // Only replace if the table is currently empty or already showing a fetch indicator
-  if (!tbody.querySelector("tr[data-fetch]") && tbody.querySelectorAll("tr[id^='row-']").length === 0) {
-    tbody.innerHTML = `<tr data-fetch="1"><td colspan="11" class="empty">
+      function setTableFetching(msg) {
+        const tbody = document.getElementById("jobs-body");
+        // Only replace if the table is currently empty or already showing a fetch indicator
+        if (
+          !tbody.querySelector("tr[data-fetch]") &&
+          tbody.querySelectorAll("tr[id^='row-']").length === 0
+        ) {
+          tbody.innerHTML = `<tr data-fetch="1"><td colspan="11" class="empty">
       <span class="spinner" style="border-color:#3b82f6;border-top-color:transparent;width:16px;height:16px;margin-right:8px"></span>
       <span id="fetch-table-msg">${msg}</span>
     </td></tr>`;
-  } else {
-    const el = document.getElementById("fetch-table-msg");
-    if (el) el.textContent = msg;
-  }
-}
+        } else {
+          const el = document.getElementById("fetch-table-msg");
+          if (el) el.textContent = msg;
+        }
+      }
 
-// ── Settings ──────────────────────────────────────────────────────────────────
+      // ── Settings ──────────────────────────────────────────────────────────────────
 
-async function openSettings() {
-  const res = await fetch("/api/config");
-  const cfg = await res.json();
-  renderSearchRows(cfg.searches || [], "searches-list");
-  renderTags("title-filter-wrap", "title-filter-input", cfg.title_filter || []);
-  renderTags("blacklist-wrap", "blacklist-input", cfg.blacklist || []);
-  renderTags("company-blacklist-wrap", "company-blacklist-input", cfg.company_blacklist || []);
-  document.getElementById("save-notice").style.display = "none";
-  await loadAISettings();
-  document.getElementById("settings-modal").classList.add("open");
-}
+      async function openSettings() {
+        const res = await fetch("/api/config");
+        const cfg = await res.json();
+        renderSearchRows(cfg.searches || [], "searches-list");
+        renderTags(
+          "title-filter-wrap",
+          "title-filter-input",
+          cfg.title_filter || []
+        );
+        renderTags("blacklist-wrap", "blacklist-input", cfg.blacklist || []);
+        renderTags(
+          "company-blacklist-wrap",
+          "company-blacklist-input",
+          cfg.company_blacklist || []
+        );
+        document.getElementById("save-notice").style.display = "none";
+        document.getElementById("settings-modal").classList.add("open");
+      }
 
-function closeSettings() {
-  document.getElementById("settings-modal").classList.remove("open");
-}
+      function closeSettings() {
+        document.getElementById("settings-modal").classList.remove("open");
+      }
 
-function closeSettingsOnBackdrop(e) {
-  if (e.target === document.getElementById("settings-modal")) closeSettings();
-}
+      function closeSettingsOnBackdrop(e) {
+        if (e.target === document.getElementById("settings-modal"))
+          closeSettings();
+      }
 
-async function saveSettings() {
-  const searches = collectSearchRows(".search-row");
-  if (!searches.length) { alert("Add at least one search source."); return; }
-  const titleFilter = collectTags("title-filter-wrap");
-  const queryTerms = [...new Set(searches.map(s => s.query.toLowerCase()).filter(Boolean))];
-  const mergedFilter = titleFilter.length ? [...new Set([...titleFilter, ...queryTerms])] : queryTerms;
-  const cfg = {
-    searches,
-    title_filter: mergedFilter,
-    blacklist: collectTags("blacklist-wrap"),
-    company_blacklist: collectTags("company-blacklist-wrap"),
-  };
-  const res = await fetch("/api/config", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(cfg),
-  });
-  const data = await res.json();
-  if (data.ok) {
-    closeSettings();
-    await saveAISettings();
-    const notice = document.getElementById("save-notice");
-    notice.style.display = "inline";
-    setTimeout(() => notice.style.display = "none", 2500);
-    await fetch("/api/jobs/clear", { method: "POST" });
-    setTableFetching("Fetching with new settings…");
-    runFetch();
-  } else {
-    alert("Save failed: " + (data.error || "unknown error"));
-  }
-}
+      async function saveSettings() {
+        const searches = collectSearchRows(".search-row");
+        if (!searches.length) {
+          alert("Add at least one search source.");
+          return;
+        }
+        const titleFilter = collectTags("title-filter-wrap");
+        const queryTerms = [
+          ...new Set(
+            searches.map((s) => s.query.toLowerCase()).filter(Boolean)
+          ),
+        ];
+        const mergedFilter = titleFilter.length
+          ? [...new Set([...titleFilter, ...queryTerms])]
+          : queryTerms;
+        const cfg = {
+          searches,
+          title_filter: mergedFilter,
+          blacklist: collectTags("blacklist-wrap"),
+          company_blacklist: collectTags("company-blacklist-wrap"),
+        };
+        const res = await fetch("/api/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(cfg),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          closeSettings();
+          const notice = document.getElementById("save-notice");
+          notice.style.display = "inline";
+          setTimeout(() => (notice.style.display = "none"), 2500);
+          await fetch("/api/jobs/clear", { method: "POST" });
+          setTableFetching("Fetching with new settings…");
+          runFetch();
+        } else {
+          alert("Save failed: " + (data.error || "unknown error"));
+        }
+      }
 
-// ── Profile dropdown ─────────────────────────────────────────────────────────
+      // ── Profile dropdown ─────────────────────────────────────────────────────────
 
-async function addNewProfile() {
-  const res = await fetch("/api/profiles/new", { method: "POST" });
-  const data = await res.json();
-  if (data.ok) window.location.href = "/setup";
-}
+      async function addNewProfile() {
+        const res = await fetch("/api/profiles/new", { method: "POST" });
+        const data = await res.json();
+        if (data.ok) window.location.href = "/setup";
+      }
 
-async function toggleProfileMenu(e) {
-  e.stopPropagation();
-  const menu = document.getElementById("profile-menu");
-  const isOpen = menu.classList.contains("open");
-  menu.classList.toggle("open");
-  if (!isOpen) {
-    const res = await fetch("/api/profiles");
-    const data = await res.json();
-    const list = document.getElementById("profile-menu-list");
-    list.innerHTML = data.profiles.map(p => `
-      <button class="profile-menu-item ${p.active ? 'active-profile' : ''}" onclick="switchProfile('${p.slug}')">
-        <span class="mini-avatar" style="background:${p.color}">${p.initials}</span>
+      async function toggleProfileMenu(e) {
+        e.stopPropagation();
+        const menu = document.getElementById("profile-menu");
+        const isOpen = menu.classList.contains("open");
+        menu.classList.toggle("open");
+        if (!isOpen) {
+          const res = await fetch("/api/profiles");
+          const data = await res.json();
+          const list = document.getElementById("profile-menu-list");
+          list.innerHTML = data.profiles
+            .map(
+              (p) => `
+      <button class="profile-menu-item ${
+        p.active ? "active-profile" : ""
+      }" onclick="switchProfile('${p.slug}')">
+        <span class="mini-avatar" style="background:${p.color}">${
+                p.initials
+              }</span>
         <span style="flex:1">${p.name}</span>
-        ${p.active ? `<a href="/profile-settings/${p.slug}" onclick="event.stopPropagation()" style="color:#64748b;font-size:0.72rem;text-decoration:none;padding:2px 6px;background:#0f1117;border-radius:4px">Settings</a>` : ''}
-        ${p.active ? '<span class="profile-check">✓</span>' : ''}
-      </button>`).join("");
-  }
-}
+        ${
+          p.active
+            ? `<a href="/profile-settings/${p.slug}" onclick="event.stopPropagation()" style="color:#64748b;font-size:0.72rem;text-decoration:none;padding:2px 6px;background:#0f1117;border-radius:4px">Settings</a>`
+            : ""
+        }
+        ${p.active ? '<span class="profile-check">✓</span>' : ""}
+      </button>`
+            )
+            .join("");
+        }
+      }
 
-document.addEventListener("click", () => {
-  document.getElementById("profile-menu")?.classList.remove("open");
-});
+      document.addEventListener("click", () => {
+        document.getElementById("profile-menu")?.classList.remove("open");
+      });
 
-async function switchProfile(slug) {
-  const res = await fetch(`/api/profiles/switch/${slug}`, { method: "POST" });
-  const data = await res.json();
-  window.location.href = data.empty ? "/?fetch=1" : "/";
-}
+      async function switchProfile(slug) {
+        const res = await fetch(`/api/profiles/switch/${slug}`, {
+          method: "POST",
+        });
+        const data = await res.json();
+        window.location.href = data.empty ? "/?fetch=1" : "/";
+      }
 
-// ── AI Settings ───────────────────────────────────────────────────────────────
+      // ── Sort init ─────────────────────────────────────────────────────────────────
 
-let _aiSettings = null;
+      loadJobs();
+      setInterval(loadJobs, 30000);
 
-async function loadAISettings() {
-  const res = await fetch("/api/ai-settings");
-  _aiSettings = await res.json();
-  renderAISettings(_aiSettings);
-}
-
-function renderAISettings(cfg) {
-  const el = document.getElementById("ai-settings-body");
-  if (!el) return;
-  const providers = cfg.providers || {};
-  const active = cfg.active_provider;
-  const LABELS = { groq: "Groq ⚡", anthropic: "Claude", gemini: "Gemini" };
-
-  el.innerHTML = Object.entries(providers).map(([pid, p]) => {
-    const isActive = pid === active;
-    const modelOpts = (p.models || []).map(m =>
-      `<option value="${m}" ${m === p.model ? "selected" : ""}>${m}</option>`
-    ).join("");
-    const keyHint = p.key_set ? "" : `<span class="ai-key-hint">no key</span>`;
-    return `
-      <div class="ai-provider-row">
-        <span class="ai-provider-name">${LABELS[pid] || pid}</span>
-        <select id="ai-model-${pid}" ${!p.configured ? "disabled" : ""} onchange="markAIDirty()">${modelOpts}</select>
-        ${isActive ? '<span class="ai-active-badge">Active</span>' : keyHint}
-        <button class="ai-test-btn" onclick="testAI('${pid}')" id="ai-test-btn-${pid}" ${!p.configured ? "disabled" : ""}>Test</button>
-        <span id="ai-test-result-${pid}"></span>
-      </div>`;
-  }).join("");
-}
-
-let _aiDirty = false;
-function markAIDirty() { _aiDirty = true; }
-
-async function saveAISettings() {
-  if (!_aiDirty) return;
-  const body = {};
-  for (const pid of ["groq", "anthropic", "gemini"]) {
-    const sel = document.getElementById(`ai-model-${pid}`);
-    if (sel && !sel.disabled) body[`${pid}_model`] = sel.value;
-  }
-  await fetch("/api/ai-settings", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(body) });
-  _aiDirty = false;
-}
-
-async function testAI(provider) {
-  const btn = document.getElementById(`ai-test-btn-${provider}`);
-  const result = document.getElementById(`ai-test-result-${provider}`);
-  btn.disabled = true;
-  btn.textContent = "…";
-  result.innerHTML = "";
-  try {
-    const res = await fetch("/api/ai-settings/test", {
-      method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({provider})
-    });
-    const data = await res.json();
-    if (data.ok) {
-      result.innerHTML = `<span class="ai-test-ok">✓ ${data.latency_ms}ms</span>`;
-    } else {
-      result.innerHTML = `<span class="ai-test-err" title="${data.error}">✗ failed</span>`;
-    }
-  } catch(e) {
-    result.innerHTML = `<span class="ai-test-err">✗ error</span>`;
-  }
-  btn.disabled = false;
-  btn.textContent = "Test";
-}
-
-// ── Sort init ─────────────────────────────────────────────────────────────────
-
-loadJobs();
-setInterval(loadJobs, 30000);
-
-if (new URLSearchParams(window.location.search).get("fetch") === "1") {
-  history.replaceState({}, "", "/");
-  setTableFetching("Starting fetch…");
-  runFetch();
-}
-</script>
-</body>
+      if (new URLSearchParams(window.location.search).get("fetch") === "1") {
+        history.replaceState({}, "", "/");
+        setTableFetching("Starting fetch…");
+        runFetch();
+      }
+    </script>
+  </body>
 </html>

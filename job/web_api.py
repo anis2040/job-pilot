@@ -1,4 +1,5 @@
 from __future__ import annotations
+import os
 import threading
 import subprocess
 import sys
@@ -186,12 +187,12 @@ def _get_anthropic_client():
 
 _GROQ_MODELS      = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768", "gemma2-9b-it"]
 _ANTHROPIC_MODELS = ["claude-haiku-4-5", "claude-sonnet-4-6", "claude-opus-4-6"]
-_GEMINI_MODELS    = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash"]
+_GEMINI_MODELS    = ["gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-3-flash-preview", "gemini-flash-lite-latest"]
 
 _MODEL_DEFAULTS = {
     "groq":      "llama-3.3-70b-versatile",
     "anthropic": "claude-haiku-4-5",
-    "gemini":    "gemini-2.0-flash",
+    "gemini":    "gemini-3.5-flash-lite",
 }
 
 
@@ -202,6 +203,83 @@ def _get_model(provider: str) -> str:
     key = f"{provider.upper()}_MODEL"
     val = os.environ.get(key, "").strip()
     return val or _MODEL_DEFAULTS.get(provider, "")
+
+
+_MODEL_LIST_CACHE = {}   # provider -> (monotonic_expiry, [models])
+_MODEL_LIST_TTL = 300     # seconds
+
+
+def _clear_model_cache(provider: str = None):
+    """Invalidate the model-list cache (all providers, or one). Call after a key change."""
+    if provider is None:
+        _MODEL_LIST_CACHE.clear()
+    else:
+        _MODEL_LIST_CACHE.pop(provider, None)
+
+
+def _list_models(provider: str, use_cache: bool = True) -> list:
+    """Fetch the live list of usable models for a provider's configured key.
+    Cached for _MODEL_LIST_TTL seconds. Falls back to the static list on failure."""
+    import time as _time
+    if use_cache:
+        entry = _MODEL_LIST_CACHE.get(provider)
+        if entry and entry[0] > _time.monotonic():
+            return entry[1]
+
+    result = _fetch_models(provider)
+
+    # Only cache a successful live fetch (i.e. not the static fallback), so a
+    # transient API error doesn't pin the static list for 5 minutes.
+    static = {"groq": _GROQ_MODELS, "gemini": _GEMINI_MODELS, "anthropic": _ANTHROPIC_MODELS}.get(provider, [])
+    if result and result is not static:
+        _MODEL_LIST_CACHE[provider] = (_time.monotonic() + _MODEL_LIST_TTL, result)
+    return result
+
+
+def _fetch_models(provider: str) -> list:
+    """Uncached live fetch of usable models for a provider. Static list on failure."""
+    try:
+        if provider == "groq":
+            client = _get_groq_client()
+            if client is None:
+                return _GROQ_MODELS
+            models = [m.id for m in client.models.list().data]
+            # Keep only chat/text models; drop whisper/tts/guard/vision-only helpers
+            chat = [m for m in models if not any(x in m.lower() for x in ("whisper", "tts", "guard", "embed"))]
+            return sorted(chat) or _GROQ_MODELS
+
+        if provider == "gemini":
+            client = _get_gemini_client()
+            if client is None:
+                return _GEMINI_MODELS
+            out = []
+            for m in client.models.list():
+                methods = getattr(m, "supported_actions", None) or getattr(m, "supported_generation_methods", []) or []
+                name = m.name.replace("models/", "")
+                if "generateContent" in methods and _is_gemini_text_model(name):
+                    out.append(name)
+            return out or _GEMINI_MODELS
+
+        if provider == "anthropic":
+            client = _get_anthropic_client()
+            if client is None:
+                return _ANTHROPIC_MODELS
+            models = [m.id for m in client.models.list().data]
+            return models or _ANTHROPIC_MODELS
+    except Exception as e:
+        print(f"[{provider}] model list failed ({e.__class__.__name__}), using static list")
+
+    return {"groq": _GROQ_MODELS, "gemini": _GEMINI_MODELS, "anthropic": _ANTHROPIC_MODELS}.get(provider, [])
+
+
+def _is_gemini_text_model(name: str) -> bool:
+    """Filter out image/tts/audio/robotics/embedding Gemini models — keep chat text models."""
+    n = name.lower()
+    if not (n.startswith("gemini") or n.startswith("gemma")):
+        return False
+    bad = ("image", "tts", "audio", "vision", "embed", "robotics", "computer-use",
+           "lyria", "nano-banana", "deep-research", "antigravity", "omni")
+    return not any(b in n for b in bad)
 
 
 def _get_groq_client():
@@ -226,15 +304,27 @@ def _build_with_groq(system_text: str, user_prompt: str, stage_fn=None) -> str:
     if stage_fn:
         stage_fn("Generating with Groq…")
     model = _get_model("groq")
-    response = client.chat.completions.create(
-        model=model,
-        messages=[
-            {"role": "system", "content": system_text},
-            {"role": "user",   "content": user_prompt},
-        ],
-        max_tokens=4096,
-        temperature=0.3,
-    )
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_text},
+                {"role": "user",   "content": user_prompt},
+            ],
+            max_tokens=4096,
+            temperature=0.3,
+        )
+    except Exception as e:
+        msg = str(e)
+        # Free-tier TPM limit is per-model; small models (e.g. llama-3.1-8b-instant,
+        # 6k TPM) can't fit a full resume prompt. Surface a clear, actionable error.
+        if "rate_limit" in msg or "413" in msg or "too large" in msg.lower():
+            raise RuntimeError(
+                f"Groq model '{model}' hit its token/rate limit for this request. "
+                f"Pick a model with a larger limit (e.g. llama-3.3-70b-versatile) "
+                f"in AI Settings, or wait a minute and retry."
+            ) from e
+        raise
     u = response.usage
     input_t  = getattr(u, "prompt_tokens",     0) or 0
     output_t = getattr(u, "completion_tokens", 0) or 0
@@ -290,63 +380,90 @@ def _get_gemini_client():
         return None
 
 
-def _build_with_gemini(system_text: str, user_prompt: str, cwd: str, stage_fn=None) -> str:
-    """Call Gemini. Tries SDK first (if billing works), then CLI subprocess."""
-    if stage_fn:
-        stage_fn("Generating with Gemini…")
-
-    # Try SDK — works when billing is enabled on the API key
-    client = _get_gemini_client()
-    if client is not None:
+def _clean_gemini_error(raw: str) -> str:
+    """Extract a short human-readable message from the CLI's noisy error output."""
+    if not raw:
+        return "gemini subprocess failed"
+    try:
+        obj = _json.loads(raw)
+        err = obj.get("error", obj)
+        msg = err.get("message", "")
         try:
-            from google.genai import types
-            model = _get_model("gemini")
-            response = client.models.generate_content(
-                model=model,
-                contents=user_prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_text,
-                    max_output_tokens=4096,
-                ),
-            )
-            u = response.usage_metadata
-            if u:
-                prompt_toks = getattr(u, "prompt_token_count",         0) or 0
-                output_toks = getattr(u, "candidates_token_count",     0) or 0
-                cached_toks = getattr(u, "cached_content_token_count", 0) or 0
-                total_toks  = getattr(u, "total_token_count",          0) or 0
-                print(
-                    f"[gemini/{model}] input={prompt_toks} output={output_toks} "
-                    f"cached={cached_toks} total={total_toks}"
-                )
-            return response.text
-        except Exception as sdk_err:
-            # Quota/billing error — fall through to CLI
-            print(f"[gemini] SDK failed ({sdk_err.__class__.__name__}), falling back to CLI")
+            inner = _json.loads(msg)
+            err = inner.get("error", inner)
+            msg = err.get("message", msg)
+        except Exception:
+            pass
+        code   = err.get("code", "")
+        status = err.get("status", "")
+        parts  = [str(p) for p in (code, status, msg) if p]
+        if parts:
+            return " ".join(parts)[:300]
+    except Exception:
+        pass
+    for kw in ("PERMISSION_DENIED", "RESOURCE_EXHAUSTED", "UNAUTHENTICATED", "403", "429", "401"):
+        if kw in raw:
+            return f"Gemini API error ({kw})"
+    return raw.strip().splitlines()[-1][:300] if raw.strip() else "gemini subprocess failed"
 
-    # CLI fallback — uses personal Google OAuth, no billing required
+
+def _build_with_gemini_sdk(system_text: str, user_prompt: str, backend_out=None) -> str:
+    """Call Gemini via SDK. Raises on any error (caller falls back to CLI)."""
+    from google.genai import types
+    client = _get_gemini_client()
+    if client is None:
+        raise RuntimeError("No Gemini SDK client available")
+    model = _get_model("gemini")
+    response = client.models.generate_content(
+        model=model,
+        contents=user_prompt,
+        config=types.GenerateContentConfig(
+            system_instruction=system_text,
+            max_output_tokens=4096,
+        ),
+    )
+    u = response.usage_metadata
+    if u:
+        prompt_toks = getattr(u, "prompt_token_count",         0) or 0
+        output_toks = getattr(u, "candidates_token_count",     0) or 0
+        cached_toks = getattr(u, "cached_content_token_count", 0) or 0
+        total_toks  = getattr(u, "total_token_count",          0) or 0
+        print(
+            f"[gemini/{model}] input={prompt_toks} output={output_toks} "
+            f"cached={cached_toks} total={total_toks}"
+        )
+    if backend_out is not None:
+        backend_out.append("sdk")
+    return response.text
+
+
+def _build_with_gemini_cli(system_text: str, user_prompt: str, cwd: str, backend_out=None) -> str:
+    """Call Gemini via CLI subprocess (personal OAuth, no billing required)."""
     if not shutil.which("gemini"):
         raise RuntimeError(
             "No Gemini available. Set GEMINI_API_KEY with billing enabled, "
             "or install the Gemini CLI: npm install -g @google/gemini-cli"
         )
+    if backend_out is not None:
+        backend_out.append("cli")
     gemini_md = Path(cwd) / "GEMINI.md"
     gemini_md.write_text(system_text)
     extra = {}
     if sys.platform == "win32":
         extra["creationflags"] = subprocess.CREATE_NO_WINDOW
+    model = _get_model("gemini")
     result = subprocess.run(
-        ["gemini", "-p", user_prompt, "--yolo", "--skip-trust", "--output-format", "json"],
+        ["gemini", "-m", model, "-p", user_prompt, "--yolo", "--skip-trust", "--output-format", "json"],
         capture_output=True, text=True, cwd=cwd, timeout=600, **extra,
     )
     if gemini_md.exists():
         gemini_md.unlink()
     if result.returncode != 0:
-        raise RuntimeError(result.stderr or "gemini subprocess failed")
-
-    # Parse JSON output for token stats and response text
+        raise RuntimeError(_clean_gemini_error(result.stderr or result.stdout))
     try:
         data = _json.loads(result.stdout)
+        if isinstance(data, dict) and data.get("error"):
+            raise RuntimeError(_clean_gemini_error(result.stdout))
         response_text = data.get("response", "")
         stats = data.get("stats", {}).get("models", {})
         for model_name, model_data in stats.items():
@@ -359,25 +476,71 @@ def _build_with_gemini(system_text: str, user_prompt: str, cwd: str, stage_fn=No
                 f"[gemini/cli/{model_name}] input={input_t} output={output_t} "
                 f"cached={cached_t} total={total_t}"
             )
+    except RuntimeError:
+        raise
     except Exception:
-        # Fallback: treat stdout as plain text
         response_text = result.stdout
-
     return response_text
 
 
+def _build_with_gemini(system_text: str, user_prompt: str, cwd: str, stage_fn=None, backend_out=None) -> str:
+    """Call Gemini. Tries SDK first (if billing works), then CLI subprocess."""
+    if stage_fn:
+        stage_fn("Generating with Gemini…")
+    client = _get_gemini_client()
+    if client is not None:
+        try:
+            return _build_with_gemini_sdk(system_text, user_prompt, backend_out)
+        except Exception as sdk_err:
+            print(f"[gemini] SDK failed ({sdk_err.__class__.__name__}), falling back to CLI")
+    return _build_with_gemini_cli(system_text, user_prompt, cwd, backend_out)
+
+
 def _generate_content(system_text: str, user_prompt: str, cwd: str, stage_fn=None) -> str:
-    """Priority: Groq (free) → Anthropic SDK (cached) → Gemini SDK → Gemini CLI."""
-    if _get_groq_client() is not None:
-        return _build_with_groq(system_text, user_prompt, stage_fn=stage_fn)
-    if _get_anthropic_client() is not None:
-        return _build_with_sdk(system_text, user_prompt, stage_fn=stage_fn)
-    if _get_gemini_client() is not None or shutil.which("gemini"):
-        return _build_with_gemini(system_text, user_prompt, cwd=cwd, stage_fn=stage_fn)
+    """Use PREFERRED_PROVIDER if set and available, otherwise Groq → Anthropic → Gemini."""
+    preferred = os.environ.get("PREFERRED_PROVIDER", "").strip().lower()
+
+    def _try_groq():
+        if _get_groq_client() is not None:
+            return _build_with_groq(system_text, user_prompt, stage_fn=stage_fn)
+        return None
+
+    def _try_anthropic():
+        if _get_anthropic_client() is not None:
+            return _build_with_sdk(system_text, user_prompt, stage_fn=stage_fn)
+        return None
+
+    def _try_gemini():
+        if _get_gemini_client() is not None or shutil.which("gemini"):
+            return _build_with_gemini(system_text, user_prompt, cwd=cwd, stage_fn=stage_fn)
+        return None
+
+    _order = {"groq": [_try_groq, _try_anthropic, _try_gemini],
+              "anthropic": [_try_anthropic, _try_groq, _try_gemini],
+              "gemini": [_try_gemini, _try_groq, _try_anthropic]}
+    fns = _order.get(preferred, [_try_groq, _try_anthropic, _try_gemini])
+
+    for fn in fns:
+        result = fn()
+        if result is not None:
+            return result
+
     raise RuntimeError(
         "No AI provider configured. Add a GROQ_API_KEY to .env "
         "(free at console.groq.com) or install Gemini CLI."
     )
+
+
+def _append_profile(skill_text: str) -> str:
+    """Append the active profile.md to skill_text if it exists. Returns updated text."""
+    profile_path = get_profile_path()
+    if profile_path and profile_path.exists():
+        skill_text += f"\n\n## profile.md (embedded)\n\n{profile_path.read_text()}"
+    return skill_text
+
+
+def _sanitize_folder_name(name: str, fallback: str = "Output") -> str:
+    return re.sub(r'[^\w\-_]', '', name.replace(" ", ""))[:64] or fallback
 
 
 def _prewarm_cache() -> None:
@@ -396,8 +559,7 @@ def _prewarm_cache() -> None:
         latex = _skill_path() / "references" / "latex_template.md"
         if latex.exists():
             skill_text += f"\n\n## latex_template.md (embedded)\n\n{latex.read_text()}"
-        if profile.exists():
-            skill_text += f"\n\n## profile.md (embedded)\n\n{profile.read_text()}"
+        skill_text = _append_profile(skill_text)
         slug = _candidate_name_slug()
         skill_text = _inject_name(skill_text, slug)
 
@@ -493,155 +655,116 @@ def _parse_latex_response(response_text: str) -> tuple[str, dict]:
     return text, meta
 
 
-def _build_resume(job_id: str) -> None:
+def _build_document(job_id: str, doc_type: str) -> None:
+    """Shared document builder for resumes and cover letters."""
+    is_resume = doc_type == "resume"
+    status_dict = _task_status if is_resume else _cl_task_status
+    stage_fn = _set_stage if is_resume else _set_cl_stage
+    skill_dir = _skill_path() if is_resume else _cl_skill_path()
+    tex_suffix = "Resume" if is_resume else "Cover_Letter"
+    folder_fallback = "Resume" if is_resume else "CoverLetter"
+
     try:
         _validate_profile()
         init_db()
         row = get_job(job_id)
         if not row:
             raise ValueError(f"Job {job_id} not found")
-
         row = dict(row)
 
-        if job_id.startswith("li_") and (not row.get("description") or len(row["description"]) < 100):
-            _set_stage(job_id, "Fetching job description…")
-            desc = li_fetch_description(row["url"])
-            if desc:
-                update_description(job_id, desc)
-                row["description"] = desc
-
-        company = row.get("company") or "Unknown"
-        title   = row.get("title")   or "Job"
-        desc    = row.get("description") or ""
-
-        job_context = desc if len(desc) > 50 else (
-            f"No full job description available. "
-            f"Tailor the resume for a {title} role at {company} "
-            f"based on typical responsibilities for this position."
-        )
-
-        _set_stage(job_id, "Generating resume…")
-
-        # Build the cached system prompt: SKILL.md + latex_template + profile
-        skill_text = (_skill_path() / "SKILL.md").read_text()
-        latex_template = _skill_path() / "references" / "latex_template.md"
-        if latex_template.exists():
-            skill_text += f"\n\n## latex_template.md (embedded)\n\n{latex_template.read_text()}"
-        profile_path = get_profile_path()
-        if profile_path and profile_path.exists():
-            skill_text += f"\n\n## profile.md (embedded)\n\n{profile_path.read_text()}"
-
-        name_slug = _candidate_name_slug()
-        skill_text = _inject_name(skill_text, name_slug)
-
-        user_prompt = (
-            f"Apply to this job for me. Here is the job description:\n\n"
-            f"Company: {company}\n"
-            f"Title: {title}\n"
-            f"Location: {row.get('location') or ''}\n"
-            f"URL: {row.get('url') or ''}\n\n"
-            f"{job_context}"
-        )
-
-        response_text = _generate_content(skill_text, user_prompt, cwd=str(_skill_path()),
-                                         stage_fn=lambda s: _set_stage(job_id, s))
-
-        _set_stage(job_id, "Compiling PDF…")
-        latex_content, meta = _parse_latex_response(response_text)
-
-        # Use company from meta if available, sanitize for filesystem
-        company_folder = meta.get("company", company)
-        company_folder = re.sub(r'[^\w\-_]', '', company_folder.replace(" ", ""))[:64] or "Resume"
-
-        output_dir = _resumes_path() / company_folder
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        tex_path = output_dir / f"{name_slug}_Resume.tex"
-        tex_path.write_text(latex_content)
-        (output_dir / "job_description.txt").write_text(row.get("description", ""))
-
-        pdf_path = _compile_latex(tex_path)
-
-        with _lock:
-            _task_status[job_id] = {"status": "done", "pdf_path": str(pdf_path), "error": None}
-
-    except Exception as e:
-        with _lock:
-            _task_status[job_id] = {"status": "error", "pdf_path": None, "error": str(e)}
-
-
-def _build_cover_letter(job_id: str) -> None:
-    try:
-        _validate_profile()
-        init_db()
-        row = get_job(job_id)
-        if not row:
-            raise ValueError(f"Job {job_id} not found")
-
-        row = dict(row)
-
-        if not row.get("description"):
-            raise ValueError("No job description available — cannot build cover letter")
+        if is_resume:
+            if job_id.startswith("li_") and (not row.get("description") or len(row["description"]) < 100):
+                stage_fn(job_id, "Fetching job description…")
+                desc = li_fetch_description(row["url"])
+                if desc:
+                    update_description(job_id, desc)
+                    row["description"] = desc
+        else:
+            if not row.get("description"):
+                raise ValueError("No job description available — cannot build cover letter")
 
         company = row.get("company") or "Unknown"
         title = row.get("title") or "Job"
         name_slug = _candidate_name_slug()
 
-        # Find the resume tex for context
-        resume_tex_content = ""
-        for candidate in [
-            _resumes_path() / company / f"{name_slug}_Resume.tex",
-            _resumes_path() / company.replace(" ", "") / f"{name_slug}_Resume.tex",
-            _resumes_path() / company.replace(" ", "").replace("/", "") / f"{name_slug}_Resume.tex",
-        ]:
-            if candidate.exists():
-                resume_tex_content = f"\n\nThe resume for this role (for consistency):\n```latex\n{candidate.read_text()[:3000]}\n```"
-                break
-
-        _set_cl_stage(job_id, "Generating cover letter…")
-
-        # Build cached system prompt
-        skill_text = (_cl_skill_path() / "SKILL.md").read_text()
-        profile_path = get_profile_path()
-        if profile_path and profile_path.exists():
-            skill_text += f"\n\n## profile.md (embedded)\n\n{profile_path.read_text()}"
+        skill_text = (skill_dir / "SKILL.md").read_text()
+        if is_resume:
+            latex_template = skill_dir / "references" / "latex_template.md"
+            if latex_template.exists():
+                skill_text += f"\n\n## latex_template.md (embedded)\n\n{latex_template.read_text()}"
+        skill_text = _append_profile(skill_text)
         skill_text = _inject_name(skill_text, name_slug)
+        if not is_resume:
+            skill_text += "\n\n## Output format\nReturn ONLY the raw LaTeX content (starting with \\documentclass), no explanations. After \\end{document} include a JSON block: ```json {\"company\": \"<name>\"} ```"
 
-        # Update cover letter skill to also return raw LaTeX
-        skill_text += "\n\n## Output format\nReturn ONLY the raw LaTeX content (starting with \\documentclass), no explanations. After \\end{document} include a JSON block: ```json {\"company\": \"<name>\"} ```"
+        if is_resume:
+            desc = row.get("description") or ""
+            job_context = desc if len(desc) > 50 else (
+                f"No full job description available. "
+                f"Tailor the resume for a {title} role at {company} "
+                f"based on typical responsibilities for this position."
+            )
+            stage_fn(job_id, "Generating resume…")
+            user_prompt = (
+                f"Apply to this job for me. Here is the job description:\n\n"
+                f"Company: {company}\n"
+                f"Title: {title}\n"
+                f"Location: {row.get('location') or ''}\n"
+                f"URL: {row.get('url') or ''}\n\n"
+                f"{job_context}"
+            )
+        else:
+            resume_tex_content = ""
+            for candidate in [
+                _resumes_path() / company / f"{name_slug}_Resume.tex",
+                _resumes_path() / company.replace(" ", "") / f"{name_slug}_Resume.tex",
+                _resumes_path() / company.replace(" ", "").replace("/", "") / f"{name_slug}_Resume.tex",
+            ]:
+                if candidate.exists():
+                    resume_tex_content = f"\n\nThe resume for this role (for consistency):\n```latex\n{candidate.read_text()[:3000]}\n```"
+                    break
+            stage_fn(job_id, "Generating cover letter…")
+            user_prompt = (
+                f"Write a cover letter for this job.\n\n"
+                f"Company: {company}\n"
+                f"Title: {title}\n"
+                f"Location: {row.get('location') or ''}\n\n"
+                f"Job description:\n{row['description']}"
+                f"{resume_tex_content}"
+            )
 
-        user_prompt = (
-            f"Write a cover letter for this job.\n\n"
-            f"Company: {company}\n"
-            f"Title: {title}\n"
-            f"Location: {row.get('location') or ''}\n\n"
-            f"Job description:\n{row['description']}"
-            f"{resume_tex_content}"
-        )
+        response_text = _generate_content(skill_text, user_prompt, cwd=str(skill_dir),
+                                          stage_fn=lambda s: stage_fn(job_id, s))
 
-        response_text = _generate_content(skill_text, user_prompt, cwd=str(_cl_skill_path()),
-                                         stage_fn=lambda s: _set_cl_stage(job_id, s))
-
-        _set_cl_stage(job_id, "Compiling PDF…")
+        stage_fn(job_id, "Compiling PDF…")
         latex_content, meta = _parse_latex_response(response_text)
 
-        company_folder = meta.get("company", company)
-        company_folder = re.sub(r'[^\w\-_]', '', company_folder.replace(" ", ""))[:64] or "CoverLetter"
+        company_folder = _sanitize_folder_name(meta.get("company", company), folder_fallback)
 
         output_dir = _resumes_path() / company_folder
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        tex_path = output_dir / f"{name_slug}_Cover_Letter.tex"
+        tex_path = output_dir / f"{name_slug}_{tex_suffix}.tex"
         tex_path.write_text(latex_content)
+        if is_resume:
+            (output_dir / "job_description.txt").write_text(row.get("description", ""))
 
         pdf_path = _compile_latex(tex_path)
 
         with _lock:
-            _cl_task_status[job_id] = {"status": "done", "pdf_path": str(pdf_path), "error": None}
+            status_dict[job_id] = {"status": "done", "pdf_path": str(pdf_path), "error": None}
 
     except Exception as e:
         with _lock:
-            _cl_task_status[job_id] = {"status": "error", "pdf_path": None, "error": str(e)}
+            status_dict[job_id] = {"status": "error", "pdf_path": None, "error": str(e)}
+
+
+def _build_resume(job_id: str) -> None:
+    _build_document(job_id, "resume")
+
+
+def _build_cover_letter(job_id: str) -> None:
+    _build_document(job_id, "cover_letter")
 
 
 def _run_fetch() -> None:
@@ -691,97 +814,6 @@ def _run_fetch() -> None:
         with _lock:
             _fetch_status["status"] = "error"
             _fetch_status["message"] = str(e)
-
-
-from .db import get_job, update_description, init_db, already_seen, is_duplicate, insert_job, insert_filter_log, log_fetch
-from .linkedin_fetcher import fetch_description as li_fetch_description
-from .config import load_config
-from .fetcher import fetch_search
-from .profiles import get_profile_path, get_resumes_path
-
-_BASE = Path(__file__).parent.parent
-
-# In-memory task state: { job_id: { "status": "idle|building|done|error", "pdf_path": str|None, "error": str|None } }
-_task_status: dict[str, dict] = {}
-_cl_task_status: dict[str, dict] = {}
-_fetch_status: dict = {"status": "idle", "message": ""}
-_lock = threading.Lock()
-
-
-def _skill_path() -> Path:
-    return _BASE / "resume-skill"
-
-
-def _cl_skill_path() -> Path:
-    return _BASE / "cover-letter-skill"
-
-
-def _resumes_path() -> Path:
-    path = get_resumes_path()
-    if not path:
-        raise RuntimeError("No active profile")
-    return path
-
-
-def clear_task_state() -> None:
-    with _lock:
-        _task_status.clear()
-        _cl_task_status.clear()
-
-
-def get_task_status(job_id: str) -> dict:
-    with _lock:
-        return dict(_task_status.get(job_id, {"status": "idle", "pdf_path": None, "error": None, "stage": ""}))
-
-
-def get_cl_task_status(job_id: str) -> dict:
-    with _lock:
-        return dict(_cl_task_status.get(job_id, {"status": "idle", "pdf_path": None, "error": None, "stage": ""}))
-
-
-def get_fetch_status() -> dict:
-    with _lock:
-        return dict(_fetch_status)
-
-
-def trigger_resume(job_id: str) -> None:
-    with _lock:
-        if _task_status.get(job_id, {}).get("status") == "building":
-            return
-        _task_status[job_id] = {"status": "building", "pdf_path": None, "error": None, "stage": "Starting…"}
-    t = threading.Thread(target=_build_resume, args=(job_id,), daemon=True)
-    t.start()
-
-
-def trigger_cover_letter(job_id: str) -> None:
-    with _lock:
-        if _cl_task_status.get(job_id, {}).get("status") == "building":
-            return
-        _cl_task_status[job_id] = {"status": "building", "pdf_path": None, "error": None, "stage": "Starting…"}
-    t = threading.Thread(target=_build_cover_letter, args=(job_id,), daemon=True)
-    t.start()
-
-
-def trigger_fetch() -> None:
-    with _lock:
-        if _fetch_status.get("status") == "running":
-            return
-        _fetch_status["status"] = "running"
-        _fetch_status["message"] = "Starting…"
-    t = threading.Thread(target=_run_fetch, daemon=True)
-    t.start()
-
-
-def _set_stage(job_id: str, stage: str) -> None:
-    with _lock:
-        if job_id in _task_status:
-            _task_status[job_id]["stage"] = stage
-
-
-def _set_cl_stage(job_id: str, stage: str) -> None:
-    with _lock:
-        if job_id in _cl_task_status:
-            _cl_task_status[job_id]["stage"] = stage
 
 
 

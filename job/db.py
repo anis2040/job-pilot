@@ -175,7 +175,8 @@ def get_pending_no_description() -> list[sqlite3.Row]:
 
 
 def get_pending_deduped() -> list[sqlite3.Row]:
-    """Return one row per unique (company, normalized title), preferring rows with descriptions, sorted by score desc."""
+    """Return one row per unique (company, normalized title), preferring rows with
+    descriptions, newest first."""
     with _connect() as con:
         return con.execute("""
             SELECT * FROM jobs
@@ -196,7 +197,7 @@ def get_pending_deduped() -> list[sqlite3.Row]:
                     WHERE status = 'pending'
                 ) WHERE rn = 1
               )
-            ORDER BY score DESC, first_seen_at DESC
+            ORDER BY first_seen_at DESC
         """).fetchall()
 
 
