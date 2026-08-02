@@ -35,8 +35,12 @@ def _compile_latex(tex_path: Path) -> Path:
     if sys.platform == "win32":
         extra["creationflags"] = subprocess.CREATE_NO_WINDOW
 
+    cmd = [pdflatex, "-interaction=nonstopmode", tex_name]
+    if sys.platform == "win32":
+        cmd.insert(1, "--enable-installer")  # MiKTeX: auto-install missing packages silently
+
     result = subprocess.run(
-        [pdflatex, "-interaction=nonstopmode", tex_name],
+        cmd,
         cwd=str(tex_dir),
         capture_output=True,
         text=True,
