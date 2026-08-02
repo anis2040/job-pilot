@@ -247,6 +247,17 @@ def _build_with_gemini(system_text: str, user_prompt: str, cwd: str, stage_fn=No
                 max_output_tokens=4096,
             ),
         )
+        # Log token usage
+        u = response.usage_metadata
+        if u:
+            prompt_toks  = getattr(u, "prompt_token_count",       0) or 0
+            output_toks  = getattr(u, "candidates_token_count",   0) or 0
+            cached_toks  = getattr(u, "cached_content_token_count", 0) or 0
+            total_toks   = getattr(u, "total_token_count",        0) or 0
+            print(
+                f"[gemini] input={prompt_toks} output={output_toks} "
+                f"cached={cached_toks} total={total_toks}"
+            )
         return response.text
 
     # Fallback: gemini CLI subprocess
