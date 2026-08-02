@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Migrate existing job-scraper data to the multi-profile structure.
+Migrate existing JobPilot AI data to the multi-profile structure.
 
 Run once after updating the code:
     python migrate_to_profiles.py

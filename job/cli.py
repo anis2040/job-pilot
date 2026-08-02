@@ -174,7 +174,7 @@ def fetch() -> None:
     console.print(f"\n[bold green]{total_new} total new job(s) saved.[/bold green]\n")
 
     if total_new > 0:
-        _notify("job-scraper", f"{total_new} new job listing(s) found!")
+        _notify("JobPilot AI", f"{total_new} new job listing(s) found!")
 
     pending = get_pending_deduped()
     if pending:

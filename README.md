@@ -1,6 +1,10 @@
-# job-scraper
+# JobPilot AI
 
-Fetches job listings from LinkedIn, Jobicy, Himalayas, and Greenhouse, and generates tailored ATS-optimized resumes and cover letters with one click using Claude or Gemini. Supports multiple profiles so different people (or different job tracks) can share one installation.
+Your AI copilot for the job hunt — from discovery to offer. JobPilot AI fetches
+listings from LinkedIn, StepStone, Greenhouse, GermanTechJobs, Berlin Startup
+Jobs, Jobicy, and Himalayas, then generates tailored, ATS-optimized resumes and
+cover letters with one click using Claude or Gemini. Supports multiple profiles
+so different people (or different job tracks) can share one installation.
 
 ---
 

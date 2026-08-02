@@ -261,7 +261,7 @@ function renderHero(j) {
   const headerTitle = document.getElementById("header-title");
   headerTitle.textContent = `${j.title} — ${j.company}`;
   headerTitle.title = `${j.title} — ${j.company}`;   // tooltip when truncated
-  document.title = `${j.title} at ${j.company} — Job Scraper`;
+  document.title = `${j.title} at ${j.company} — JobPilot AI`;
 
   const remoteIcon = { Remote: "🌐", Hybrid: "🏠", "On-site": "🏢" }[j.remote] || "🏢";
   const metaItems = [
