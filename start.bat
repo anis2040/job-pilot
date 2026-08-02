@@ -13,6 +13,9 @@ if not exist ".venv\Scripts\activate.bat" (
 
 call .venv\Scripts\activate.bat
 
+echo   Checking dependencies...
+pip install -r requirements.txt -q
+
 start "" powershell -NoProfile -WindowStyle Hidden -Command "Start-Sleep 3; Start-Process 'http://localhost:5050'"
 
 echo.

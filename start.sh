@@ -12,6 +12,9 @@ fi
 # shellcheck disable=SC1091
 source .venv/bin/activate
 
+echo "  Checking dependencies..."
+pip install -r requirements.txt -q
+
 if [[ "$OS" == "Darwin" ]]; then
     (sleep 3 && open "http://localhost:5050") &
 else
