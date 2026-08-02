@@ -746,7 +746,9 @@ def api_setup_install_cli():
     if provider not in ("claude", "gemini"):
         return jsonify({"error": "Invalid provider"}), 400
     pkg = "@anthropic-ai/claude-code" if provider == "claude" else "@google/gemini-cli"
-    return jsonify(_run_install(["npm", "install", "-g", pkg], 180))
+    # On Windows, npm is npm.cmd (a batch file) and won't be found without the extension
+    npm = "npm.cmd" if sys.platform == "win32" else "npm"
+    return jsonify(_run_install([npm, "install", "-g", pkg], 180))
 
 
 @app.route("/api/setup/save-groq-key", methods=["POST"])
