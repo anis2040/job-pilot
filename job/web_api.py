@@ -232,48 +232,59 @@ def _get_gemini_client():
 
 
 def _build_with_gemini(system_text: str, user_prompt: str, cwd: str, stage_fn=None) -> str:
-    """Call Gemini via SDK. Falls back to CLI subprocess if SDK unavailable."""
+    """Call Gemini. Tries SDK first (if billing works), then CLI subprocess."""
     if stage_fn:
         stage_fn("Generating with Gemini…")
 
+    # Try SDK — works when billing is enabled on the API key
     client = _get_gemini_client()
     if client is not None:
-        from google.genai import types
-        response = client.models.generate_content(
-            model="gemini-2.5-pro",
-            contents=user_prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=system_text,
-                max_output_tokens=4096,
-            ),
-        )
-        # Log token usage
-        u = response.usage_metadata
-        if u:
-            prompt_toks  = getattr(u, "prompt_token_count",       0) or 0
-            output_toks  = getattr(u, "candidates_token_count",   0) or 0
-            cached_toks  = getattr(u, "cached_content_token_count", 0) or 0
-            total_toks   = getattr(u, "total_token_count",        0) or 0
-            print(
-                f"[gemini] input={prompt_toks} output={output_toks} "
-                f"cached={cached_toks} total={total_toks}"
+        try:
+            from google.genai import types
+            model = "gemini-2.0-flash"
+            response = client.models.generate_content(
+                model=model,
+                contents=user_prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_text,
+                    max_output_tokens=4096,
+                ),
             )
-        return response.text
+            u = response.usage_metadata
+            if u:
+                prompt_toks = getattr(u, "prompt_token_count",         0) or 0
+                output_toks = getattr(u, "candidates_token_count",     0) or 0
+                cached_toks = getattr(u, "cached_content_token_count", 0) or 0
+                total_toks  = getattr(u, "total_token_count",          0) or 0
+                print(
+                    f"[gemini/{model}] input={prompt_toks} output={output_toks} "
+                    f"cached={cached_toks} total={total_toks}"
+                )
+            return response.text
+        except Exception as sdk_err:
+            # Quota/billing error — fall through to CLI
+            print(f"[gemini] SDK failed ({sdk_err.__class__.__name__}), falling back to CLI")
 
-    # Fallback: gemini CLI subprocess
+    # CLI fallback — uses personal Google OAuth, no billing required
+    if not shutil.which("gemini"):
+        raise RuntimeError(
+            "No Gemini available. Set GEMINI_API_KEY with billing enabled, "
+            "or install the Gemini CLI: npm install -g @google/gemini-cli"
+        )
     gemini_md = Path(cwd) / "GEMINI.md"
     gemini_md.write_text(system_text)
     extra = {}
     if sys.platform == "win32":
         extra["creationflags"] = subprocess.CREATE_NO_WINDOW
     result = subprocess.run(
-        ["gemini", "-p", user_prompt, "--yolo"],
+        ["gemini", "-p", user_prompt, "--yolo", "--skip-trust"],
         capture_output=True, text=True, cwd=cwd, timeout=600, **extra,
     )
     if gemini_md.exists():
         gemini_md.unlink()
     if result.returncode != 0:
         raise RuntimeError(result.stderr or "gemini subprocess failed")
+    print("[gemini/cli] completed (token count unavailable via CLI)")
     return result.stdout
 
 
