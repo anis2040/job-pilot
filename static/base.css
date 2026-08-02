@@ -596,6 +596,8 @@ a.btn { text-decoration: none; }
 .confirm-icon.danger { background: var(--red-bg); color: var(--red); }
 .confirm-msg { font-size: var(--text-base); color: var(--text-soft); line-height: var(--leading-relaxed); margin-bottom: var(--space-5); }
 .confirm-actions { display: flex; justify-content: flex-end; gap: var(--space-2); }
+.prompt-input { width: 100%; background: var(--bg-sunken); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); padding: 9px 12px; font-size: var(--text-base); outline: none; margin-bottom: var(--space-5); }
+.prompt-input:focus { border-color: var(--blue); }
 
 /* ── Mobile touch-target bumps (WCAG 2.5.8) ───────────────────────────────── */
 @media (max-width: 640px) {

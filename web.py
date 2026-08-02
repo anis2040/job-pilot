@@ -324,7 +324,7 @@ def api_profiles_list():
     active_slug = get_active_slug()
     return jsonify({
         "profiles": [
-            {"slug": p.slug, "name": p.name, "initials": p.initials, "color": p.color, "active": p.slug == active_slug}
+            {"slug": p.slug, "name": p.name, "label": p.label, "initials": p.initials, "color": p.color, "active": p.slug == active_slug}
             for p in profiles
         ],
         "active_slug": active_slug,
@@ -336,7 +336,19 @@ def api_profiles_active():
     active = get_active_profile()
     if not active:
         return jsonify({"active": None})
-    return jsonify({"active": {"slug": active.slug, "name": active.name, "initials": active.initials, "color": active.color}})
+    return jsonify({"active": {"slug": active.slug, "name": active.name, "label": active.label, "initials": active.initials, "color": active.color}})
+
+
+@app.route("/api/profiles/<slug>/label", methods=["POST"])
+def api_set_profile_label(slug):
+    err = _require_profile_dir(slug)
+    if err:
+        return err
+    from job.profiles import set_label
+    label = (request.get_json(silent=True) or {}).get("label", "")
+    if set_label(slug, label):
+        return jsonify({"ok": True})
+    return jsonify({"ok": False, "error": "Could not update label"}), 400
 
 
 @app.route("/api/profiles/new", methods=["POST"])

@@ -45,7 +45,7 @@
 <div class="topbar">
   <a href="/manage-profiles" class="topbar-back">← Profiles</a>
   <div class="topbar-avatar" style="background:{{ profile.color }}">{{ profile.initials }}</div>
-  <span class="topbar-title">{{ profile.name }}</span>
+  <span class="topbar-title">{{ profile.label }}</span>
   {% if profile.slug == active_slug %}<span class="badge-active">Active</span>{% endif %}
 </div>
 

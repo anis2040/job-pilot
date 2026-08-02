@@ -25,7 +25,7 @@
     {% for p in profiles %}
     <div class="profile-card" onclick="selectProfile('{{ p.slug }}')">
       <div class="avatar-lg" style="background:{{ p.color }}">{{ p.initials }}</div>
-      <div class="name">{{ p.name }}</div>
+      <div class="name">{{ p.label }}</div>
     </div>
     {% endfor %}
     <a href="/setup" class="profile-card add-card">

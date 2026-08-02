@@ -114,3 +114,43 @@ def test_name_from_markdown_dash_separator():
 
 def test_name_from_markdown_returns_none_if_no_heading():
     assert profiles.name_from_markdown("Just some text\nno heading") is None
+
+
+# ── Display label (rename via alias) ────────────────────────────────────────────
+
+def test_label_defaults_to_name(temp_profiles):
+    slug = profiles.create_profile("John Doe")
+    (temp_profiles / slug / "profile.md").write_text("# John Doe")
+    info = profiles.list_profiles()[0]
+    assert info.label == "John Doe"
+
+def test_set_label_overrides_display(temp_profiles):
+    slug = profiles.create_profile("John Doe")
+    (temp_profiles / slug / "profile.md").write_text("# John Doe")
+    assert profiles.set_label(slug, "Backend roles") is True
+    info = profiles.list_profiles()[0]
+    assert info.label == "Backend roles"
+    assert info.name == "John Doe"          # candidate name unchanged
+    assert info.slug == slug                # slug immutable
+
+def test_set_label_empty_clears(temp_profiles):
+    slug = profiles.create_profile("John Doe")
+    (temp_profiles / slug / "profile.md").write_text("# John Doe")
+    profiles.set_label(slug, "Temp")
+    profiles.set_label(slug, "")            # clear
+    info = profiles.list_profiles()[0]
+    assert info.label == "John Doe"          # falls back to name
+
+def test_set_label_unknown_slug_returns_false(temp_profiles):
+    assert profiles.set_label("nope", "X") is False
+
+def test_two_profiles_same_name_distinct_labels(temp_profiles):
+    s1 = profiles.create_profile("John Doe")
+    s2 = profiles.create_profile("John Doe")   # -> john-doe-1
+    for s in (s1, s2):
+        (temp_profiles / s / "profile.md").write_text("# John Doe")
+    profiles.set_label(s1, "US search")
+    profiles.set_label(s2, "EU search")
+    labels = {p.slug: p.label for p in profiles.list_profiles()}
+    assert labels[s1] == "US search"
+    assert labels[s2] == "EU search"

@@ -124,3 +124,45 @@ function confirmDialog({ title, message, confirmLabel = "Confirm", cancelLabel =
   });
 }
 
+// ── Custom prompt dialog (promise-based, replaces native prompt) ───────────
+// Resolves to the entered string, or null if cancelled.
+function promptDialog({ title, message, value = "", placeholder = "", confirmLabel = "Save", cancelLabel = "Cancel" } = {}) {
+  return new Promise((resolve) => {
+    const backdrop = document.createElement("div");
+    backdrop.className = "confirm-backdrop";
+    backdrop.setAttribute("role", "dialog");
+    backdrop.setAttribute("aria-modal", "true");
+    backdrop.setAttribute("aria-labelledby", "prompt-title");
+    backdrop.innerHTML = `
+      <div class="confirm-box">
+        <div class="confirm-head"><h2 id="prompt-title">${escapeHtml(title || "")}</h2></div>
+        ${message ? `<p class="confirm-msg">${escapeHtml(message)}</p>` : ""}
+        <input class="prompt-input" type="text" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}">
+        <div class="confirm-actions">
+          <button class="btn btn-ghost" data-act="cancel">${escapeHtml(cancelLabel)}</button>
+          <button class="btn btn-primary" data-act="ok">${escapeHtml(confirmLabel)}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+
+    const input = backdrop.querySelector(".prompt-input");
+    let release;
+    function close(result) {
+      if (release) release();
+      backdrop.remove();
+      resolve(result);
+    }
+    backdrop.querySelector('[data-act="cancel"]').onclick = () => close(null);
+    backdrop.querySelector('[data-act="ok"]').onclick = () => close(input.value.trim());
+    backdrop.onclick = (e) => { if (e.target === backdrop) close(null); };
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); close(input.value.trim()); }
+    });
+
+    requestAnimationFrame(() => backdrop.classList.add("open"));
+    release = trapFocus(backdrop, { onEscape: () => close(null) });
+    input.focus();
+    input.select();
+  });
+}
+

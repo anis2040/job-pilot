@@ -22,9 +22,10 @@ _PALETTE = [
 
 class ProfileInfo(NamedTuple):
     slug: str
-    name: str
+    name: str          # candidate name (from profile.md H1)
     initials: str
     color: str
+    label: str         # user-editable display label; defaults to `name`
 
 
 def slugify(name: str) -> str:
@@ -32,6 +33,47 @@ def slugify(name: str) -> str:
     slug = re.sub(r"['\"]", "", slug)
     slug = re.sub(r"[^a-z0-9]+", "-", slug)
     return slug.strip("-") or "default"
+
+
+def _meta_path(profile_dir: Path) -> Path:
+    return profile_dir / "meta.json"
+
+
+def _read_label(profile_dir: Path) -> str | None:
+    """Read the user-set display label from meta.json, or None if unset."""
+    mp = _meta_path(profile_dir)
+    if mp.exists():
+        try:
+            import json
+            data = json.loads(mp.read_text(encoding="utf-8"))
+            label = (data.get("label") or "").strip()
+            return label or None
+        except Exception:
+            pass
+    return None
+
+
+def set_label(slug: str, label: str) -> bool:
+    """Set (or clear, if empty) the display label for a profile. Slug is never
+    touched — it remains the permanent internal ID."""
+    import json
+    profile_dir = PROFILES_DIR / slug
+    if not profile_dir.is_dir():
+        return False
+    mp = _meta_path(profile_dir)
+    data = {}
+    if mp.exists():
+        try:
+            data = json.loads(mp.read_text(encoding="utf-8"))
+        except Exception:
+            data = {}
+    label = (label or "").strip()
+    if label:
+        data["label"] = label
+    else:
+        data.pop("label", None)
+    mp.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    return True
 
 
 def name_from_markdown(text: str) -> str | None:
@@ -71,7 +113,16 @@ def _read_name(profile_dir: Path) -> str:
 
 def _profile_info(profile_dir: Path) -> ProfileInfo:
     name = _read_name(profile_dir)
-    return ProfileInfo(slug=profile_dir.name, name=name, initials=_initials(name), color=_color(name))
+    label = _read_label(profile_dir) or name
+    # Avatar initials/color follow the label so two profiles for the same
+    # candidate name but different labels are visually distinguishable.
+    return ProfileInfo(
+        slug=profile_dir.name,
+        name=name,
+        initials=_initials(label),
+        color=_color(label),
+        label=label,
+    )
 
 
 def list_profiles() -> list[ProfileInfo]:

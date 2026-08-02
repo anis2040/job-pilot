@@ -51,12 +51,27 @@ async function load() {
     <div class="profile-row" onclick="window.location='/profile-settings/${p.slug}'" style="cursor:pointer">
       <div class="avatar" style="background:${p.color}">${escapeHtml(p.initials)}</div>
       <div class="info">
-        <div class="name">${escapeHtml(p.name)}</div>
-        <div class="path">profiles/${escapeHtml(p.slug)}/</div>
+        <div class="name">${escapeHtml(p.label)}</div>
+        <div class="path">${p.label !== p.name ? escapeHtml(p.name) + " · " : ""}profiles/${escapeHtml(p.slug)}/</div>
       </div>
       ${p.slug === active_slug ? '<span class="badge-active">Active</span>' : `<button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();switchTo('${p.slug}')">Switch</button>`}
-      <button class="btn btn-sm btn-danger-outline" data-slug="${escapeHtml(p.slug)}" data-name="${escapeHtml(p.name)}" onclick="event.stopPropagation();del(this.dataset.slug, this.dataset.name)" ${p.slug === active_slug ? 'disabled title="Switch away before deleting"' : ''}>Delete</button>
+      <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();rename('${p.slug}', ${JSON.stringify(p.label)})">Rename</button>
+      <button class="btn btn-sm btn-danger-outline" data-slug="${escapeHtml(p.slug)}" data-name="${escapeHtml(p.label)}" onclick="event.stopPropagation();del(this.dataset.slug, this.dataset.name)" ${p.slug === active_slug ? 'disabled title="Switch away before deleting"' : ''}>Delete</button>
     </div>`).join("");
+}
+
+async function rename(slug, currentLabel) {
+  const label = await promptDialog({
+    title: "Rename profile",
+    message: "Set a display label for this profile. This is just a label — the profile's internal ID and files are unchanged.",
+    value: currentLabel,
+    placeholder: "e.g. Backend roles, US applications",
+    confirmLabel: "Save",
+  });
+  if (label === null) return;   // cancelled
+  const data = await apiPost(`/api/profiles/${slug}/label`, { label });
+  if (data.ok) { showToast("✓ Profile renamed"); load(); }
+  else showToast(data.error || "Rename failed", "err");
 }
 
 async function switchTo(slug) {
