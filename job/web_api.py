@@ -740,6 +740,12 @@ def _build_document(job_id: str, doc_type: str) -> None:
                     update_description(job_id, desc)
                     row["description"] = desc
         else:
+            if job_id.startswith("li_") and not row.get("description"):
+                stage_fn(job_id, "Fetching job description…")
+                desc = li_fetch_description(row["url"])
+                if desc:
+                    update_description(job_id, desc)
+                    row["description"] = desc
             if not row.get("description"):
                 raise ValueError("No job description available — cannot build cover letter")
 
