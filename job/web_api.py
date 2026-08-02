@@ -390,6 +390,9 @@ def _prewarm_cache() -> None:
         print("[cache] pre-warmed on startup (1h TTL)")
     except Exception:
         pass  # pre-warm is best-effort, never block startup
+
+
+def _compile_latex(tex_path: Path) -> Path:
     """Run pdflatex on a .tex file. Returns path to the generated PDF."""
     tex_dir = tex_path.parent
     tex_name = tex_path.name
