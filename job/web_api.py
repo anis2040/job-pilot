@@ -277,15 +277,34 @@ def _build_with_gemini(system_text: str, user_prompt: str, cwd: str, stage_fn=No
     if sys.platform == "win32":
         extra["creationflags"] = subprocess.CREATE_NO_WINDOW
     result = subprocess.run(
-        ["gemini", "-p", user_prompt, "--yolo", "--skip-trust"],
+        ["gemini", "-p", user_prompt, "--yolo", "--skip-trust", "--output-format", "json"],
         capture_output=True, text=True, cwd=cwd, timeout=600, **extra,
     )
     if gemini_md.exists():
         gemini_md.unlink()
     if result.returncode != 0:
         raise RuntimeError(result.stderr or "gemini subprocess failed")
-    print("[gemini/cli] completed (token count unavailable via CLI)")
-    return result.stdout
+
+    # Parse JSON output for token stats and response text
+    try:
+        data = _json.loads(result.stdout)
+        response_text = data.get("response", "")
+        stats = data.get("stats", {}).get("models", {})
+        for model_name, model_data in stats.items():
+            toks = model_data.get("tokens", {})
+            input_t  = toks.get("input", 0) or 0
+            output_t = toks.get("candidates", 0) or 0
+            cached_t = toks.get("cached", 0) or 0
+            total_t  = toks.get("total", 0) or 0
+            print(
+                f"[gemini/cli/{model_name}] input={input_t} output={output_t} "
+                f"cached={cached_t} total={total_t}"
+            )
+    except Exception:
+        # Fallback: treat stdout as plain text
+        response_text = result.stdout
+
+    return response_text
 
 
 def _generate_content(system_text: str, user_prompt: str, cwd: str, stage_fn=None) -> str:
