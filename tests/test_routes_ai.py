@@ -8,16 +8,17 @@ import pytest
 
 import web
 import job.web_api as wapi
+import job.paths
 
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     """Flask test client with an isolated temp .env and stubbed AI backends."""
-    # Redirect all .env writes/reads to a temp file — both the web.py routes
-    # (web.BASE) and web_api._load_env (web_api._BASE) must point at tmp_path,
-    # otherwise _load_env() re-reads the real project .env and repopulates keys.
+    # Redirect all .env writes/reads to a temp file. The web.py routes write via
+    # web.BASE; ai_providers._load_env reads via job.paths.BASE. Patch both so
+    # _load_env() never re-reads the real project .env and repopulates keys.
     monkeypatch.setattr(web, "BASE", tmp_path)
-    monkeypatch.setattr(wapi, "_BASE", tmp_path)
+    monkeypatch.setattr(job.paths, "BASE", tmp_path)
 
     # No real provider clients / no network model listing
     monkeypatch.setattr(web, "_get_groq_client", lambda: None)

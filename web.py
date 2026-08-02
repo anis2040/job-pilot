@@ -24,7 +24,7 @@ from job.profiles import (
     PROFILES_DIR,
 )
 
-BASE = Path(__file__).parent
+from job.paths import BASE
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
@@ -874,60 +874,8 @@ def api_setup_save_profile():
 
 
 if __name__ == "__main__":
-    env_path = BASE / ".env"
-    if env_path.exists():
-        for line in env_path.read_text().splitlines():
-            if "=" in line and not line.startswith("#"):
-                k, v = line.split("=", 1)
-                os.environ.setdefault(k.strip(), v.strip())
-    # Repair symlinks and migrate legacy folder structures on startup
-    active_slug = get_active_slug()
-    if active_slug:
-        from job.profiles import _update_symlinks
-        _update_symlinks(PROFILES_DIR / active_slug)
-        init_db()
-        import shutil as _shutil
-        profile_dir = PROFILES_DIR / active_slug
-
-        # Migration 1: legacy project-root resumes/<company>/ → profiles/<slug>/<company>/resumes/
-        legacy_root = BASE / "resumes"
-        if legacy_root.exists():
-            for company_dir in legacy_root.iterdir():
-                if not company_dir.is_dir():
-                    continue
-                dest = profile_dir / company_dir.name / "resumes"
-                if not dest.exists():
-                    dest.mkdir(parents=True, exist_ok=True)
-                for f in company_dir.iterdir():
-                    if f.is_file() and not (dest / f.name).exists():
-                        _shutil.copy2(f, dest / f.name)
-
-        # Migration 2: profiles/<slug>/resumes/<company>/<files> → profiles/<slug>/<company>/resumes/ or cover-letters/
-        old_resumes = profile_dir / "resumes"
-        if old_resumes.is_dir():
-            for company_dir in old_resumes.iterdir():
-                if not company_dir.is_dir():
-                    continue
-                for f in company_dir.iterdir():
-                    if not f.is_file():
-                        continue
-                    subdir = "cover-letters" if "Cover_Letter" in f.name else "resumes"
-                    dest_dir = profile_dir / company_dir.name / subdir
-                    dest_dir.mkdir(parents=True, exist_ok=True)
-                    if not (dest_dir / f.name).exists():
-                        _shutil.copy2(f, dest_dir / f.name)
-            _shutil.rmtree(old_resumes, ignore_errors=True)
-    # Clean up orphaned new-profile-* folders (created but never completed)
-    if PROFILES_DIR.exists():
-        import shutil as _shutil2
-        for d in PROFILES_DIR.iterdir():
-            if d.is_dir() and d.name.startswith("new-profile-") and not (d / "profile.md").exists():
-                _shutil2.rmtree(d, ignore_errors=True)
-
-    # Pre-warm the Anthropic prompt cache in background (1h TTL)
-    import threading as _threading
-    from job.web_api import _prewarm_cache
-    _threading.Thread(target=_prewarm_cache, daemon=True).start()
+    from startup import run_startup
+    run_startup()
 
     debug = os.environ.get("FLASK_DEBUG", "true").lower() in ("1", "true", "yes")
     app.run(debug=debug, port=5050)

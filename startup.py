@@ -1,0 +1,83 @@
+"""One-time startup tasks: load .env, repair symlinks, migrate legacy folder
+layouts, clean up orphaned profiles, and pre-warm the AI cache.
+
+Extracted from web.py's __main__ block so the logic is importable and testable.
+Each migration is idempotent (guarded by existence checks), so running this on
+every launch is safe.
+"""
+from __future__ import annotations
+import os
+import shutil
+import threading
+
+from job.paths import BASE
+from job.db import init_db
+from job.profiles import get_active_slug, PROFILES_DIR, _update_symlinks
+
+
+def _load_env_file() -> None:
+    env_path = BASE / ".env"
+    if not env_path.exists():
+        return
+    for line in env_path.read_text().splitlines():
+        if "=" in line and not line.startswith("#"):
+            k, v = line.split("=", 1)
+            os.environ.setdefault(k.strip(), v.strip())
+
+
+def _migrate_active_profile(active_slug: str) -> None:
+    _update_symlinks(PROFILES_DIR / active_slug)
+    init_db()
+    profile_dir = PROFILES_DIR / active_slug
+
+    # Migration 1: legacy project-root resumes/<company>/ → profiles/<slug>/<company>/resumes/
+    legacy_root = BASE / "resumes"
+    if legacy_root.exists():
+        for company_dir in legacy_root.iterdir():
+            if not company_dir.is_dir():
+                continue
+            dest = profile_dir / company_dir.name / "resumes"
+            if not dest.exists():
+                dest.mkdir(parents=True, exist_ok=True)
+            for f in company_dir.iterdir():
+                if f.is_file() and not (dest / f.name).exists():
+                    shutil.copy2(f, dest / f.name)
+
+    # Migration 2: profiles/<slug>/resumes/<company>/<files> → profiles/<slug>/<company>/resumes/ or cover-letters/
+    old_resumes = profile_dir / "resumes"
+    if old_resumes.is_dir():
+        for company_dir in old_resumes.iterdir():
+            if not company_dir.is_dir():
+                continue
+            for f in company_dir.iterdir():
+                if not f.is_file():
+                    continue
+                subdir = "cover-letters" if "Cover_Letter" in f.name else "resumes"
+                dest_dir = profile_dir / company_dir.name / subdir
+                dest_dir.mkdir(parents=True, exist_ok=True)
+                if not (dest_dir / f.name).exists():
+                    shutil.copy2(f, dest_dir / f.name)
+        shutil.rmtree(old_resumes, ignore_errors=True)
+
+
+def _cleanup_orphan_profiles() -> None:
+    if not PROFILES_DIR.exists():
+        return
+    for d in PROFILES_DIR.iterdir():
+        if d.is_dir() and d.name.startswith("new-profile-") and not (d / "profile.md").exists():
+            shutil.rmtree(d, ignore_errors=True)
+
+
+def run_startup() -> None:
+    """Run all startup tasks in order. Safe to call once at launch."""
+    _load_env_file()
+
+    active_slug = get_active_slug()
+    if active_slug:
+        _migrate_active_profile(active_slug)
+
+    _cleanup_orphan_profiles()
+
+    # Pre-warm the Anthropic prompt cache in background (1h TTL)
+    from job.web_api import _prewarm_cache
+    threading.Thread(target=_prewarm_cache, daemon=True).start()

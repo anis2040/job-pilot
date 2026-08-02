@@ -1,10 +1,10 @@
-"""Tests for AI provider/model configuration logic in job.web_api.
+"""Tests for AI provider/model configuration logic in job.ai_providers.
 
 All offline — no API keys, no network. Env vars are patched per-test.
 """
 import pytest
 
-import job.web_api as w
+import job.ai_providers as w
 
 
 class TestModelDefaults:
