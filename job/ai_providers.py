@@ -169,6 +169,8 @@ def _get_groq_client():
     try:
         from groq import Groq
         return Groq(api_key=api_key)
+    except ImportError:
+        raise  # let callers know the package is missing
     except Exception:
         return None
 

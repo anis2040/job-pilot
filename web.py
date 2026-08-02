@@ -675,6 +675,27 @@ def api_ai_settings_test():
     provider = data.get("provider", "groq")
     backend = None
     try:
+        # Surface diagnostic errors before attempting the real call
+        if provider == "groq":
+            from job.ai_providers import _load_env
+            _load_env()
+            if not os.environ.get("GROQ_API_KEY"):
+                return jsonify({"ok": False, "error": "GROQ_API_KEY is not set. Add your key in AI Settings."})
+            try:
+                from groq import Groq  # noqa: F401
+            except ImportError:
+                return jsonify({"ok": False, "error": "groq package not installed. Run: pip install groq"})
+        elif provider == "anthropic":
+            from job.ai_providers import _load_env
+            _load_env()
+            if not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN") or shutil.which("claude")):
+                return jsonify({"ok": False, "error": "No Anthropic credentials found. Add an API key or install Claude Code."})
+        elif provider == "gemini":
+            from job.ai_providers import _load_env
+            _load_env()
+            if not (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or shutil.which("gemini")):
+                return jsonify({"ok": False, "error": "No Gemini credentials found. Add an API key or install the Gemini CLI."})
+
         t0 = time.time()
         if provider == "groq":
             result = _build_with_groq("You are a test.", "Say OK in one word.")
