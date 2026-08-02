@@ -87,6 +87,28 @@
   --ease-in-out:  cubic-bezier(0.65, 0, 0.35, 1);    /* move between two states */
   --ease-standard: ease;                              /* neutral default */
 
+  /* Opacity scale */
+  --opacity-disabled: 0.4;    /* disabled controls */
+  --opacity-muted:    0.6;    /* de-emphasized/secondary elements */
+  --opacity-hover:    0.88;   /* button hover dim */
+  --opacity-hidden:   0;      /* fully transparent (pre-transition) */
+
+  /* Z-index scale — one ladder for the whole app, no ad-hoc values */
+  --z-base:      0;      /* normal document flow */
+  --z-sticky:    50;     /* sticky headers / toolbars */
+  --z-backdrop:  100;    /* modal / overlay backdrops */
+  --z-dropdown:  200;    /* menus, popovers, select panels */
+  --z-toast:     1000;   /* transient notifications */
+  --z-dialog:    1100;   /* confirm / prompt dialogs (above toast) */
+  --z-skiplink:  9999;   /* skip-to-content (always on top when focused) */
+
+  /* Breakpoints — reference values (used in @media; CSS can't tokenise those
+     directly, so keep them here as the single documented source of truth) */
+  --bp-sm:  480px;    /* phone landscape */
+  --bp-md:  768px;    /* tablet — collapse split/two-column layouts */
+  --bp-lg:  1024px;   /* small laptop */
+  --bp-xl:  1200px;   /* enable master-detail split view */
+
   /* Page widths */
   --page-width:   740px;
   --page-wide:    960px;
@@ -138,7 +160,7 @@ body {
 }
 .btn:hover    { opacity: 0.88; }
 .btn:active   { transform: translateY(1px); }
-.btn:disabled { opacity: 0.38; cursor: not-allowed; }
+.btn:disabled { opacity: var(--opacity-disabled); cursor: not-allowed; }
 
 .btn-primary        { background: var(--blue);      color: #fff; }
 .btn-success        { background: #16a34a;           color: #fff; }
@@ -255,7 +277,7 @@ a.btn { text-decoration: none; }
   pointer-events: none;
   opacity: 0;
   transition: opacity var(--dur-base) var(--ease-out), transform var(--dur-base) var(--ease-out);
-  z-index: 1000;
+  z-index: var(--z-toast);
   white-space: nowrap;
   box-shadow: var(--shadow-lg);
 }
@@ -561,7 +583,7 @@ a.btn { text-decoration: none; }
 @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
 /* ── Modal ────────────────────────────────────────────────────────────────── */
-.modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 100; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+.modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: var(--z-backdrop); align-items: center; justify-content: center; backdrop-filter: blur(2px); }
 .modal-backdrop.open { display: flex; }
 .modal { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-xl); width: 740px; max-width: 95vw; max-height: 88vh; display: flex; flex-direction: column; box-shadow: var(--shadow-lg); }
 .modal-header { padding: 20px var(--space-6) 16px; border-bottom: 1px solid var(--border-faint); display: flex; align-items: center; justify-content: space-between; }
@@ -589,7 +611,7 @@ a.btn { text-decoration: none; }
 
 /* ── Confirm dialog ───────────────────────────────────────────────────────── */
 .confirm-backdrop {
-  position: fixed; inset: 0; z-index: 1100;
+  position: fixed; inset: 0; z-index: var(--z-dialog);
   background: rgba(0,0,0,0.65); backdrop-filter: blur(2px);
   display: flex; align-items: center; justify-content: center;
   opacity: 0; transition: opacity var(--dur-base) var(--ease-out);
@@ -616,3 +638,83 @@ a.btn { text-decoration: none; }
   .modal-close, .btn-icon { width: 44px; height: 44px; }
   .btn-sm { min-height: 40px; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   AI-SKILL COMPONENT LAYER
+   Reusable building blocks so every future AI feature (interview prep, ATS
+   report, career roadmap, company insights…) inherits the same look with zero
+   bespoke CSS. Compose these; don't restyle per-skill.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Skill page shell — centered column, consistent rhythm */
+.skill-page { max-width: var(--page-width); margin: 0 auto; padding: var(--space-8) var(--space-6); }
+.skill-page.wide { max-width: var(--page-wide); }
+.skill-header { display: flex; align-items: flex-start; gap: var(--space-3); margin-bottom: var(--space-6); }
+.skill-header-icon { width: 40px; height: 40px; border-radius: var(--radius-md); background: var(--blue-dim); color: var(--blue-light); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.skill-header-text h1 { font-size: var(--text-2xl); font-weight: 800; color: var(--text-white); line-height: var(--leading-tight); }
+.skill-header-text p  { font-size: var(--text-base); color: var(--text-muted); margin-top: 4px; line-height: var(--leading-normal); }
+.skill-body { display: flex; flex-direction: column; gap: var(--space-4); }
+
+/* AI analysis card — a titled result block with an "AI" provenance marker */
+.ai-card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+.ai-card-head { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border-faint); }
+.ai-card-head h3 { font-size: var(--text-md); font-weight: 600; color: var(--text); flex: 1; }
+.ai-badge { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-xs); font-weight: 700; color: var(--blue-light); background: var(--blue-dim); border-radius: var(--radius-full); padding: 2px 9px; letter-spacing: 0.02em; }
+.ai-card-body { padding: var(--space-5); font-size: var(--text-base); color: var(--text-soft); line-height: var(--leading-relaxed); }
+.ai-card-body > * + * { margin-top: var(--space-3); }
+
+/* Streaming response — AI text arriving token-by-token, with a blinking caret */
+.ai-stream { font-size: var(--text-base); color: var(--text); line-height: var(--leading-relaxed); white-space: pre-wrap; }
+.ai-stream.streaming::after { content: "▋"; color: var(--blue-light); animation: ai-caret 1s steps(2) infinite; margin-left: 1px; }
+@keyframes ai-caret { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+
+/* Long-running task — determinate/indeterminate progress with a stage label */
+.ai-task { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-5); }
+.ai-task-row { display: flex; align-items: center; gap: var(--space-3); }
+.ai-task-label { font-size: var(--text-sm); color: var(--text-soft); flex: 1; }
+.ai-progress { height: 6px; border-radius: var(--radius-full); background: var(--bg-raised); overflow: hidden; }
+.ai-progress-bar { height: 100%; background: var(--blue); border-radius: var(--radius-full); transition: width var(--dur-slow) var(--ease-out); }
+.ai-progress.indeterminate .ai-progress-bar { width: 40%; animation: ai-indeterminate 1.4s var(--ease-in-out) infinite; }
+@keyframes ai-indeterminate { 0% { margin-left: -40%; } 100% { margin-left: 100%; } }
+
+/* Report — structured, sectioned AI output (ATS report, company insights) */
+.report-section { padding: var(--space-5) 0; border-bottom: 1px solid var(--border-faint); }
+.report-section:last-child { border-bottom: none; }
+.report-section-title { font-size: var(--text-sm); font-weight: 700; color: var(--blue-light); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: var(--space-3); }
+
+/* Score meter — an at-a-glance metric (ATS match %, readiness, etc.) */
+.score-meter { display: flex; align-items: center; gap: var(--space-3); }
+.score-value { font-size: var(--text-2xl); font-weight: 800; line-height: 1; }
+.score-value.good { color: var(--green); }
+.score-value.mid  { color: var(--yellow); }
+.score-value.low  { color: var(--red); }
+.score-track { flex: 1; height: 8px; border-radius: var(--radius-full); background: var(--bg-raised); overflow: hidden; }
+.score-fill { height: 100%; border-radius: var(--radius-full); transition: width var(--dur-slow) var(--ease-out); }
+.score-fill.good { background: var(--green); }
+.score-fill.mid  { background: var(--yellow); }
+.score-fill.low  { background: var(--red); }
+
+/* Recommendation list — actionable AI suggestions with priority accents */
+.rec-list { display: flex; flex-direction: column; gap: var(--space-2); }
+.rec-item { display: flex; gap: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--bg-sunken); border: 1px solid var(--border-faint); border-left: 3px solid var(--border); border-radius: var(--radius); }
+.rec-item.high { border-left-color: var(--red); }
+.rec-item.med  { border-left-color: var(--yellow); }
+.rec-item.low  { border-left-color: var(--blue); }
+.rec-item-body { font-size: var(--text-base); color: var(--text-soft); line-height: var(--leading-normal); }
+.rec-item-body strong { color: var(--text); font-weight: 600; }
+
+/* Roadmap / stepped guidance — reuses timeline visuals from job detail */
+.roadmap { display: flex; flex-direction: column; }
+.roadmap-step { display: flex; gap: var(--space-3); padding-bottom: var(--space-4); position: relative; }
+.roadmap-step:not(:last-child)::after { content: ''; position: absolute; left: 11px; top: 26px; bottom: 0; width: 2px; background: var(--border-faint); }
+.roadmap-num { width: 24px; height: 24px; border-radius: 50%; background: var(--blue-dim); color: var(--blue-light); font-size: var(--text-xs); font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; z-index: var(--z-base); }
+.roadmap-num.done { background: var(--green-bg); color: var(--green); }
+.roadmap-step-title { font-size: var(--text-base); font-weight: 600; color: var(--text); }
+.roadmap-step-desc  { font-size: var(--text-sm); color: var(--text-muted); margin-top: 2px; line-height: var(--leading-normal); }
+
+/* AI content skeleton — for pending analysis, matches ai-card-body rhythm */
+.ai-skeleton { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-5); }
+.ai-skeleton .skeleton { height: 12px; border-radius: var(--radius-sm); }
+.ai-skeleton .skeleton:nth-child(1) { width: 90%; }
+.ai-skeleton .skeleton:nth-child(2) { width: 100%; }
+.ai-skeleton .skeleton:nth-child(3) { width: 75%; }

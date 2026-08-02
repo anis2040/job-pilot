@@ -82,6 +82,89 @@ hover feedback; `var(--dur-base) var(--ease-out)` for things that appear.
 All motion is disabled automatically under `@media (prefers-reduced-motion:
 reduce)` — you don't need to handle that per-component.
 
+## Opacity
+
+`--opacity-disabled` 0.4 · `--opacity-muted` 0.6 · `--opacity-hover` 0.88 ·
+`--opacity-hidden` 0 (pre-transition transparent state).
+
+## Z-index
+
+One ladder for the whole app — never invent a raw z-index.
+
+| Token | Value | Layer |
+|-------|-------|-------|
+| `--z-base` | 0 | Normal flow |
+| `--z-sticky` | 50 | Sticky headers / toolbars |
+| `--z-backdrop` | 100 | Modal / overlay backdrops |
+| `--z-dropdown` | 200 | Menus, popovers, select panels |
+| `--z-toast` | 1000 | Transient notifications |
+| `--z-dialog` | 1100 | Confirm / prompt dialogs (above toasts) |
+| `--z-skiplink` | 9999 | Skip-to-content (top when focused) |
+
+## Breakpoints
+
+`@media` can't read custom properties, so these live in `:root` as the
+documented source of truth — match them exactly when writing queries.
+
+`--bp-sm` 480 · `--bp-md` 768 (collapse split/two-column layouts) ·
+`--bp-lg` 1024 · `--bp-xl` 1200 (master-detail split view enables).
+
+---
+
+## Components
+
+Compose these; don't restyle per-screen. All defined in `base.css`.
+
+**Buttons** — `.btn` + one variant (`.btn-primary`, `.btn-success`,
+`.btn-danger`, `.btn-ghost`, `.btn-danger-outline`) + optional size
+(`.btn-sm` 34px, default 36px, `.btn-lg` 42px, `.btn-xl` 48px). `.btn-icon`
+for 32px icon-only (44px on mobile). Hover dims to `--opacity-hover`, press
+nudges 1px down, focus shows the global ring. Loading = swap label for
+`<span class="spinner">` + disable.
+
+**Cards** — `.card` (surface + border + `--radius-lg`), `.card-header`
+(title + optional subtitle), `.card-body` (`--space-5` padding). Hover
+elevation via `--shadow` where interactive.
+
+**Badges / chips** — `.badge-*` (status: pending/applied/skipped, free/paid,
+active/none). `.filter-chip` for toggleable filters (`aria-pressed`), `.tag`
+for removable tokens, `.skill-tag` for read-only labels.
+
+**Forms** — `.field` (label + input), `.field-row.cols-2/3` for grids,
+`.tag-input-wrap`/`.tag` for multi-value, `.dynamic-row` for repeatable rows.
+Focus = blue border. Inputs are 9px 12px padding, `--radius`. Validation errors
+use `.alert-error`; success uses `.save-notice` or a toast.
+
+**Feedback** — `.empty-state` (icon + title + desc + CTA), `.skeleton`
+(shimmer placeholder), `.alert`/`.alert-error`/`.alert-ok`, and the JS
+`showToast()` for transient status. Dialogs: `confirmDialog()` / `promptDialog()`
+(never native `confirm`/`prompt`/`alert`).
+
+**Lists & tables** — job rows use a two-column grid (identity left, meta +
+actions right) with `--bg-hover` on hover and a `--blue` inset bar when selected.
+Reuse this row rhythm for any future list (application history, analytics rows).
+
+## AI experience patterns
+
+Every AI Skill inherits these — adding a skill should need **no new CSS**:
+
+| Class | Use |
+|-------|-----|
+| `.skill-page` / `.skill-header` / `.skill-body` | Page shell for any AI feature (icon + title + subtitle, consistent column width & rhythm) |
+| `.ai-card` + `.ai-badge` | A titled AI result block that visibly marks AI-generated content |
+| `.ai-stream.streaming` | Token-by-token streaming text with a blinking caret |
+| `.ai-task` + `.ai-progress` | Long-running task with a stage label and determinate/indeterminate bar |
+| `.report-section` | Sectioned structured output (ATS report, company insights) |
+| `.score-meter` (`.good`/`.mid`/`.low`) | At-a-glance metric (match %, readiness) |
+| `.rec-list` / `.rec-item` (`.high`/`.med`/`.low`) | Prioritized actionable recommendations |
+| `.roadmap` / `.roadmap-step` | Stepped guidance / learning path |
+| `.ai-skeleton` | Loading placeholder while an analysis is pending |
+
+**Streaming rule:** show `.ai-skeleton` before the first token, switch to
+`.ai-stream.streaming` while tokens arrive, drop the `streaming` class when done.
+**Always mark AI content** with `.ai-badge` so users can distinguish it from
+their own data.
+
 ## Adding a new feature
 
 1. Compose from existing tokens — check this doc first.
