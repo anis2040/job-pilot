@@ -4,18 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{{ profile.name }} — Profile Settings</title>
+<link rel="stylesheet" href="/static/base.css">
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  button { -webkit-appearance: none; appearance: none; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
-
   /* Top bar */
   .topbar { border-bottom: 1px solid #1e2333; padding: 14px 32px; display: flex; align-items: center; gap: 14px; }
   .topbar-back { color: #64748b; text-decoration: none; font-size: 0.82rem; display: flex; align-items: center; gap: 6px; }
   .topbar-back:hover { color: #e2e8f0; }
   .topbar-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; color: #fff; flex-shrink: 0; }
   .topbar-name { font-weight: 700; color: #fff; font-size: 0.95rem; }
-  .topbar-badge { background: #14532d; color: #4ade80; font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 99px; }
 
   /* Layout */
   .layout { display: flex; max-width: 960px; margin: 0 auto; padding: 32px 24px; gap: 40px; }
@@ -42,87 +38,13 @@
   .settings-card-header { padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; }
   .settings-card-header h3 { font-size: 0.9rem; font-weight: 600; color: #e2e8f0; }
   .settings-card-header p { font-size: 0.78rem; color: #64748b; margin-top: 2px; }
-  .settings-card-body { padding: 0 20px 20px; border-top: 1px solid #1e2333; padding-top: 20px; }
+  .settings-card-body { padding: 20px; border-top: 1px solid #1e2333; }
   .settings-card-body.hidden { display: none; }
-
-  /* Form fields */
-  .field { margin-bottom: 14px; }
-  .field label { display: block; font-size: 0.78rem; font-weight: 600; color: #94a3b8; margin-bottom: 5px; }
-  .field input, .field select, .field textarea { width: 100%; background: #0f1117; border: 1px solid #2d3748; border-radius: 6px; color: #e2e8f0; padding: 8px 11px; font-size: 0.82rem; font-family: inherit; outline: none; }
-  .field input:focus, .field select:focus, .field textarea:focus { border-color: #3b82f6; }
-  .field textarea { resize: vertical; min-height: 240px; font-family: "SF Mono", "Fira Code", monospace; font-size: 0.75rem; line-height: 1.5; }
-  .field-row { display: grid; gap: 12px; margin-bottom: 14px; }
-  .field-row.cols-2 { grid-template-columns: 1fr 1fr; }
-  .field-row.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
-
-  /* Search rows */
-  .search-row { background: #0f1117; border: 1px solid #2d3748; border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; }
-  .search-row-fields { display: grid; grid-template-columns: 1fr 1fr 60px 28px; gap: 6px; align-items: center; margin-bottom: 8px; }
-  .search-row-fields input { background: #1a1f2e; border: 1px solid #2d3748; border-radius: 5px; color: #e2e8f0; padding: 5px 8px; font-size: 0.78rem; width: 100%; outline: none; }
-  .search-row-fields input:focus { border-color: #3b82f6; }
-  .search-sources { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-  .source-cb { display: flex; align-items: center; gap: 4px; font-size: 0.72rem; color: #94a3b8; cursor: pointer; padding: 3px 8px; border-radius: 99px; border: 1px solid #2d3748; transition: all .1s; user-select: none; }
-  .source-cb:hover { border-color: #3b82f6; color: #e2e8f0; }
-  .source-cb input[type=checkbox] { accent-color: #3b82f6; width: 12px; height: 12px; }
-  .source-cb.checked { background: #1e2a3a; border-color: #3b82f6; color: #60a5fa; }
-  .source-all-btn { font-size: 0.7rem; color: #60a5fa; background: none; border: none; cursor: pointer; padding: 3px 6px; margin-left: 4px; }
-  .source-all-btn:hover { text-decoration: underline; }
-  .toggle-remote { display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 0.72rem; cursor: pointer; }
-  .toggle-remote input { accent-color: #3b82f6; width: 14px; height: 14px; }
-  .btn-add-row { background: none; border: 1px dashed #2d3748; color: #60a5fa; border-radius: 5px; padding: 5px 12px; font-size: 0.76rem; cursor: pointer; width: 100%; margin-top: 4px; }
-  .btn-add-row:hover { border-color: #3b82f6; background: #1e2333; }
-
-  /* Tag inputs */
-  .tag-wrap { display: flex; flex-wrap: wrap; gap: 5px; background: #0f1117; border: 1px solid #2d3748; border-radius: 6px; padding: 6px 8px; min-height: 38px; cursor: text; }
-  .tag-wrap:focus-within { border-color: #3b82f6; }
-  .tag { display: inline-flex; align-items: center; gap: 4px; background: #1e2333; border-radius: 99px; padding: 2px 8px 2px 10px; font-size: 0.75rem; color: #e2e8f0; }
-  .tag button { background: none; border: none; color: #64748b; cursor: pointer; font-size: 0.75rem; padding: 0; }
-  .tag button:hover { color: #f87171; }
-  .tag-input { background: none; border: none; outline: none; color: #e2e8f0; font-size: 0.78rem; min-width: 100px; flex: 1; padding: 1px 0; }
-
-  /* Buttons */
-  .btn { padding: 8px 16px; border-radius: 6px; font-size: 0.82rem; font-weight: 600; border: none; cursor: pointer; transition: opacity .15s; }
-  .btn:hover { opacity: 0.85; }
-  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-  .btn-primary { background: #3b82f6; color: #fff; }
-  .btn-ghost { background: #1e2333; color: #94a3b8; }
-  .btn-danger-outline { background: none; border: 1px solid #7f1d1d; color: #f87171; }
-  .btn-danger-outline:hover { background: #2d1b1b; }
-  .btn-icon { background: none; border: none; color: #475569; cursor: pointer; font-size: 0.85rem; padding: 0; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
-  .btn-icon:hover { color: #f87171; }
-  .btn-sm { padding: 5px 10px; font-size: 0.76rem; }
-  .save-row { display: flex; align-items: center; gap: 10px; margin-top: 16px; }
-  .save-notice { font-size: 0.76rem; color: #4ade80; }
 
   /* Danger zone */
   .danger-card { background: #1a1f2e; border: 1px solid #7f1d1d; border-radius: 10px; padding: 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
   .danger-card .info h4 { font-size: 0.9rem; font-weight: 600; color: #e2e8f0; margin-bottom: 3px; }
   .danger-card .info p { font-size: 0.78rem; color: #64748b; }
-
-  /* Alert */
-  .alert { padding: 10px 14px; border-radius: 6px; font-size: 0.8rem; margin-top: 10px; }
-  .alert-error { background: #2d1b1b; color: #f87171; border: 1px solid #7f1d1d; }
-  .alert-ok { background: #14532d; color: #4ade80; border: 1px solid #166534; }
-
-  .autofill-bar { display: flex; align-items: center; gap: 12px; background: #0f1117; border: 1px dashed #2d3748; border-radius: 8px; padding: 10px 14px; margin-bottom: 20px; }
-  .autofill-label { display: flex; align-items: center; gap: 10px; cursor: pointer; }
-  .autofill-label span:first-child { font-size: 0.82rem; color: #94a3b8; }
-  .autofill-label input[type=file] { display: none; }
-  .autofill-btn { background: #1e2333; border: 1px solid #2d3748; border-radius: 5px; color: #60a5fa; padding: 4px 12px; font-size: 0.76rem; font-weight: 600; cursor: pointer; }
-  #autofill-status { font-size: 0.76rem; color: #64748b; }
-  .profile-section { border-bottom: 1px solid #1e2333; padding-bottom: 20px; margin-bottom: 20px; }
-  .profile-section:last-of-type { border-bottom: none; }
-  .profile-section h3 { font-size: 0.78rem; font-weight: 700; color: #60a5fa; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 14px; }
-  .dynamic-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
-  .dynamic-row { display: flex; gap: 6px; align-items: center; }
-  .dynamic-row input, .dynamic-row textarea { flex: 1; background: #0f1117; border: 1px solid #2d3748; border-radius: 5px; color: #e2e8f0; padding: 6px 10px; font-size: 0.8rem; font-family: inherit; outline: none; }
-  .dynamic-row input:focus { border-color: #3b82f6; }
-  .exp-block { background: #0f1117; border: 1px solid #2d3748; border-radius: 8px; padding: 14px; margin-bottom: 10px; }
-  .exp-block-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-  .exp-block-header span { font-size: 0.75rem; font-weight: 700; color: #475569; text-transform: uppercase; }
-  .sublabel { font-size: 0.72rem; font-weight: 600; color: #475569; margin: 10px 0 5px; }
-  .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-right: 4px; }
-  @keyframes spin { to { transform: rotate(360deg); } }
 
   @media (max-width: 640px) {
     .layout { flex-direction: column; gap: 24px; }
@@ -139,7 +61,7 @@
   <a href="/manage-profiles" class="topbar-back">← Profiles</a>
   <div class="topbar-avatar" style="background:{{ profile.color }}">{{ profile.initials }}</div>
   <span class="topbar-name">{{ profile.name }}</span>
-  {% if profile.slug == active_slug %}<span class="topbar-badge">Active</span>{% endif %}
+  {% if profile.slug == active_slug %}<span class="badge-active">Active</span>{% endif %}
 </div>
 
 <div class="layout">
@@ -408,3 +330,5 @@ async function clearJobs() {
 loadProfileForm();
 loadSearchSettings();
 </script>
+<div class="toast" id="toast"></div>
+<script src="/static/ui.js"></script>

@@ -4,10 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Job Scraper — Setup</title>
+<link rel="stylesheet" href="/static/base.css">
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  button { -webkit-appearance: none; appearance: none; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; padding: 32px 16px; }
+  body { padding: 32px 16px; }
 
   .wizard { width: 640px; max-width: 100%; margin: 0 auto; }
 
@@ -25,7 +24,6 @@
 
   .card { background: #1a1f2e; border: 1px solid #2d3748; border-radius: 12px; padding: 24px 28px; }
   .card h2 { font-size: 1.1rem; font-weight: 700; color: #fff; margin-bottom: 6px; }
-  .card .subtitle { font-size: 0.84rem; color: #64748b; margin-bottom: 16px; line-height: 1.5; }
   .card .subtitle { font-size: 0.84rem; color: #64748b; margin-bottom: 16px; line-height: 1.5; }
 
   .check-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #1e2333; }
@@ -45,8 +43,8 @@
   .provider-card.selected { border-color: #3b82f6; background: #1e2a3a; }
   .provider-card h3 { font-size: 0.9rem; font-weight: 700; color: #fff; margin-bottom: 4px; }
   .provider-card p { font-size: 0.76rem; color: #64748b; line-height: 1.4; }
-  .provider-card .badge-free { position: absolute; top: 10px; right: 10px; background: #14532d; color: #4ade80; font-size: 0.65rem; font-weight: 700; padding: 2px 7px; border-radius: 99px; }
-  .provider-card .badge-login { position: absolute; top: 10px; right: 10px; background: #1e3a5f; color: #60a5fa; font-size: 0.65rem; font-weight: 700; padding: 2px 7px; border-radius: 99px; }
+  .provider-card .badge-free { position: absolute; top: 10px; right: 10px; }
+  .provider-card .badge-login { position: absolute; top: 10px; right: 10px; }
 
   .input-group { margin-bottom: 16px; }
   .input-group label { display: block; font-size: 0.78rem; font-weight: 600; color: #94a3b8; margin-bottom: 6px; }
@@ -62,62 +60,17 @@
   .install-block code { display: block; background: #1a1f2e; border-radius: 4px; padding: 8px 10px; font-size: 0.76rem; color: #a78bfa; font-family: "SF Mono", monospace; margin-bottom: 8px; white-space: pre-wrap; word-break: break-all; }
   .install-log { font-size: 0.72rem; color: #64748b; font-family: monospace; max-height: 100px; overflow-y: auto; margin-top: 6px; white-space: pre-wrap; display: none; }
 
-  .btn { padding: 9px 20px; border-radius: 6px; font-size: 0.84rem; font-weight: 600; border: none; cursor: pointer; transition: opacity .15s; }
-  .btn:hover { opacity: 0.85; }
-  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-  .btn-primary { background: #3b82f6; color: #fff; }
-  .btn-ghost { background: #1e2333; color: #94a3b8; }
-  .btn-success { background: #16a34a; color: #fff; }
+  /* Wizard uses slightly larger buttons */
+  .btn { padding: 9px 20px; font-size: 0.84rem; }
   .btn-sm { padding: 5px 12px; font-size: 0.76rem; }
 
   .footer-nav { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; }
   .footer-nav .step-hint { font-size: 0.76rem; color: #475569; }
 
-  .alert { padding: 10px 14px; border-radius: 6px; font-size: 0.8rem; margin-top: 10px; }
-  .alert-error { background: #2d1b1b; color: #f87171; border: 1px solid #7f1d1d; }
-  .alert-ok { background: #14532d; color: #4ade80; border: 1px solid #166534; }
-
   .success-icon { font-size: 3rem; text-align: center; margin-bottom: 16px; }
   .success-features { list-style: none; margin: 16px 0; }
   .success-features li { padding: 6px 0; font-size: 0.84rem; color: #94a3b8; }
   .success-features li::before { content: "✓ "; color: #4ade80; font-weight: 700; }
-
-  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-right: 6px; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  .profile-section { border-bottom: 1px solid #1e2333; padding-bottom: 20px; margin-bottom: 20px; }
-  .profile-section:last-child { border-bottom: none; margin-bottom: 0; }
-  .profile-section h3 { font-size: 0.8rem; font-weight: 700; color: #60a5fa; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 14px; }
-  .field-row { display: grid; gap: 10px; margin-bottom: 10px; }
-  .field-row.cols-2 { grid-template-columns: 1fr 1fr; }
-  .field-row.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
-  .field { display: flex; flex-direction: column; gap: 4px; }
-  .field label { font-size: 0.72rem; font-weight: 600; color: #64748b; }
-  .field input, .field select, .field textarea { background: #0f1117; border: 1px solid #2d3748; border-radius: 5px; color: #e2e8f0; padding: 7px 10px; font-size: 0.82rem; font-family: inherit; outline: none; }
-  .field input:focus, .field select:focus, .field textarea:focus { border-color: #3b82f6; }
-  .field select option { background: #1a1f2e; }
-  .field textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
-  .dynamic-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
-  .dynamic-row { display: flex; gap: 6px; align-items: center; }
-  .dynamic-row input, .dynamic-row textarea { flex: 1; background: #0f1117; border: 1px solid #2d3748; border-radius: 5px; color: #e2e8f0; padding: 6px 10px; font-size: 0.8rem; font-family: inherit; outline: none; }
-  .dynamic-row input:focus, .dynamic-row textarea:focus { border-color: #3b82f6; }
-  .dynamic-row .btn-icon { flex-shrink: 0; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; }
-  .btn-add-row { background: none; border: 1px dashed #2d3748; color: #60a5fa; border-radius: 5px; padding: 4px 12px; font-size: 0.75rem; cursor: pointer; width: 100%; }
-  .btn-add-row:hover { border-color: #3b82f6; background: #1e2333; }
-  .exp-block { background: #0f1117; border: 1px solid #2d3748; border-radius: 8px; padding: 14px; margin-bottom: 10px; }
-  .exp-block-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-  .exp-block-header span { font-size: 0.75rem; font-weight: 700; color: #475569; text-transform: uppercase; }
-  .sublabel { font-size: 0.72rem; font-weight: 600; color: #475569; margin: 10px 0 5px; }
-  .btn-icon { background: none; border: none; -webkit-appearance: none; appearance: none; color: #475569; cursor: pointer; font-size: 0.9rem; padding: 0; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
-  .btn-icon:hover { color: #f87171; }
-
-  .autofill-bar { display: flex; align-items: center; gap: 12px; background: #0f1117; border: 1px dashed #2d3748; border-radius: 8px; padding: 10px 14px; margin-bottom: 20px; }
-  .autofill-label { display: flex; align-items: center; gap: 10px; cursor: pointer; }
-  .autofill-label span:first-child { font-size: 0.82rem; color: #94a3b8; }
-  .autofill-label input[type=file] { display: none; }
-  .autofill-btn { background: #1e2333; border: 1px solid #2d3748; border-radius: 5px; color: #60a5fa; padding: 4px 12px; font-size: 0.76rem; font-weight: 600; cursor: pointer; transition: background .15s; }
-  .autofill-btn:hover { background: #2d3748; }
-  #autofill-status { font-size: 0.76rem; color: #64748b; }
 </style>
 </head>
 <body>

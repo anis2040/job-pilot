@@ -4,10 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Job Scraper — Manage Profiles</title>
+<link rel="stylesheet" href="/static/base.css">
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  button { -webkit-appearance: none; appearance: none; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; padding: 32px 16px; }
+  body { padding: 32px 16px; }
   .wrap { width: 600px; max-width: 100%; margin: 0 auto; }
   .header { margin-bottom: 24px; }
   .header h1 { font-size: 1.3rem; font-weight: 800; color: #fff; margin-bottom: 4px; }
@@ -19,16 +18,10 @@
   .info { flex: 1; min-width: 0; }
   .info .name { font-weight: 600; color: #e2e8f0; font-size: 0.9rem; }
   .info .path { font-size: 0.72rem; color: #475569; margin-top: 1px; }
-  .badge-active { background: #14532d; color: #4ade80; font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
-  .btn { padding: 5px 12px; border-radius: 5px; font-size: 0.76rem; font-weight: 600; border: none; cursor: pointer; transition: opacity .15s; }
-  .btn:hover { opacity: 0.85; }
-  .btn:disabled { opacity: 0.35; cursor: not-allowed; }
-  .btn-ghost { background: #1e2333; color: #94a3b8; }
-  .btn-primary { background: #3b82f6; color: #fff; }
-  .btn-danger { background: none; border: 1px solid #7f1d1d; color: #f87171; }
-  .btn-danger:hover { background: #2d1b1b; }
+  /* Danger delete button — local variant without full .btn-danger bg */
+  .btn-delete { background: none; border: 1px solid #7f1d1d; color: #f87171; }
+  .btn-delete:hover { background: #2d1b1b; }
   .footer { margin-top: 20px; display: flex; gap: 10px; }
-  a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 </style>
 </head>
 <body>
@@ -74,8 +67,8 @@ async function load() {
         <div class="name">${escapeHtml(p.name)}</div>
         <div class="path">profiles/${escapeHtml(p.slug)}/</div>
       </div>
-      ${p.slug === active_slug ? '<span class="badge-active">Active</span>' : `<button class="btn btn-ghost" onclick="event.stopPropagation();switchTo('${p.slug}')">Switch</button>`}
-      <button class="btn btn-danger" data-slug="${escapeHtml(p.slug)}" data-name="${escapeHtml(p.name)}" onclick="event.stopPropagation();del(this.dataset.slug, this.dataset.name)" ${p.slug === active_slug ? 'disabled title="Switch away before deleting"' : ''}>Delete</button>
+      ${p.slug === active_slug ? '<span class="badge-active">Active</span>' : `<button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();switchTo('${p.slug}')">Switch</button>`}
+      <button class="btn btn-sm btn-delete" data-slug="${escapeHtml(p.slug)}" data-name="${escapeHtml(p.name)}" onclick="event.stopPropagation();del(this.dataset.slug, this.dataset.name)" ${p.slug === active_slug ? 'disabled title="Switch away before deleting"' : ''}>Delete</button>
     </div>`).join("");
 }
 

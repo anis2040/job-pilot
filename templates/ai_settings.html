@@ -4,10 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AI Settings — Job Scraper</title>
+<link rel="stylesheet" href="/static/base.css">
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
-
   header { padding: 16px 32px; border-bottom: 1px solid #1e2333; display: flex; align-items: center; gap: 16px; }
   header a { color: #60a5fa; text-decoration: none; font-size: 0.82rem; }
   header a:hover { text-decoration: underline; }
@@ -19,15 +17,11 @@
   .page-header h2 { font-size: 1.3rem; font-weight: 800; color: #fff; margin-bottom: 4px; }
   .page-header p { font-size: 0.84rem; color: #64748b; }
 
-  /* Active banner */
   .active-banner { display: flex; align-items: center; gap: 10px; background: #1a1f2e; border: 1px solid #2d3748; border-radius: 8px; padding: 12px 16px; margin-bottom: 24px; font-size: 0.84rem; flex-wrap: wrap; }
   .active-banner .label { color: #64748b; }
   .active-banner .provider-name { color: #e2e8f0; font-weight: 600; }
   .active-banner .model-name { color: #94a3b8; font-size: 0.78rem; }
-  .badge-active { background: #14532d; color: #4ade80; font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 99px; }
-  .badge-none   { background: #2d1b1b; color: #f87171; font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 99px; }
 
-  /* Provider cards */
   .provider-card { background: #1a1f2e; border: 2px solid #2d3748; border-radius: 10px; margin-bottom: 16px; overflow: hidden; transition: border-color .15s; }
   .provider-card.is-preferred { border-color: #3b82f6; }
 
@@ -37,24 +31,16 @@
   .card-header h3 { font-size: 0.95rem; font-weight: 700; color: #fff; }
   .card-header .sub { font-size: 0.74rem; color: #64748b; margin-top: 2px; }
 
-  /* Selection indicator — circle that becomes a checkmark */
   .select-indicator { width: 20px; height: 20px; border-radius: 50%; border: 2px solid #2d3748; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all .15s; font-size: 0.7rem; color: transparent; }
   .provider-card.is-preferred .select-indicator { border-color: #3b82f6; background: #3b82f6; color: #fff; }
   .card-header:hover .select-indicator { border-color: #60a5fa; }
-
-  .badge-free { background: #14532d; color: #4ade80; font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 99px; }
-  .badge-paid { background: #1e3a5f; color: #60a5fa; font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 99px; }
-  .badge-no-key { background: #1e2333; color: #475569; font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 99px; }
 
   .card-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; }
 
   .input-group { display: flex; flex-direction: column; gap: 5px; }
   .input-group label { font-size: 0.75rem; font-weight: 600; color: #94a3b8; }
   .input-row { display: flex; gap: 8px; align-items: center; }
-  .input-row input[type=password], .input-row input[type=text] {
-    flex: 1; background: #0f1117; border: 1px solid #2d3748; border-radius: 6px;
-    color: #e2e8f0; padding: 8px 12px; font-size: 0.84rem; outline: none; font-family: inherit;
-  }
+  .input-row input[type=password], .input-row input[type=text] { flex: 1; background: #0f1117; border: 1px solid #2d3748; border-radius: 6px; color: #e2e8f0; padding: 8px 12px; font-size: 0.84rem; outline: none; font-family: inherit; }
   .input-row input:focus { border-color: #3b82f6; }
   .hint { font-size: 0.72rem; color: #475569; }
   .hint a { color: #60a5fa; text-decoration: none; }
@@ -67,13 +53,6 @@
   .model-row select option { background: #1a1f2e; }
   .model-row select:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  .btn { padding: 7px 14px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; border: none; cursor: pointer; transition: opacity .15s; white-space: nowrap; }
-  .btn:hover { opacity: 0.85; }
-  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-  .btn-primary { background: #3b82f6; color: #fff; }
-  .btn-ghost   { background: #1e2333; color: #94a3b8; }
-  .btn-sm { padding: 5px 11px; font-size: 0.75rem; }
-
   .key-status { font-size: 0.76rem; min-height: 1em; }
   .key-status.ok  { color: #4ade80; }
   .key-status.err { color: #f87171; }
@@ -82,15 +61,6 @@
   .test-result { font-size: 0.76rem; }
   .test-result.ok  { color: #4ade80; }
   .test-result.err { color: #f87171; }
-
-  .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-right: 5px; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* Toast */
-  .toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(12px); background: #1e2a3a; border: 1px solid #3b82f6; color: #e2e8f0; padding: 10px 20px; border-radius: 8px; font-size: 0.84rem; font-weight: 600; pointer-events: none; opacity: 0; transition: opacity .2s, transform .2s; z-index: 999; white-space: nowrap; }
-  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-  .toast.ok   { border-color: #16a34a; }
-  .toast.err  { border-color: #dc2626; }
 </style>
 </head>
 <body>
@@ -213,6 +183,7 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="/static/ui.js"></script>
 <script>
 const KEY_ENDPOINTS = {
   groq:      "/api/setup/save-groq-key",
@@ -224,15 +195,6 @@ const PROVIDERS = ["groq", "anthropic", "gemini"];
 
 let preferredProvider = null;
 let providerAvailable = {};
-let toastTimer = null;
-
-function showToast(msg, type = "ok") {
-  const el = document.getElementById("toast");
-  el.textContent = msg;
-  el.className = `toast ${type} show`;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { el.classList.remove("show"); }, 2600);
-}
 
 async function load() {
   const res  = await fetch("/api/ai-settings");

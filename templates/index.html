@@ -4,19 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Job Scraper</title>
+    <link rel="stylesheet" href="/static/base.css" />
     <style>
-      * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-      }
-      body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        background: #0f1117;
-        color: #e2e8f0;
-        min-height: 100vh;
-      }
-
       header {
         padding: 20px 32px;
         border-bottom: 1px solid #1e2333;
@@ -30,27 +19,7 @@
         font-weight: 700;
         color: #fff;
       }
-      .badge {
-        padding: 3px 10px;
-        border-radius: 99px;
-        font-size: 0.75rem;
-        font-weight: 600;
-      }
-      .badge-pending {
-        background: #1e3a5f;
-        color: #60a5fa;
-      }
-      .badge-applied {
-        background: #14532d;
-        color: #4ade80;
-      }
-      .badge-skipped {
-        background: #2d1b1b;
-        color: #f87171;
-      }
-      .spacer {
-        flex: 1;
-      }
+      .spacer { flex: 1; }
 
       .toolbar {
         display: flex;
@@ -58,67 +27,23 @@
         gap: 10px;
         flex-wrap: wrap;
       }
-      .btn {
-        padding: 7px 14px;
-        border-radius: 6px;
-        font-size: 0.8rem;
-        font-weight: 600;
-        border: none;
-        cursor: pointer;
-        transition: opacity 0.15s;
-      }
-      .btn:hover {
-        opacity: 0.85;
-      }
-      .btn:disabled {
-        opacity: 0.4;
-        cursor: not-allowed;
-      }
-      .btn-primary {
-        background: #3b82f6;
-        color: #fff;
-      }
-      .btn-success {
-        background: #16a34a;
-        color: #fff;
-      }
-      .btn-danger {
-        background: #dc2626;
-        color: #fff;
-      }
-      .btn-ghost {
-        background: #1e2333;
-        color: #94a3b8;
-      }
-      .btn-sm {
-        padding: 4px 10px;
-        font-size: 0.72rem;
-      }
-      .btn-resume {
-        background: #7c3aed;
-        color: #fff;
-      }
-      .btn-resume-done {
-        background: #0f5132;
-        color: #4ade80;
-      }
-      .btn-cl {
-        background: #0369a1;
-        color: #fff;
-      }
-      .btn-cl-done {
-        background: #0f5132;
-        color: #4ade80;
+
+      /* Action buttons specific to the jobs table */
+      .btn-resume      { background: #7c3aed; color: #fff; }
+      .btn-resume-done { background: #0f5132; color: #4ade80; }
+      .btn-cl          { background: #0369a1; color: #fff; }
+      .btn-cl-done     { background: #0f5132; color: #4ade80; }
+
+      /* AI Models header button */
+      .btn-ai-models {
+        background: #312e81;
+        color: #a5b4fc;
+        border: 1px solid #4338ca;
+        text-decoration: none;
       }
 
-      .stale-warn {
-        font-size: 0.78rem;
-        color: #fbbf24;
-      }
-      .fetch-msg {
-        font-size: 0.78rem;
-        color: #94a3b8;
-      }
+      .stale-warn { font-size: 0.78rem; color: #fbbf24; }
+      .fetch-msg  { font-size: 0.78rem; color: #94a3b8; }
 
       .tabs {
         padding: 12px 32px 0;
@@ -143,7 +68,7 @@
       }
 
       .search-bar {
-        padding: 12px 32px 0;
+        padding: 12px 32px;
         display: flex;
         align-items: center;
         gap: 10px;
@@ -159,12 +84,8 @@
         font-size: 0.82rem;
         outline: none;
       }
-      .search-bar input:focus {
-        border-color: #3b82f6;
-      }
-      .search-bar input::placeholder {
-        color: #475569;
-      }
+      .search-bar input:focus { border-color: #3b82f6; }
+      .search-bar input::placeholder { color: #475569; }
 
       .table-wrap {
         overflow-x: auto;
@@ -175,6 +96,7 @@
         border-collapse: collapse;
         font-size: 0.82rem;
         margin-top: 16px;
+        table-layout: fixed;
       }
       th {
         text-align: left;
@@ -183,51 +105,43 @@
         font-weight: 700;
         border-bottom: 1px solid #1e2333;
         white-space: nowrap;
+        overflow: hidden;
       }
-      th.sortable {
-        cursor: pointer;
-        user-select: none;
-      }
-      th.sortable:hover {
-        color: #93c5fd;
-      }
-      th .sort-icon {
-        margin-left: 4px;
-        opacity: 0.4;
-        font-size: 0.65rem;
-      }
+      th.sortable { cursor: pointer; user-select: none; }
+      th.sortable:hover { color: #93c5fd; }
+      th .sort-icon { margin-left: 4px; opacity: 0.4; font-size: 0.65rem; }
       th.sort-asc .sort-icon,
-      th.sort-desc .sort-icon {
-        opacity: 1;
-        color: #fff;
-      }
+      th.sort-desc .sort-icon { opacity: 1; color: #fff; }
+
       td {
         padding: 8px 10px;
         border-bottom: 1px solid #1a1f2e;
         vertical-align: middle;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
-      tr:hover td {
-        background: #141824;
-      }
+      tr:hover td { background: #141824; }
 
-      .remote-remote {
-        color: #4ade80;
-      }
-      .remote-hybrid {
-        color: #fbbf24;
-      }
-      .remote-onsite {
-        color: #f87171;
-      }
+      /* Column widths */
+      .col-title    { width: 200px; }
+      .col-company  { width: 140px; }
+      .col-source   { width: 80px; }
+      .col-remote   { width: 80px; }
+      .col-location { width: 130px; }
+      .col-exp      { width: 65px; }
+      .col-posted   { width: 90px; }
+      .col-age      { width: 60px; }
+      .col-resume   { width: 140px; overflow: visible; white-space: normal; }
+      .col-cl       { width: 150px; overflow: visible; white-space: normal; }
+      .col-actions  { width: 130px; overflow: visible; white-space: normal; }
 
-      .title-link {
-        color: #e2e8f0;
-        text-decoration: none;
-      }
-      .title-link:hover {
-        color: #60a5fa;
-        text-decoration: underline;
-      }
+      .remote-remote { color: #4ade80; }
+      .remote-hybrid { color: #fbbf24; }
+      .remote-onsite { color: #f87171; }
+
+      .title-link { color: #e2e8f0; text-decoration: none; }
+      .title-link:hover { color: #60a5fa; text-decoration: underline; }
 
       .pdf-banner {
         display: flex;
@@ -239,14 +153,8 @@
         font-size: 0.82rem;
         color: #fde68a;
       }
-      .pdf-banner a {
-        color: #fbbf24;
-        font-weight: 600;
-        text-decoration: none;
-      }
-      .pdf-banner a:hover {
-        text-decoration: underline;
-      }
+      .pdf-banner a { color: #fbbf24; font-weight: 600; text-decoration: none; }
+      .pdf-banner a:hover { text-decoration: underline; }
       .pdf-banner-dismiss {
         margin-left: auto;
         background: none;
@@ -256,449 +164,79 @@
         font-size: 1rem;
         padding: 0;
       }
-      .empty {
-        text-align: center;
-        color: #475569;
-        padding: 48px;
-      }
+      .empty { text-align: center; color: #475569; padding: 48px; }
 
-      .spinner {
-        display: inline-block;
-        width: 12px;
-        height: 12px;
-        border: 2px solid #7c3aed;
-        border-top-color: transparent;
-        border-radius: 50%;
-        animation: spin 0.6s linear infinite;
-        vertical-align: middle;
-        margin-right: 4px;
-      }
-      @keyframes spin {
-        to {
-          transform: rotate(360deg);
-        }
-      }
+      /* Resume spinner uses purple border to match resume theme */
+      .spinner-resume { border-color: #7c3aed; border-top-color: transparent; }
+      /* Cover-letter spinner */
+      .spinner-cl { border-color: #0369a1; border-top-color: transparent; }
+      /* Fetch-progress spinner */
+      .spinner-fetch { border-color: #3b82f6; border-top-color: transparent; width: 16px; height: 16px; margin-right: 8px; }
 
-      .error-dot {
-        color: #f87171;
-        font-size: 0.7rem;
-      }
-      .actions {
-        display: flex;
-        gap: 5px;
-        flex-wrap: nowrap;
-      }
-      #fetch-progress {
-        display: none;
-      }
+      .error-dot { color: #f87171; font-size: 0.7rem; }
+      .actions { display: flex; gap: 5px; flex-wrap: nowrap; }
+      #fetch-progress { display: none; }
 
       /* Profile avatar dropdown */
-      .profile-dropdown {
-        position: relative;
-      }
-      .avatar-btn {
-        background: none;
-        border: none;
-        cursor: pointer;
-        padding: 0;
-        display: flex;
-        align-items: center;
-      }
+      .profile-dropdown { position: relative; }
+      .avatar-btn { background: none; border: none; cursor: pointer; padding: 0; display: flex; align-items: center; }
       .avatar {
-        width: 34px;
-        height: 34px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 0.78rem;
-        font-weight: 700;
-        color: #fff;
-        transition: transform 0.15s, box-shadow 0.15s;
-        flex-shrink: 0;
+        width: 34px; height: 34px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 0.78rem; font-weight: 700; color: #fff;
+        transition: transform 0.15s, box-shadow 0.15s; flex-shrink: 0;
       }
-      .avatar:hover {
-        transform: scale(1.08);
-        box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.15);
-      }
+      .avatar:hover { transform: scale(1.08); box-shadow: 0 0 0 3px rgba(255,255,255,0.15); }
       .profile-menu {
-        display: none;
-        position: absolute;
-        right: 0;
-        top: calc(100% + 8px);
-        background: #1a1f2e;
-        border: 1px solid #2d3748;
-        border-radius: 8px;
-        min-width: 210px;
-        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-        z-index: 200;
-        overflow: hidden;
+        display: none; position: absolute; right: 0; top: calc(100% + 8px);
+        background: #1a1f2e; border: 1px solid #2d3748; border-radius: 8px;
+        min-width: 210px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 200; overflow: hidden;
       }
-      .profile-menu.open {
-        display: block;
-      }
+      .profile-menu.open { display: block; }
       .profile-menu-header {
-        padding: 10px 14px 6px;
-        font-size: 0.7rem;
-        font-weight: 700;
-        color: #475569;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
+        padding: 10px 14px 6px; font-size: 0.7rem; font-weight: 700;
+        color: #475569; text-transform: uppercase; letter-spacing: 0.06em;
       }
       .profile-menu-item {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 9px 14px;
-        color: #e2e8f0;
-        text-decoration: none;
-        font-size: 0.82rem;
-        cursor: pointer;
-        transition: background 0.1s;
-        border: none;
-        background: none;
-        width: 100%;
-        text-align: left;
+        display: flex; align-items: center; gap: 10px; padding: 9px 14px;
+        color: #e2e8f0; text-decoration: none; font-size: 0.82rem; cursor: pointer;
+        transition: background 0.1s; border: none; background: none; width: 100%; text-align: left;
       }
-      .profile-menu-item:hover {
-        background: #2d3748;
-      }
-      .profile-menu-item.active-profile {
-        background: #1e2a3a;
-      }
+      .profile-menu-item:hover { background: #2d3748; }
+      .profile-menu-item.active-profile { background: #1e2a3a; }
       .mini-avatar {
-        width: 26px;
-        height: 26px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 0.65rem;
-        font-weight: 700;
-        color: #fff;
-        flex-shrink: 0;
+        width: 26px; height: 26px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 0.65rem; font-weight: 700; color: #fff; flex-shrink: 0;
       }
-      .profile-check {
-        color: #4ade80;
-        margin-left: auto;
-        font-size: 0.85rem;
-      }
-      .profile-menu-divider {
-        height: 1px;
-        background: #2d3748;
-        margin: 4px 0;
-      }
+      .profile-check { color: #4ade80; margin-left: auto; font-size: 0.85rem; }
+      .profile-menu-divider { height: 1px; background: #2d3748; margin: 4px 0; }
 
       /* Settings modal */
       .modal-backdrop {
-        display: none;
-        position: fixed;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.6);
-        z-index: 100;
-        align-items: center;
-        justify-content: center;
+        display: none; position: fixed; inset: 0;
+        background: rgba(0,0,0,0.6); z-index: 100;
+        align-items: center; justify-content: center;
       }
-      .modal-backdrop.open {
-        display: flex;
-      }
+      .modal-backdrop.open { display: flex; }
       .modal {
-        background: #1a1f2e;
-        border: 1px solid #2d3748;
-        border-radius: 10px;
-        width: 720px;
-        max-width: 95vw;
-        max-height: 88vh;
-        display: flex;
-        flex-direction: column;
+        background: #1a1f2e; border: 1px solid #2d3748; border-radius: 10px;
+        width: 720px; max-width: 95vw; max-height: 88vh;
+        display: flex; flex-direction: column;
       }
       .modal-header {
-        padding: 18px 24px 14px;
-        border-bottom: 1px solid #2d3748;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
+        padding: 18px 24px 14px; border-bottom: 1px solid #2d3748;
+        display: flex; align-items: center; justify-content: space-between;
       }
-      .modal-header h2 {
-        font-size: 1rem;
-        font-weight: 700;
-        color: #fff;
-      }
-      .modal-close {
-        background: none;
-        border: none;
-        color: #64748b;
-        font-size: 1.3rem;
-        cursor: pointer;
-        line-height: 1;
-      }
-      .modal-close:hover {
-        color: #e2e8f0;
-      }
-      .modal-body {
-        padding: 20px 24px;
-        overflow-y: auto;
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        gap: 24px;
-      }
-      .modal-footer {
-        padding: 14px 24px;
-        border-top: 1px solid #2d3748;
-        display: flex;
-        justify-content: flex-end;
-        gap: 10px;
-      }
+      .modal-header h2 { font-size: 1rem; font-weight: 700; color: #fff; }
+      .modal-close { background: none; border: none; color: #64748b; font-size: 1.3rem; cursor: pointer; line-height: 1; }
+      .modal-close:hover { color: #e2e8f0; }
+      .modal-body { padding: 20px 24px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 24px; }
+      .modal-footer { padding: 14px 24px; border-top: 1px solid #2d3748; display: flex; justify-content: flex-end; gap: 10px; align-items: center; }
 
       .settings-section h3 {
-        font-size: 0.78rem;
-        font-weight: 700;
-        color: #60a5fa;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        margin-bottom: 10px;
-      }
-
-      /* Search rows */
-      .search-row {
-        background: #0f1117;
-        border: 1px solid #2d3748;
-        border-radius: 6px;
-        padding: 10px 12px;
-        margin-bottom: 8px;
-      }
-      .search-row-fields {
-        display: grid;
-        grid-template-columns: 1fr 1fr 60px 28px;
-        gap: 6px;
-        align-items: center;
-        margin-bottom: 8px;
-      }
-      .search-row-fields input {
-        background: #1a1f2e;
-        border: 1px solid #2d3748;
-        border-radius: 5px;
-        color: #e2e8f0;
-        padding: 5px 8px;
-        font-size: 0.78rem;
-        width: 100%;
-        outline: none;
-      }
-      .search-row-fields input:focus {
-        border-color: #3b82f6;
-      }
-      .search-sources {
-        display: flex;
-        gap: 6px;
-        flex-wrap: wrap;
-        align-items: center;
-      }
-      .source-cb {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        font-size: 0.72rem;
-        color: #94a3b8;
-        cursor: pointer;
-        padding: 3px 8px;
-        border-radius: 99px;
-        border: 1px solid #2d3748;
-        transition: all 0.1s;
-        user-select: none;
-      }
-      .source-cb:hover {
-        border-color: #3b82f6;
-        color: #e2e8f0;
-      }
-      .source-cb input[type="checkbox"] {
-        accent-color: #3b82f6;
-        width: 12px;
-        height: 12px;
-      }
-      .source-cb.checked {
-        background: #1e2a3a;
-        border-color: #3b82f6;
-        color: #60a5fa;
-      }
-      .source-all-btn {
-        font-size: 0.7rem;
-        color: #60a5fa;
-        background: none;
-        border: none;
-        cursor: pointer;
-        padding: 3px 6px;
-        margin-left: 4px;
-      }
-      .source-all-btn:hover {
-        text-decoration: underline;
-      }
-      .toggle-remote {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 4px;
-        font-size: 0.72rem;
-        cursor: pointer;
-      }
-      .toggle-remote input[type="checkbox"] {
-        accent-color: #3b82f6;
-        width: 14px;
-        height: 14px;
-      }
-      .btn-icon {
-        background: none;
-        border: none;
-        color: #475569;
-        cursor: pointer;
-        font-size: 1rem;
-        padding: 0;
-        line-height: 1;
-      }
-      .btn-icon:hover {
-        color: #f87171;
-      }
-      .btn-add {
-        background: none;
-        border: 1px dashed #2d3748;
-        color: #60a5fa;
-        border-radius: 5px;
-        padding: 5px 12px;
-        font-size: 0.78rem;
-        cursor: pointer;
-        width: 100%;
-        margin-top: 4px;
-      }
-      .btn-add:hover {
-        border-color: #3b82f6;
-        background: #1e2333;
-      }
-
-      /* Tag inputs */
-      .tag-input-wrap {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 5px;
-        background: #0f1117;
-        border: 1px solid #2d3748;
-        border-radius: 5px;
-        padding: 6px 8px;
-        min-height: 38px;
-        cursor: text;
-      }
-      .tag-input-wrap:focus-within {
-        border-color: #3b82f6;
-      }
-      .tag {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        background: #1e2333;
-        border-radius: 99px;
-        padding: 2px 8px 2px 10px;
-        font-size: 0.75rem;
-        color: #e2e8f0;
-      }
-      .tag button {
-        background: none;
-        border: none;
-        color: #64748b;
-        cursor: pointer;
-        font-size: 0.75rem;
-        padding: 0;
-        line-height: 1;
-      }
-      .tag button:hover {
-        color: #f87171;
-      }
-      .tag-input {
-        background: none;
-        border: none;
-        outline: none;
-        color: #e2e8f0;
-        font-size: 0.78rem;
-        min-width: 120px;
-        flex: 1;
-        padding: 1px 0;
-      }
-      .save-notice {
-        font-size: 0.75rem;
-        color: #4ade80;
-        display: none;
-      }
-
-      /* AI Settings */
-      .ai-provider-row {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 8px 0;
-        border-bottom: 1px solid #1e2333;
-      }
-      .ai-provider-row:last-child {
-        border-bottom: none;
-      }
-      .ai-provider-name {
-        font-size: 0.82rem;
-        font-weight: 600;
-        color: #e2e8f0;
-        width: 80px;
-        flex-shrink: 0;
-      }
-      .ai-provider-row select {
-        background: #0f1117;
-        border: 1px solid #2d3748;
-        border-radius: 5px;
-        color: #e2e8f0;
-        padding: 5px 8px;
-        font-size: 0.78rem;
-        flex: 1;
-        outline: none;
-      }
-      .ai-provider-row select:focus {
-        border-color: #3b82f6;
-      }
-      .ai-provider-row select:disabled {
-        opacity: 0.4;
-        cursor: not-allowed;
-      }
-      .ai-active-badge {
-        background: #14532d;
-        color: #4ade80;
-        font-size: 0.65rem;
-        font-weight: 700;
-        padding: 2px 7px;
-        border-radius: 99px;
-        white-space: nowrap;
-      }
-      .ai-test-btn {
-        background: #1e2333;
-        border: 1px solid #2d3748;
-        border-radius: 5px;
-        color: #94a3b8;
-        padding: 4px 10px;
-        font-size: 0.72rem;
-        cursor: pointer;
-        white-space: nowrap;
-      }
-      .ai-test-btn:hover {
-        border-color: #3b82f6;
-        color: #60a5fa;
-      }
-      .ai-test-ok {
-        color: #4ade80;
-        font-size: 0.72rem;
-        white-space: nowrap;
-      }
-      .ai-test-err {
-        color: #f87171;
-        font-size: 0.72rem;
-        white-space: nowrap;
-      }
-      .ai-key-hint {
-        font-size: 0.7rem;
-        color: #475569;
-        white-space: nowrap;
+        font-size: 0.78rem; font-weight: 700; color: #60a5fa;
+        text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px;
       }
     </style>
   </head>
@@ -722,18 +260,8 @@
       <div class="spacer"></div>
       <div class="toolbar">
         <span id="fetch-progress" class="fetch-msg"></span>
-        <span class="save-notice" id="save-notice">✓ Settings saved</span>
-        <a
-          href="/ai-settings"
-          class="btn"
-          style="
-            text-decoration: none;
-            background: #312e81;
-            color: #a5b4fc;
-            border: 1px solid #4338ca;
-          "
-          >⚡ AI Models</a
-        >
+        <span class="save-notice" id="header-save-notice" style="display:none">✓ Settings saved</span>
+        <a href="/ai-settings" class="btn btn-ai-models">⚡ AI Models</a>
         <button class="btn btn-primary" id="btn-fetch" onclick="runFetch()">
           ⟳ Fetch new jobs
         </button>
@@ -852,7 +380,7 @@
           </div>
         </div>
         <div class="modal-footer">
-          <span class="save-notice" id="save-notice">✓ Saved</span>
+          <span class="save-notice" id="modal-save-notice" style="display:none">✓ Saved</span>
           <button class="btn btn-ghost" onclick="closeSettings()">
             Cancel
           </button>
@@ -912,25 +440,25 @@
       <table id="jobs-table">
         <thead>
           <tr>
-            <th class="sortable" data-key="title" onclick="sortBy('title')">
+            <th class="sortable col-title" data-key="title" onclick="sortBy('title')">
               Title <span class="sort-icon">↕</span>
             </th>
-            <th class="sortable" data-key="company" onclick="sortBy('company')">
+            <th class="sortable col-company" data-key="company" onclick="sortBy('company')">
               Company <span class="sort-icon">↕</span>
             </th>
-            <th class="sortable" data-key="source" onclick="sortBy('source')">
+            <th class="sortable col-source" data-key="source" onclick="sortBy('source')">
               Source <span class="sort-icon">↕</span>
             </th>
-            <th class="sortable" data-key="remote" onclick="sortBy('remote')">
+            <th class="sortable col-remote" data-key="remote" onclick="sortBy('remote')">
               Remote <span class="sort-icon">↕</span>
             </th>
-            <th>Location</th>
-            <th>Exp.</th>
-            <th>Posted</th>
-            <th>Age</th>
-            <th>Resume</th>
-            <th>Cover Letter</th>
-            <th>Actions</th>
+            <th class="col-location">Location</th>
+            <th class="col-exp">Exp.</th>
+            <th class="col-posted">Posted</th>
+            <th class="col-age">Age</th>
+            <th class="col-resume">Resume</th>
+            <th class="col-cl">Cover Letter</th>
+            <th class="col-actions">Actions</th>
           </tr>
         </thead>
         <tbody id="jobs-body">
@@ -942,6 +470,7 @@
     </div>
 
     <script src="/static/search-settings.js"></script>
+    <script src="/static/ui.js"></script>
     <script>
       let currentStatus = "pending";
       let jobs = [];
@@ -1038,7 +567,7 @@
         const rs = job.resume_status;
         if (rs === "building") {
           const stage = job.resume_stage || "Building…";
-          return `<span><span class="spinner"></span>${stage}</span>`;
+          return `<span><span class="spinner spinner-resume"></span>${stage}</span>`;
         }
         if (rs === "done" && job.pdf_url) {
           return `<a href="${safeUrl(job.pdf_url)}" target="_blank" class="btn btn-sm btn-resume-done">📄 Open CV</a>`;
@@ -1058,7 +587,7 @@
         const rs = job.cl_status;
         if (rs === "building") {
           const stage = job.cl_stage || "Building…";
-          return `<span><span class="spinner" style="border-color:#0369a1"></span>${stage}</span>`;
+          return `<span><span class="spinner spinner-cl"></span>${stage}</span>`;
         }
         if (rs === "done" && job.cl_pdf_url) {
           return `<a href="${safeUrl(job.cl_pdf_url)}" target="_blank" class="btn btn-sm btn-cl-done">✉ Open Letter</a>`;
@@ -1102,10 +631,10 @@
             }">${
               escapeHtml(job.title.length > 42 ? job.title.slice(0, 42) + "…" : job.title)
             }</a></td>
-      <td>${escapeHtml(job.company)}</td>
+      <td title="${escapeHtml(job.company)}">${escapeHtml(job.company)}</td>
       <td><span class="source-badge">${escapeHtml(job.source)}</span></td>
       <td><span class="${remoteClass(job.remote)}">${escapeHtml(job.remote)}</span></td>
-      <td>${escapeHtml(job.location)}</td>
+      <td title="${escapeHtml(job.location)}">${escapeHtml(job.location)}</td>
       <td>${escapeHtml(job.experience)}</td>
       <td>${job.posted || '<span style="color:#475569">—</span>'}</td>
       <td>${escapeHtml(job.age)}</td>
@@ -1192,10 +721,10 @@
       async function _triggerBuild(job_id, docType) {
         const isResume = docType === "resume";
         const cellId = isResume ? `cv-${job_id}` : `cl-${job_id}`;
-        const spinnerStyle = isResume ? "" : ` style="border-color:#0369a1"`;
+        const spinnerClass = isResume ? "spinner spinner-resume" : "spinner spinner-cl";
         const cell = document.getElementById(cellId);
         if (cell)
-          cell.innerHTML = `<span><span class="spinner"${spinnerStyle}></span>Building…</span>`;
+          cell.innerHTML = `<span><span class="${spinnerClass}"></span>Building…</span>`;
         await fetch(isResume ? `/api/resume/${job_id}` : `/api/cover-letter/${job_id}`, { method: "POST" });
         const job = jobs.find((j) => j.job_id === job_id);
         if (job) {
@@ -1254,7 +783,7 @@
           tbody.querySelectorAll("tr[id^='row-']").length === 0
         ) {
           tbody.innerHTML = `<tr data-fetch="1"><td colspan="11" class="empty">
-      <span class="spinner" style="border-color:#3b82f6;border-top-color:transparent;width:16px;height:16px;margin-right:8px"></span>
+      <span class="spinner spinner-fetch"></span>
       <span id="fetch-table-msg">${msg}</span>
     </td></tr>`;
         } else {
@@ -1280,7 +809,7 @@
           "company-blacklist-input",
           cfg.company_blacklist || []
         );
-        document.getElementById("save-notice").style.display = "none";
+        document.getElementById("modal-save-notice").style.display = "none";
         document.getElementById("settings-modal").classList.add("open");
       }
 
@@ -1322,7 +851,7 @@
         const data = await res.json();
         if (data.ok) {
           closeSettings();
-          const notice = document.getElementById("save-notice");
+          const notice = document.getElementById("modal-save-notice");
           notice.style.display = "inline";
           setTimeout(() => (notice.style.display = "none"), 2500);
           await fetch("/api/jobs/clear", { method: "POST" });
@@ -1395,5 +924,6 @@
         runFetch();
       }
     </script>
+    <div class="toast" id="toast"></div>
   </body>
 </html>
