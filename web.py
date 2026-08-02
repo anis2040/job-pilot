@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from flask import Flask, render_template, jsonify, request, send_file, abort, redirect, url_for, make_response
 
 from job.db import init_db, get_pending_deduped, get_jobs_by_status, update_status, get_job, stats, last_fetch_at, clear_all_jobs
-from job.web_api import trigger_resume, get_task_status, trigger_cover_letter, get_cl_task_status, trigger_fetch, get_fetch_status, clear_task_state
+from job.web_api import trigger_resume, get_task_status, trigger_cover_letter, get_cl_task_status, trigger_fetch, get_fetch_status, clear_task_state, call_ai
 from job.web_api import _candidate_name_slug
 from job.profiles import (
     list_profiles, get_active_slug, get_active_profile, set_active,
@@ -491,20 +491,8 @@ Rules:
 Profile:
 """ + profile_text[:6000]
 
-    ai_cmd = ["claude", "-p", prompt, "--output-format", "text"] if shutil.which("claude") else \
-              (["gemini", "-p", prompt] if shutil.which("gemini") else None)
-    if not ai_cmd:
-        return jsonify({"ok": False, "error": "No AI CLI installed. Complete Step 2 first."})
-
     try:
-        result = subprocess.run(ai_cmd, capture_output=True, text=True, timeout=60)
-        output = result.stdout.strip()
-        stderr = result.stderr.strip()
-
-        if not output:
-            hint = " Make sure you have logged in ('claude login') or set your GEMINI_API_KEY."
-            return jsonify({"ok": False, "error": f"AI CLI returned no response.{hint} Detail: {stderr[:200] or 'none'}"})
-
+        output = call_ai(prompt)
         if output.startswith("```"):
             output = "\n".join(output.split("\n")[1:])
             output = output.rsplit("```", 1)[0].strip()
@@ -688,33 +676,15 @@ Rules: empty string for missing text, empty array for missing lists, return ONLY
 Resume text:
 {raw_text[:8000]}"""
 
-    ai_cmd = ["claude", "-p", prompt, "--output-format", "text"] if shutil.which("claude") else \
-              (["gemini", "-p", prompt] if shutil.which("gemini") else None)
-    if not ai_cmd:
-        return jsonify({"error": "No AI CLI installed. Complete Step 2 first."}), 400
-
     try:
-        result = subprocess.run(ai_cmd, capture_output=True, text=True, timeout=60)
-        output = result.stdout.strip()
-        stderr = result.stderr.strip()
-
-        # Empty output means the AI CLI failed — likely not logged in
-        if not output:
-            hint = ""
-            if "claude" in ai_cmd[0]:
-                hint = " Make sure you have logged in with 'claude login' (or use the login button in the setup wizard)."
-            elif "gemini" in ai_cmd[0]:
-                hint = " Make sure your GEMINI_API_KEY is set correctly in the setup wizard."
-            err_detail = stderr[:300] if stderr else "No output from AI CLI."
-            return jsonify({"error": f"AI CLI returned no response. {hint} Detail: {err_detail}"}), 500
-
+        output = call_ai(prompt)
         if output.startswith("```"):
             output = "\n".join(output.split("\n")[1:])
             output = output.rsplit("```", 1)[0].strip()
         data = _json.loads(output)
         return jsonify({"ok": True, "data": data})
     except _json.JSONDecodeError:
-        return jsonify({"error": f"AI returned unexpected output (not JSON). Raw output: {output[:200]}"}), 500
+        return jsonify({"error": f"AI returned unexpected output (not JSON). Raw: {output[:200]}"}), 500
     except Exception as e:
         return jsonify({"error": f"Could not parse AI response: {e}"}), 500
 

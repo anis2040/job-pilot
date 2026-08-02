@@ -759,77 +759,12 @@ def _set_cl_stage(job_id: str, stage: str) -> None:
             _cl_task_status[job_id]["stage"] = stage
 
 
-def _validate_profile() -> None:
-    """Raise a clear error if profile.md is missing or still the example template."""
-    profile = get_profile_path()
-    if not profile or not profile.exists():
-        raise ValueError(
-            "profile.md not found. Complete the setup wizard at http://localhost:5050/setup"
-        )
-    text = profile.read_text().strip()
-    if not text:
-        raise ValueError(
-            "profile.md is empty. Complete the setup wizard at http://localhost:5050/setup"
-        )
-    if "you@example.com" in text or "City, State" in text:
-        raise ValueError(
-            "profile.md still contains the example template. "
-            "Fill in your real profile at http://localhost:5050/setup"
-        )
 
 
-def _candidate_name_slug() -> str:
-    """Read the candidate's name from profile.md and return a filename-safe slug like 'John_Smith'."""
-    try:
-        profile = get_profile_path()
-        if not profile:
-            return "Candidate"
-        text = profile.read_text()
-        for line in text.splitlines():
-            line = line.strip()
-            if line.startswith("#"):
-                name = line.lstrip("#").split("—")[0].split("-")[0].strip()
-                if name:
-                    return name.replace(" ", "_")
-    except Exception:
-        pass
-    return "Candidate"
-
-
-def _inject_name(instructions: str, slug: str) -> str:
-    return instructions.replace("{{NAME_SLUG}}", slug).replace("{{CANDIDATE_NAME}}", slug.replace("_", " "))
-
-
-def _run_ai(prompt: str, system_instructions: str, cwd: str) -> subprocess.Popen:
-    """Launch the configured AI CLI (claude or gemini) as a subprocess."""
-    extra = {}
-    if sys.platform == "win32":
-        extra["creationflags"] = subprocess.CREATE_NO_WINDOW
-
-    if shutil.which("claude"):
-        return subprocess.Popen(
-            ["claude", "-p", prompt,
-             "--append-system-prompt", system_instructions,
-             "--allowedTools", "Bash,Edit,Write,Read"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            cwd=cwd,
-            **extra,
-        )
-    if shutil.which("gemini"):
-        gemini_md = Path(cwd) / "GEMINI.md"
-        gemini_md.write_text(system_instructions)
-        return subprocess.Popen(
-            ["gemini", "-p", prompt, "--yolo"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            cwd=cwd,
-            **extra,
-        )
-    raise RuntimeError(
-        "No AI CLI found. Install Claude Code (https://claude.ai/code) or "
-        "Gemini CLI (npm install -g @google/gemini-cli)."
+def call_ai(prompt: str, system: str = "") -> str:
+    """Call the best available AI provider. Used by web.py for suggest-config and parse-resume."""
+    return _generate_content(
+        system_text=system or "Return only the requested output as valid JSON. No explanation.",
+        user_prompt=prompt,
+        cwd=str(_skill_path()),
     )
-
