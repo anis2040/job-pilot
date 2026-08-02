@@ -46,7 +46,56 @@ if not defined PYTHON (
 
 echo   Python: !PYTHON! ^(!PY_VER!^)
 
-:: ── 4. Create virtual environment ────────────────────────────────────────────
+:: ── 4. Install Node.js if missing ────────────────────────────────────────────
+where node >nul 2>&1
+if errorlevel 1 (
+    echo   Node.js not found. Installing automatically...
+    where winget >nul 2>&1
+    if errorlevel 1 (
+        echo  [WARN] winget not available — skipping Node.js install.
+        echo         Install Node.js manually from https://nodejs.org/ if you want Gemini CLI support.
+    ) else (
+        winget install --id OpenJS.NodeJS.LTS --silent --accept-package-agreements --accept-source-agreements
+        echo   Refreshing PATH after Node.js install...
+        for /f "tokens=*" %%P in ('where node 2^>nul') do set "NODE_PATH=%%~dpP"
+        if defined NODE_PATH set "PATH=!NODE_PATH!;!PATH!"
+    )
+)
+where node >nul 2>&1
+if not errorlevel 1 (
+    for /f "tokens=*" %%V in ('node --version 2^>^&1') do echo   Node.js: %%V
+)
+
+:: ── 5. Install MiKTeX (pdflatex) if missing ──────────────────────────────────
+where pdflatex >nul 2>&1
+if errorlevel 1 (
+    echo   pdflatex not found. Installing MiKTeX automatically...
+    echo   ^(Required to compile resumes and cover letters to PDF^)
+    where winget >nul 2>&1
+    if errorlevel 1 (
+        echo  [WARN] winget not available — skipping MiKTeX install.
+        echo         Install MiKTeX manually from https://miktex.org/download if you need PDF generation.
+    ) else (
+        winget install --id MiKTeX.MiKTeX --silent --accept-package-agreements --accept-source-agreements
+        echo   Refreshing PATH after MiKTeX install...
+        for %%D in (
+            "%LOCALAPPDATA%\Programs\MiKTeX\miktex\bin\x64"
+            "%PROGRAMFILES%\MiKTeX\miktex\bin\x64"
+            "%PROGRAMFILES(X86)%\MiKTeX\miktex\bin\x64"
+        ) do (
+            if exist "%%~D\pdflatex.exe" set "PATH=%%~D;!PATH!"
+        )
+    )
+)
+where pdflatex >nul 2>&1
+if not errorlevel 1 (
+    for /f "tokens=*" %%V in ('pdflatex --version 2^>^&1 ^| findstr /i "MiKTeX pdfTeX"') do echo   pdflatex: %%V
+) else (
+    echo  [WARN] pdflatex still not found. PDF generation will not work.
+    echo         You may need to open a new terminal after MiKTeX finishes installing.
+)
+
+:: ── 6. Create virtual environment ────────────────────────────────────────────
 if not exist ".venv\Scripts\activate.bat" (
     echo   Creating virtual environment...
     !PYTHON! -m venv .venv
@@ -59,7 +108,7 @@ if not exist ".venv\Scripts\activate.bat" (
     )
 )
 
-:: ── 5. Activate ───────────────────────────────────────────────────────────────
+:: ── 8. Activate ───────────────────────────────────────────────────────────────
 call .venv\Scripts\activate.bat
 if errorlevel 1 (
     echo.
@@ -69,7 +118,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-:: ── 6. Install dependencies ───────────────────────────────────────────────────
+:: ── 9. Install dependencies ───────────────────────────────────────────────────
 echo   Installing dependencies...
 pip install -r requirements.txt -q
 if errorlevel 1 (
@@ -80,7 +129,7 @@ if errorlevel 1 (
 )
 echo   Dependencies installed.
 
-:: ── 7. Launch app and open browser ───────────────────────────────────────────
+:: ── 10. Launch app and open browser ───────────────────────────────────────────
 echo.
 echo   Setup complete. Starting job-scraper at http://localhost:5050
 echo   Browser will open automatically. Press Ctrl+C here to stop the app.

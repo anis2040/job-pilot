@@ -731,7 +731,12 @@ def api_setup_install_node():
         return jsonify(_run_install(["brew", "install", "node"], 300))
     if sys.platform == "linux":
         return jsonify(_run_install(["sudo", "apt-get", "install", "-y", "nodejs", "npm"], 300))
-    return jsonify({"ok": False, "output": "Auto-install not supported on Windows. Download from https://nodejs.org/en/download"})
+    # Windows — use winget
+    return jsonify(_run_install(
+        ["winget", "install", "--id", "OpenJS.NodeJS.LTS", "--silent",
+         "--accept-package-agreements", "--accept-source-agreements"],
+        300,
+    ))
 
 
 @app.route("/api/setup/install-cli", methods=["POST"])
@@ -765,7 +770,12 @@ def api_setup_install_pdflatex():
         return jsonify(_run_install(["brew", "install", "--cask", "basictex"], 600))
     if sys.platform == "linux":
         return jsonify(_run_install(["sudo", "apt-get", "install", "-y", "texlive-latex-extra"], 600))
-    return jsonify({"ok": False, "output": "Auto-install not supported on Windows. Install MiKTeX from https://miktex.org/download"})
+    # Windows — use winget
+    return jsonify(_run_install(
+        ["winget", "install", "--id", "MiKTeX.MiKTeX", "--silent",
+         "--accept-package-agreements", "--accept-source-agreements"],
+        600,
+    ))
 
 
 @app.route("/api/setup/parse-resume", methods=["POST"])
