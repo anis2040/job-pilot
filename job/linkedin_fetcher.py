@@ -73,6 +73,10 @@ def fetch_linkedin(search: SearchConfig) -> list[RawJob]:
             link_el = card.select_one("a.base-card__full-link, a[href*='/jobs/view/']")
             job_url = link_el.get("href", "").split("?")[0] if link_el else f"https://www.linkedin.com/jobs/view/{job_id_raw}"
 
+            # posted_at — LinkedIn embeds a <time datetime="..."> in each card
+            time_el = card.select_one("time")
+            posted_at = time_el.get("datetime") if time_el else None
+
             results.append(RawJob(
                 job_id=job_id,
                 url=job_url,
@@ -81,8 +85,8 @@ def fetch_linkedin(search: SearchConfig) -> list[RawJob]:
                 location=raw_location,
                 remote=remote,
                 experience=experience,
-                description="",   # LinkedIn requires JS to load description
-                posted_at=None,
+                description="",   # fetched lazily on detail page view
+                posted_at=posted_at,
             ))
 
         if page < search.max_pages - 1:

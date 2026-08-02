@@ -126,6 +126,7 @@
   }
   .job-row:last-child { border-bottom: none; }
   .job-row:hover { background: var(--bg-raised); }
+  .job-row:hover .job-row-title a { color: var(--blue-light); }
 
   /* Left: identity + meta */
   .job-row-left { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
@@ -445,7 +446,7 @@
       job.experience ? `<span class="job-meta-sep">·</span><span class="job-meta-tag">${escapeHtml(job.experience)}</span>` : "",
     ].filter(Boolean).join("");
 
-    return `<div class="job-row" id="card-${job.job_id}">
+    return `<div class="job-row" id="card-${job.job_id}" onclick="rowClick(event,'${job.job_id}')" style="cursor:pointer">
       <div class="job-row-left">
         <div class="job-row-title-line">
           <span class="job-row-title"><a href="${safeUrl(job.url)}" target="_blank" rel="noopener">${escapeHtml(job.title)}</a></span>
@@ -494,6 +495,12 @@
     emptyState.style.display = "none";
     list.style.display = "flex";
     list.innerHTML = data.map(renderRow).join("");
+  }
+
+  function rowClick(e, job_id) {
+    // Don't navigate when clicking buttons, links, or selects inside the row
+    if (e.target.closest("button, a, select, input")) return;
+    window.location.href = `/job/${job_id}`;
   }
 
   // ── Filter + sort ─────────────────────────────────────────────────────────

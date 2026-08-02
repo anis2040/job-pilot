@@ -33,9 +33,17 @@ def init_db() -> None:
                 first_seen_at     TEXT NOT NULL,
                 status            TEXT NOT NULL DEFAULT 'pending',
                 status_updated_at TEXT,
-                search_name       TEXT
+                search_name       TEXT,
+                employment_type   TEXT DEFAULT '',
+                salary_range      TEXT DEFAULT ''
             )
         """)
+        # Migrate existing databases — add columns if not present
+        for col, default in [("employment_type", "''"), ("salary_range", "''")]:
+            try:
+                con.execute(f"ALTER TABLE jobs ADD COLUMN {col} TEXT DEFAULT {default}")
+            except Exception:
+                pass  # Column already exists
         con.execute("""
             CREATE TABLE IF NOT EXISTS filter_log (
                 job_id          TEXT PRIMARY KEY,
@@ -89,6 +97,8 @@ def insert_job(
     description: str,
     posted_at: str | None,
     search_name: str,
+    employment_type: str = "",
+    salary_range: str = "",
 ) -> None:
     now = _now_iso()
     with _connect() as con:
@@ -96,11 +106,13 @@ def insert_job(
             """
             INSERT OR IGNORE INTO jobs
                 (job_id, url, title, company, location, remote, experience,
-                 description, posted_at, first_seen_at, status, search_name)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+                 description, posted_at, first_seen_at, status, search_name,
+                 employment_type, salary_range)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
             """,
             (job_id, url, title, company, location, remote, experience,
-             description, posted_at, now, search_name),
+             description, posted_at, now, search_name,
+             employment_type, salary_range),
         )
         con.commit()
 
@@ -208,6 +220,38 @@ def get_pending_deduped() -> list[sqlite3.Row]:
 def get_job(job_id: str) -> sqlite3.Row | None:
     with _connect() as con:
         return con.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
+
+
+def get_similar_jobs(job_id: str, limit: int = 5) -> list[sqlite3.Row]:
+    """Return jobs with the same company OR overlapping title keywords, excluding job_id itself."""
+    row = get_job(job_id)
+    if not row:
+        return []
+    company = (dict(row).get("company") or "").strip()
+    # Extract first two meaningful words from title for keyword matching
+    title_words = [w for w in (dict(row).get("title") or "").lower().split()
+                   if len(w) > 3 and w not in ("senior", "junior", "lead", "staff", "principal", "with", "and", "the", "for")]
+    kw1 = title_words[0] if len(title_words) > 0 else ""
+    kw2 = title_words[1] if len(title_words) > 1 else ""
+    with _connect() as con:
+        rows = con.execute("""
+            SELECT * FROM jobs
+            WHERE job_id != ?
+              AND (
+                (? != '' AND LOWER(TRIM(company)) = LOWER(TRIM(?)))
+                OR (? != '' AND LOWER(title) LIKE ?)
+                OR (? != '' AND LOWER(title) LIKE ?)
+              )
+            ORDER BY first_seen_at DESC
+            LIMIT ?
+        """, (
+            job_id,
+            company, company,
+            kw1, f"%{kw1}%",
+            kw2, f"%{kw2}%",
+            limit,
+        )).fetchall()
+    return rows
 
 
 def stats() -> dict[str, int]:

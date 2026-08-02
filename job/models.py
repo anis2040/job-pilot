@@ -25,3 +25,5 @@ class RawJob:
     experience: str      # e.g. "3-5 years" or ""
     description: str
     posted_at: str | None = None
+    employment_type: str = ""   # e.g. "Full-time", "Contract", "Part-time"
+    salary_range: str = ""      # e.g. "$80k–$120k" or "€60,000–€80,000"

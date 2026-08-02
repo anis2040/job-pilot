@@ -55,6 +55,8 @@ def _run_fetch() -> None:
                     company=job.company, location=job.location, remote=job.remote,
                     experience=job.experience, description=job.description,
                     posted_at=job.posted_at, search_name=search.name,
+                    employment_type=job.employment_type,
+                    salary_range=job.salary_range,
                 )
                 new_count += 1
 

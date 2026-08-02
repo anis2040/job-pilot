@@ -9,7 +9,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from flask import Flask, render_template, jsonify, request, send_file, abort, redirect, url_for, make_response
 
-from job.db import init_db, get_pending_deduped, get_jobs_by_status, update_status, get_job, stats, last_fetch_at, clear_all_jobs
+from job.db import init_db, get_pending_deduped, get_jobs_by_status, update_status, get_job, get_similar_jobs, stats, last_fetch_at, clear_all_jobs
 from job.web_api import trigger_resume, get_task_status, trigger_cover_letter, get_cl_task_status, trigger_fetch, get_fetch_status, clear_task_state, call_ai
 from job.web_api import _candidate_name_slug
 from job.web_api import (
@@ -410,6 +410,66 @@ def api_profile_config_save(slug):
         clear_all_jobs()
         clear_task_state()
     return jsonify({"ok": True})
+
+
+@app.route("/job/<job_id>")
+def job_detail_page(job_id):
+    row = get_job(job_id)
+    if not row:
+        return "Job not found", 404
+    return render_template("job_detail.html",
+                           job_id=job_id,
+                           active_profile=get_active_profile())
+
+
+@app.route("/api/job/<job_id>/description")
+def api_job_description(job_id):
+    """Return description for a job — from DB if stored, otherwise scrape LinkedIn live."""
+    row = get_job(job_id)
+    if not row:
+        return jsonify({"error": "Job not found"}), 404
+
+    description = dict(row).get("description") or ""
+
+    if not description and job_id.startswith("li_"):
+        from job.linkedin_fetcher import fetch_description as _li_desc
+        from job.db import _connect
+        job_url = dict(row).get("url") or ""
+        if job_url:
+            description = _li_desc(job_url)
+            if description:
+                with _connect() as con:
+                    con.execute("UPDATE jobs SET description = ? WHERE job_id = ?",
+                                (description, job_id))
+                    con.commit()
+
+    return jsonify({"description": description})
+
+
+@app.route("/api/job/<job_id>")
+def api_job_detail(job_id):
+    row = get_job(job_id)
+    if not row:
+        return jsonify({"error": "Job not found"}), 404
+    ts = get_task_status(job_id)
+    cl_ts = get_cl_task_status(job_id)
+    data = _serialize_job(row, {job_id: ts}, {job_id: cl_ts})
+    r = dict(row)
+    data["description"]     = r.get("description") or ""
+    data["posted_at"]       = r.get("posted_at") or ""
+    data["first_seen_at"]   = r.get("first_seen_at") or ""
+    data["status_updated_at"] = r.get("status_updated_at") or ""
+    data["employment_type"] = r.get("employment_type") or ""
+    data["salary_range"]    = r.get("salary_range") or ""
+    return jsonify(data)
+
+
+@app.route("/api/jobs/similar/<job_id>")
+def api_similar_jobs(job_id):
+    rows = get_similar_jobs(job_id, limit=5)
+    task_statuses   = {r["job_id"]: get_task_status(r["job_id"]) for r in rows}
+    cl_task_statuses = {r["job_id"]: get_cl_task_status(r["job_id"]) for r in rows}
+    return jsonify([_serialize_job(r, task_statuses, cl_task_statuses) for r in rows])
 
 
 # ── Job routes ────────────────────────────────────────────────────────────────

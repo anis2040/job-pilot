@@ -48,6 +48,8 @@ def fetch_himalayas(search: SearchConfig) -> list[RawJob]:
             experience = parse_experience(title + " " + seniority + " " + description)
             remote = infer_remote(" ".join(restrictions), item.get("employmentType") or "")
             url = item.get("applicationLink") or slug
+            employment_type = _parse_employment_type(item.get("employmentType") or "")
+            salary = _parse_salary(item)
 
             results.append(RawJob(
                 job_id=job_id,
@@ -59,6 +61,8 @@ def fetch_himalayas(search: SearchConfig) -> list[RawJob]:
                 experience=experience,
                 description=description[:2000],
                 posted_at=str(item["pubDate"]) if item.get("pubDate") else None,
+                employment_type=employment_type,
+                salary_range=salary,
             ))
 
         offset += limit
@@ -66,3 +70,21 @@ def fetch_himalayas(search: SearchConfig) -> list[RawJob]:
             break
 
     return results
+
+
+def _parse_employment_type(emp: str) -> str:
+    mapping = {"full-time": "Full-time", "fulltime": "Full-time",
+               "part-time": "Part-time", "contract": "Contract",
+               "freelance": "Freelance", "internship": "Internship"}
+    return mapping.get(emp.lower().replace(" ", ""), emp if emp else "")
+
+
+def _parse_salary(item: dict) -> str:
+    low = item.get("salaryMin") or item.get("minSalary") or 0
+    high = item.get("salaryMax") or item.get("maxSalary") or 0
+    currency = item.get("currency") or "$"
+    period = item.get("salaryPeriod") or ""
+    if low and high:
+        suffix = f"/{period}" if period else ""
+        return f"{currency}{int(low):,}–{currency}{int(high):,}{suffix}"
+    return ""
