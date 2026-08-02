@@ -118,9 +118,11 @@ def _save_api_key(env_key: str, provider: str):
 def _pdf_url(path: str | None) -> str | None:
     if not path:
         return None
-    p = Path(path)
-    # path is profiles/<slug>/<company>/<subdir>/<file>
-    return f"/pdf/{p.parent.parent.name}/{p.parent.name}/{p.name}"
+    try:
+        rel = Path(path).relative_to(_resumes_path())
+        return f"/pdf/{rel.as_posix()}"
+    except (ValueError, RuntimeError):
+        return None
 
 
 def _require_profile_dir(slug: str):
@@ -152,9 +154,16 @@ def _format_relative_age(dt_str: str | None, *, days_only: bool = False) -> str:
 
 
 def _find_pdf_path(profile_dir: Path, company: str, subdir: str, target: str) -> str | None:
-    """Search 3 company-name variants under profile_dir/<company>/<subdir>/. Returns path string or None."""
-    for co in [company, company.replace(" ", ""), company.replace(" ", "").replace("/", "")]:
+    """Search company-name variants under profile_dir. Checks the current layout
+    (<Company>/<subdir>/<file>) and the legacy layout (resumes/<Company>/<file>)."""
+    variants = [company, company.replace(" ", ""), company.replace(" ", "").replace("/", "")]
+    for co in variants:
         candidate = profile_dir / co / subdir / target
+        if candidate.exists():
+            return str(candidate)
+    # Legacy layout: resumes/<Company>/<file> (all docs were dumped into resumes/)
+    for co in variants:
+        candidate = profile_dir / "resumes" / co / target
         if candidate.exists():
             return str(candidate)
     return None
@@ -595,16 +604,13 @@ def api_fetch_status():
     return jsonify(get_fetch_status())
 
 
-@app.route("/pdf/<company>/<subdir>/<filename>")
-def serve_pdf(company, subdir, filename):
-    if subdir not in ("resumes", "cover-letters"):
-        abort(404)
+@app.route("/pdf/<path:rel_path>")
+def serve_pdf(rel_path):
     base = _resumes_path().resolve()
-    pdf = (base / company / subdir / filename).resolve()
-    # Reject any path that escapes the active profile directory (path traversal).
+    pdf = (base / rel_path).resolve()
     if not pdf.is_relative_to(base):
         abort(404)
-    if not pdf.exists():
+    if not pdf.exists() or pdf.suffix != ".pdf":
         abort(404)
     return send_file(str(pdf), mimetype="application/pdf")
 

@@ -488,7 +488,7 @@
       // Only allow http(s) URLs into href; anything else becomes a harmless anchor.
       function safeUrl(u) {
         const s = String(u ?? "");
-        return /^https?:\/\//i.test(s) ? escapeHtml(s) : "#";
+        return /^https?:\/\//i.test(s) || s.startsWith("/") ? escapeHtml(s) : "#";
       }
 
       function switchTab(el) {
