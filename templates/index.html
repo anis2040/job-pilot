@@ -72,6 +72,7 @@
     white-space: nowrap;
   }
   .filter-chip:hover { border-color: var(--blue-light); color: var(--text); }
+  .filter-chip:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--bg-page), 0 0 0 4px var(--blue); }
   .filter-chip.active { background: var(--blue-dim); border-color: var(--blue); color: var(--blue-light); font-weight: 600; }
   .filter-chip.remote-remote.active { background: #0d2e1a; border-color: var(--green); color: var(--green); }
   .filter-chip.remote-hybrid.active { background: #1a1400; border-color: var(--yellow); color: var(--yellow); }
@@ -102,7 +103,7 @@
   .filter-clear:hover { color: var(--text); }
 
   /* ── Job list ── */
-  #main-content { padding: 0 var(--space-8) var(--space-8); }
+  .page-body { padding: 0 var(--space-8) var(--space-8); }
   .jobs-list {
     display: flex;
     flex-direction: column;
@@ -207,7 +208,7 @@
 {% endblock %}
 
 {% block body %}
-<div id="main-content">
+<div class="page-body">
 
 <!-- App header -->
 <header class="app-header">
@@ -232,6 +233,8 @@
     </div>
   </div>
 </header>
+
+<h1 class="visually-hidden">Job Listings</h1>
 
 <!-- PDF missing banner -->
 {% if not has_pdflatex %}
@@ -273,21 +276,21 @@
 <div class="filter-bar" id="filter-bar">
   <div class="filter-group">
     <span class="filter-label">Work type</span>
-    <button class="filter-chip remote-remote" data-filter="remote" data-value="Remote"    onclick="toggleChip(this)">🌐 Remote</button>
-    <button class="filter-chip remote-hybrid" data-filter="remote" data-value="Hybrid"    onclick="toggleChip(this)">🏠 Hybrid</button>
-    <button class="filter-chip"               data-filter="remote" data-value="On-site"   onclick="toggleChip(this)">🏢 On-site</button>
+    <button class="filter-chip remote-remote" data-filter="remote" data-value="Remote"  aria-pressed="false" onclick="toggleChip(this)">🌐 Remote</button>
+    <button class="filter-chip remote-hybrid" data-filter="remote" data-value="Hybrid"  aria-pressed="false" onclick="toggleChip(this)">🏠 Hybrid</button>
+    <button class="filter-chip"               data-filter="remote" data-value="On-site" aria-pressed="false" onclick="toggleChip(this)">🏢 On-site</button>
   </div>
   <div class="filter-divider"></div>
   <div class="filter-group">
     <span class="filter-label">Source</span>
-    <select class="filter-select" id="filter-source" onchange="applyFiltersAndSort()">
+    <select class="filter-select" id="filter-source" aria-label="Filter by source" onchange="applyFiltersAndSort()">
       <option value="">All sources</option>
     </select>
   </div>
   <div class="filter-divider"></div>
   <div class="filter-group">
     <span class="filter-label">Sort</span>
-    <select class="filter-select" id="filter-sort" onchange="applyFiltersAndSort()">
+    <select class="filter-select" id="filter-sort" aria-label="Sort jobs" onchange="applyFiltersAndSort()">
       <option value="newest">Newest first</option>
       <option value="oldest">Oldest first</option>
       <option value="title">Title A–Z</option>
@@ -363,7 +366,7 @@
   </div>
 </div>
 
-</div><!-- #main-content -->
+</div><!-- .page-body -->
 {% endblock %}
 
 {% block scripts %}
@@ -434,9 +437,9 @@
 
   function actionsSlot(job) {
     if (job.status === "pending") return `
-      <button class="btn btn-sm btn-success" style="min-height:28px;" onclick="setStatus('${job.job_id}','applied')">✓ Applied</button>
-      <button class="btn btn-sm btn-ghost"   style="min-height:28px;" onclick="setStatus('${job.job_id}','skipped')">✗ Skip</button>`;
-    return `<button class="btn btn-sm btn-ghost" style="min-height:28px;" onclick="setStatus('${job.job_id}','pending')">↩ Restore</button>`;
+      <button class="btn btn-sm btn-success" onclick="setStatus('${job.job_id}','applied')">✓ Applied</button>
+      <button class="btn btn-sm btn-ghost"   onclick="setStatus('${job.job_id}','skipped')">✗ Skip</button>`;
+    return `<button class="btn btn-sm btn-ghost" onclick="setStatus('${job.job_id}','pending')">↩ Restore</button>`;
   }
 
   function renderRow(job) {
@@ -505,12 +508,13 @@
 
   // ── Filter + sort ─────────────────────────────────────────────────────────
   function toggleChip(el) {
-    el.classList.toggle("active");
+    const active = el.classList.toggle("active");
+    el.setAttribute("aria-pressed", active ? "true" : "false");
     applyFiltersAndSort();
   }
 
   function clearFilters() {
-    document.querySelectorAll(".filter-chip.active").forEach(c => c.classList.remove("active"));
+    document.querySelectorAll(".filter-chip.active").forEach(c => { c.classList.remove("active"); c.setAttribute("aria-pressed", "false"); });
     document.getElementById("filter-source").value = "";
     document.getElementById("filter-sort").value = "newest";
     document.getElementById("search-input").value = "";
