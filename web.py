@@ -236,6 +236,7 @@ def profile_picker():
 def api_profile_clear_jobs(slug):
     if err := _require_profile_dir(slug): return err
     import sqlite3
+    profile_dir = PROFILES_DIR / slug
     db_path = str(profile_dir / "state.db")
     try:
         con = sqlite3.connect(db_path)

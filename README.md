@@ -4,34 +4,6 @@ Fetches job listings from LinkedIn, Jobicy, Himalayas, and Greenhouse, and gener
 
 ---
 
-## Before you start
-
-Install these three things manually. Everything else (AI CLI, pdflatex, your profile) is handled by the in-browser setup wizard.
-
-### Python 3.9+
-
-**macOS:** `brew install python@3.11` or download from [python.org/downloads](https://www.python.org/downloads/)
-
-**Windows:** Download from [python.org/downloads](https://www.python.org/downloads/) — check **"Add Python to PATH"** on the first installer screen.
-
-If Python isn't found after install, add it to PATH manually:
-- **macOS:** `echo 'export PATH="/opt/homebrew/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc`
-- **Windows:** System Properties → Environment Variables → add `C:\Users\<You>\AppData\Local\Programs\Python\Python311\` to Path
-
-**Linux:** `sudo apt install python3.11 python3.11-venv`
-
-### Git
-
-**macOS:** pre-installed, or `brew install git` · **Windows:** [git-scm.com/download/win](https://git-scm.com/download/win) · **Linux:** `sudo apt install git`
-
-### Node.js 18+ *(only needed for CV/cover letter generation)*
-
-Not required to run the app or fetch jobs. The setup wizard will prompt you if it's missing when you try to build a resume.
-
-**macOS:** `brew install node` · **Windows:** [nodejs.org/en/download](https://nodejs.org/en/download) or `winget install OpenJS.NodeJS.LTS` · **Linux:** `sudo apt install nodejs npm`
-
----
-
 ## Install & Run
 
 ```bash
@@ -39,7 +11,7 @@ git clone https://github.com/anis2040/job-scraper.git
 cd job-scraper
 ```
 
-Then run the start script — it handles the rest automatically (creates venv, installs dependencies, starts the app):
+Then run the start script — it handles everything automatically (installs Python if missing, creates a virtual environment, installs dependencies, opens the browser):
 
 **macOS / Linux:**
 ```bash
@@ -47,14 +19,12 @@ Then run the start script — it handles the rest automatically (creates venv, i
 ```
 
 **Windows:**
-```powershell
+```
 start.bat
 ```
 
-Open **http://localhost:5050** — the setup wizard launches on first run.
-
 > Run the same script every time you want to start the app.
-> If you get a permission error: `chmod +x start.sh`
+> **macOS/Linux:** if you get a permission error run `chmod +x start.sh` first.
 
 ---
 
@@ -63,6 +33,8 @@ Open **http://localhost:5050** — the setup wizard launches on first run.
 Runs automatically on first launch. 3 steps:
 
 **Step 1 — Prerequisites:** Checks Node.js, AI CLI (Claude or Gemini), and pdflatex. Shows install instructions for anything missing.
+
+> **Windows — pdflatex:** Install [MiKTeX](https://miktex.org/download). During its setup wizard, set *"Install missing packages on-the-fly"* to **Yes** — this prevents the first PDF build from failing or hanging while waiting for missing LaTeX packages.
 
 **Step 2 — Profile:** Fill in your experience, education, and certifications using a structured form, or upload an existing PDF/DOCX resume to autofill.
 
