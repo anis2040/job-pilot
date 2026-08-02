@@ -44,6 +44,20 @@ def init_db() -> None:
                 con.execute(f"ALTER TABLE jobs ADD COLUMN {col} TEXT DEFAULT {default}")
             except Exception:
                 pass  # Column already exists
+        # Repair job_ids that captured a URL query string (e.g. "gtj_slug?utm_source=...").
+        # The "?" makes the /job/<id> route unreachable, so strip it. Skip rows whose
+        # cleaned id would collide with an existing row.
+        broken = con.execute("SELECT job_id FROM jobs WHERE job_id LIKE '%?%'").fetchall()
+        for r in broken:
+            old = r["job_id"]
+            new = old.split("?")[0]
+            if new == old:
+                continue
+            exists = con.execute("SELECT 1 FROM jobs WHERE job_id = ?", (new,)).fetchone()
+            if exists:
+                con.execute("DELETE FROM jobs WHERE job_id = ?", (old,))
+            else:
+                con.execute("UPDATE jobs SET job_id = ? WHERE job_id = ?", (new, old))
         con.execute("""
             CREATE TABLE IF NOT EXISTS filter_log (
                 job_id          TEXT PRIMARY KEY,

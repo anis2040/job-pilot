@@ -37,7 +37,7 @@ def fetch_himalayas(search: SearchConfig) -> list[RawJob]:
                 continue
 
             slug = item.get("guid") or item.get("applicationLink") or ""
-            job_id_raw = slug.rstrip("/").split("/")[-1]
+            job_id_raw = slug.split("?")[0].rstrip("/").split("/")[-1]
             job_id = f"hi_{job_id_raw}"
 
             title = item.get("title", "")

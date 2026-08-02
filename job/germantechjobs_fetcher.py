@@ -45,8 +45,9 @@ def fetch_germantechjobs(search: SearchConfig) -> list[RawJob]:
         if query_terms and not any(t in title.lower() or t in full_text.lower() for t in query_terms):
             continue
 
-        job_id_raw = link.rstrip("/").split("/")[-1]
-        job_id = f"gtj_{job_id_raw}"
+        # Slug is the last path segment, minus any tracking query string
+        slug = link.split("?")[0].rstrip("/").split("/")[-1]
+        job_id = f"gtj_{slug}"
         experience = parse_experience(title + " " + full_text)
         remote = infer_remote(title, full_text, location)
 
