@@ -244,7 +244,7 @@ async function loadSearchSettings() {
 
 async function saveSearchSettings() {
   const searches = collectSearchRows("#search-rows .search-row");
-  if (!searches.length) { alert("Add at least one search source."); return; }
+  if (!searches.length) { showToast("Add at least one search source.", "err"); return; }
   const titleFilter = collectTags("title-filter-wrap");
   const queryTerms = [...new Set(searches.map(s => s.query.toLowerCase()).filter(Boolean))];
   const mergedFilter = titleFilter.length ? [...new Set([...titleFilter, ...queryTerms])] : queryTerms;
@@ -279,18 +279,30 @@ async function autoConfig() {
 }
 
 async function deleteProfile() {
-  if (!confirm(`Delete "${SLUG}" and all its data? This cannot be undone.`)) return;
+  const ok = await confirmDialog({
+    title: "Delete profile?",
+    message: `"${SLUG}" and all its data will be permanently removed. This cannot be undone.`,
+    confirmLabel: "Delete",
+    danger: true,
+  });
+  if (!ok) return;
   const data = await apiPost(`/api/profiles/delete/${SLUG}`, {});
   if (data.ok) window.location.href = "/manage-profiles";
-  else alert(data.error);
+  else showToast(data.error, "err");
 }
 
 async function clearJobs() {
-  if (!confirm("Clear all jobs for this profile? Resumes on disk are kept.")) return;
+  const ok = await confirmDialog({
+    title: "Clear all jobs?",
+    message: "This profile's job database will be wiped. Resumes on disk are kept.",
+    confirmLabel: "Clear jobs",
+    danger: true,
+  });
+  if (!ok) return;
   const url = IS_ACTIVE ? "/api/jobs/clear" : `/api/profiles/${SLUG}/clear-jobs`;
   const data = await apiPost(url, {});
-  if (data.ok) alert("Jobs cleared.");
-  else alert(data.error || "Failed.");
+  if (data.ok) showToast("Jobs cleared.");
+  else showToast(data.error || "Failed.", "err");
 }
 
 loadProfileForm();
