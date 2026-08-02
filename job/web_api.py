@@ -192,8 +192,10 @@ def _build_with_sdk(system_text: str, user_prompt: str, stage_fn=None) -> str:
         raise RuntimeError("No Anthropic client available")
     if stage_fn:
         stage_fn("Generating with Claude…")
+    # Use Haiku — cheapest model, free tier generous, instruction-following is excellent
+    model = "claude-haiku-4-5"
     response = client.messages.create(
-        model="claude-opus-5",
+        model=model,
         max_tokens=4096,
         system=[{
             "type": "text",
@@ -210,7 +212,7 @@ def _build_with_sdk(system_text: str, user_prompt: str, stage_fn=None) -> str:
     total_input  = uncached + cache_read + cache_write
     saved_pct    = round(cache_read / total_input * 100) if total_input else 0
     print(
-        f"[cache] input={total_input} "
+        f"[cache/{model}] input={total_input} "
         f"(uncached={uncached} write={cache_write} read={cache_read}) "
         f"output={output_toks} "
         f"saved={saved_pct}%"
@@ -342,7 +344,7 @@ def _prewarm_cache() -> None:
         skill_text = _inject_name(skill_text, slug)
 
         client.messages.create(
-            model="claude-opus-5",
+            model="claude-haiku-4-5",
             max_tokens=0,
             system=[{"type": "text", "text": skill_text,
                      "cache_control": {"type": "ephemeral", "ttl": "1h"}}],
