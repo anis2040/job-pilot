@@ -684,7 +684,7 @@ def api_ai_settings_test():
             try:
                 from groq import Groq  # noqa: F401
             except ImportError:
-                return jsonify({"ok": False, "error": "groq package not installed. Run: pip install groq"})
+                return jsonify({"ok": False, "error": "groq package not installed. Close the app, run setup.bat (Windows) or ./setup.sh (Mac/Linux), then try again."})
         elif provider == "anthropic":
             from job.ai_providers import _load_env
             _load_env()

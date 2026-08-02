@@ -15,14 +15,33 @@ from job.db import init_db
 from job.profiles import get_active_slug, PROFILES_DIR, _update_symlinks
 
 
+def _ensure_dependencies() -> None:
+    """Install any missing packages from requirements.txt at startup."""
+    import subprocess, sys
+    req = BASE / "requirements.txt"
+    if not req.exists():
+        return
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", "-r", str(req), "-q"],
+            check=False,
+        )
+    except Exception:
+        pass
+
+
 def _load_env_file() -> None:
     env_path = BASE / ".env"
     if not env_path.exists():
         return
-    for line in env_path.read_text().splitlines():
+    for line in env_path.read_text(encoding="utf-8").splitlines():
         if "=" in line and not line.startswith("#"):
             k, v = line.split("=", 1)
-            os.environ.setdefault(k.strip(), v.strip())
+            if k.strip() in ("ANTHROPIC_API_KEY", "GROQ_API_KEY", "GEMINI_API_KEY",
+                             "GOOGLE_API_KEY", "ANTHROPIC_AUTH_TOKEN", "PREFERRED_PROVIDER"):
+                os.environ[k.strip()] = v.strip()
+            else:
+                os.environ.setdefault(k.strip(), v.strip())
 
 
 def _migrate_active_profile(active_slug: str) -> None:
@@ -70,6 +89,7 @@ def _cleanup_orphan_profiles() -> None:
 
 def run_startup() -> None:
     """Run all startup tasks in order. Safe to call once at launch."""
+    _ensure_dependencies()
     _load_env_file()
 
     active_slug = get_active_slug()
