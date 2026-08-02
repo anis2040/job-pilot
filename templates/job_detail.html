@@ -245,7 +245,9 @@ let job = null;
 
 function safeUrl(u) {
   const s = String(u ?? "");
-  return /^https?:\/\//i.test(s) ? escapeHtml(s) : "#";
+  // Allow absolute http(s) URLs (external postings) and same-origin paths
+  // like /pdf/... (built resume/cover-letter downloads).
+  return /^https?:\/\//i.test(s) || s.startsWith("/") ? escapeHtml(s) : "#";
 }
 
 function remoteItemClass(r) {
