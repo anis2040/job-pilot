@@ -155,7 +155,12 @@
       <p style="font-size:0.84rem;font-weight:600;color:#e2e8f0;margin-bottom:6px">Choose Your AI</p>
       <p style="font-size:0.78rem;color:#64748b;margin-bottom:12px">The AI generates your tailored resumes and cover letters.</p>
       <div id="node-warning"></div>
-      <div class="provider-grid">
+      <div class="provider-grid" style="grid-template-columns:1fr 1fr 1fr">
+        <div class="provider-card" id="card-groq" onclick="selectProvider('groq')">
+          <span class="badge-free">Free API key ⚡</span>
+          <h3>Groq</h3>
+          <p>Free tier, very fast (~5s). API key from console.groq.com — no credit card.</p>
+        </div>
         <div class="provider-card" id="card-claude" onclick="selectProvider('claude')">
           <span class="badge-login">Login required</span>
           <h3>Claude</h3>
@@ -479,10 +484,11 @@ function renderChecks() {
   }
 
   // AI CLI
-  const hasAI = status.has_claude || status.has_gemini;
-  const aiLabel = status.has_claude && status.has_gemini ? "Claude & Gemini both installed" :
+  const hasAI = status.has_claude || status.has_gemini || status.groq_key_set;
+  const aiLabel = status.groq_key_set ? "Groq configured ⚡" :
+                  status.has_claude && status.has_gemini ? "Claude & Gemini both installed" :
                   status.has_claude ? "Claude Code installed" :
-                  status.has_gemini ? "Gemini CLI installed" : "Not installed yet — choose one in the next step";
+                  status.has_gemini ? "Gemini CLI installed" : "Not configured yet — choose one below";
   set("chk-ai", hasAI, aiLabel);
 
   // pdflatex
@@ -546,13 +552,32 @@ function selectProvider(p) {
   selectedProvider = p;
   providerReady = false;
   document.getElementById("btn-next-1").disabled = true;
+  document.getElementById("card-groq").classList.toggle("selected", p === "groq");
   document.getElementById("card-claude").classList.toggle("selected", p === "claude");
   document.getElementById("card-gemini").classList.toggle("selected", p === "gemini");
 
   const block = document.getElementById("provider-action");
   block.style.display = "block";
 
-  if (p === "claude") {
+  if (p === "groq") {
+    const keySet = status.groq_key_set;
+    block.innerHTML = `<div class="install-block">
+      <p><strong style="color:#e2e8f0">Groq API Key</strong> — free, no credit card required</p>
+      <p style="font-size:0.76rem;color:#94a3b8;margin:6px 0 10px">
+        Get your free key at <a href="https://console.groq.com/keys" target="_blank" style="color:#60a5fa">console.groq.com/keys ↗</a>.
+        Groq gives 14,400 free requests/day — enough for hundreds of CVs.
+      </p>
+      <div class="input-group" style="margin-top:0">
+        <label>Groq API Key</label>
+        <input type="password" id="groq-key-input" placeholder="gsk_..." value="${keySet ? '••••••••••••••••' : ''}">
+        <div class="hint">Your key is saved locally in .env and never shared.</div>
+      </div>
+      <div id="groq-key-alert"></div>
+      <button class="btn btn-primary btn-sm" onclick="saveGroqKey()">Save API Key</button>
+    </div>`;
+    if (keySet) markProviderReady();
+
+  } else if (p === "claude") {
     const installed = status.has_claude;
     block.innerHTML = (installed
       ? `<div class="alert alert-ok" style="margin-bottom:10px">✓ Claude Code is already installed.</div>`
@@ -640,6 +665,32 @@ async function installCLI(provider) {
   } else {
     btn.disabled = false;
     btn.innerHTML = "Retry";
+  }
+}
+
+async function saveGroqKey() {
+  const input = document.getElementById("groq-key-input");
+  const key = input ? input.value.trim() : "";
+  const alertEl = document.getElementById("groq-key-alert");
+  if (!key || key.startsWith("•")) {
+    if (alertEl) alertEl.innerHTML = `<div class="alert alert-ok" style="margin-top:8px">✓ Using previously saved key.</div>`;
+    markProviderReady(); return;
+  }
+  if (alertEl) alertEl.innerHTML = `<span class="spinner"></span> Saving…`;
+  try {
+    const res = await fetch("/api/setup/save-groq-key", {
+      method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({key})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      if (alertEl) alertEl.innerHTML = `<div class="alert alert-ok" style="margin-top:8px">✓ Groq API key saved.</div>`;
+      status.groq_key_set = true;
+      markProviderReady();
+    } else {
+      if (alertEl) alertEl.innerHTML = `<div class="alert alert-error" style="margin-top:8px">${data.error}</div>`;
+    }
+  } catch (e) {
+    if (alertEl) alertEl.innerHTML = `<div class="alert alert-error" style="margin-top:8px">Request failed.</div>`;
   }
 }
 

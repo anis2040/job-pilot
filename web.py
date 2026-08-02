@@ -463,6 +463,7 @@ def api_setup_status():
         "has_node": bool(shutil.which("node")),
         "has_profile": bool(profile_p and profile_p.exists()),
         "gemini_key_set": bool(os.environ.get("GEMINI_API_KEY")),
+        "groq_key_set": bool(os.environ.get("GROQ_API_KEY")),
     })
 
 
@@ -594,6 +595,20 @@ def api_setup_install_cli():
         return jsonify({"ok": r.returncode == 0, "output": (r.stdout or r.stderr)[-1000:]})
     except Exception as e:
         return jsonify({"ok": False, "output": str(e)})
+
+
+@app.route("/api/setup/save-groq-key", methods=["POST"])
+def api_setup_save_groq_key():
+    data = request.get_json()
+    key = (data.get("key") or "").strip()
+    if not key:
+        return jsonify({"error": "No key provided"}), 400
+    env_path = BASE / ".env"
+    lines = [l for l in env_path.read_text().splitlines() if not l.startswith("GROQ_API_KEY=")] if env_path.exists() else []
+    lines.append(f"GROQ_API_KEY={key}")
+    env_path.write_text("\n".join(lines) + "\n")
+    os.environ["GROQ_API_KEY"] = key
+    return jsonify({"ok": True})
 
 
 @app.route("/api/setup/save-gemini-key", methods=["POST"])

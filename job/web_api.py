@@ -184,7 +184,43 @@ def _get_anthropic_client():
         return None
 
 
-def _build_with_sdk(system_text: str, user_prompt: str, stage_fn=None) -> str:
+def _get_groq_client():
+    """Return a Groq client if GROQ_API_KEY is set, else None."""
+    _load_env()
+    import os
+    api_key = os.environ.get("GROQ_API_KEY")
+    if not api_key:
+        return None
+    try:
+        from groq import Groq
+        return Groq(api_key=api_key)
+    except Exception:
+        return None
+
+
+def _build_with_groq(system_text: str, user_prompt: str, stage_fn=None) -> str:
+    """Call Groq API — free tier, fast, no billing required."""
+    client = _get_groq_client()
+    if client is None:
+        raise RuntimeError("No Groq client available")
+    if stage_fn:
+        stage_fn("Generating with Groq…")
+    model = "llama-3.3-70b-versatile"
+    response = client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": system_text},
+            {"role": "user",   "content": user_prompt},
+        ],
+        max_tokens=4096,
+        temperature=0.3,
+    )
+    u = response.usage
+    input_t  = getattr(u, "prompt_tokens",     0) or 0
+    output_t = getattr(u, "completion_tokens", 0) or 0
+    total_t  = getattr(u, "total_tokens",      0) or 0
+    print(f"[groq/{model}] input={input_t} output={output_t} total={total_t}")
+    return response.choices[0].message.content
     """Call Claude via SDK with prompt caching. Returns response text."""
     import anthropic
     client = _get_anthropic_client()
@@ -310,15 +346,16 @@ def _build_with_gemini(system_text: str, user_prompt: str, cwd: str, stage_fn=No
 
 
 def _generate_content(system_text: str, user_prompt: str, cwd: str, stage_fn=None) -> str:
-    """Use best available AI: Anthropic SDK (cached) → Gemini SDK → Gemini CLI."""
-    client = _get_anthropic_client()
-    if client is not None:
+    """Priority: Groq (free) → Anthropic SDK (cached) → Gemini SDK → Gemini CLI."""
+    if _get_groq_client() is not None:
+        return _build_with_groq(system_text, user_prompt, stage_fn=stage_fn)
+    if _get_anthropic_client() is not None:
         return _build_with_sdk(system_text, user_prompt, stage_fn=stage_fn)
     if _get_gemini_client() is not None or shutil.which("gemini"):
         return _build_with_gemini(system_text, user_prompt, cwd=cwd, stage_fn=stage_fn)
     raise RuntimeError(
-        "No AI available. Install Claude Code and run 'claude login', "
-        "or install Gemini CLI and set GEMINI_API_KEY."
+        "No AI provider configured. Add a GROQ_API_KEY to .env "
+        "(free at console.groq.com) or install Gemini CLI."
     )
 
 
