@@ -5,10 +5,10 @@ cd /d "%~dp0"
 
 if not exist ".venv\Scripts\activate.bat" (
     echo.
-    echo  [ERROR] Virtual environment not found. Run setup.bat first.
+    echo  First-time setup needed. Running setup.bat...
     echo.
-    pause
-    exit /b 1
+    call "%~dp0setup.bat"
+    exit /b
 )
 
 call .venv\Scripts\activate.bat
