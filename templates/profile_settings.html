@@ -9,7 +9,7 @@
   /* Sidebar nav */
   .sidenav { width: 200px; flex-shrink: 0; }
   .sidenav-section { font-size: 0.7rem; font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: .06em; padding: 8px 12px 4px; }
-  .sidenav-item { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-radius: var(--radius); color: var(--text-soft); font-size: var(--text-md); cursor: pointer; transition: all .1s; border: none; background: none; width: 100%; text-align: left; }
+  .sidenav-item { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-3); border-radius: var(--radius); color: var(--text-soft); font-size: var(--text-md); cursor: pointer; transition: all .1s; border: none; background: none; width: 100%; text-align: left; }
   .sidenav-item:hover { background: var(--bg-raised); color: var(--text); }
   .sidenav-item.active { background: var(--bg-hover); color: var(--blue-light); font-weight: 600; }
   .sidenav-icon { font-size: 0.9rem; width: 18px; text-align: center; }
@@ -87,8 +87,8 @@
         </div>
       </div>
 
-      <div class="settings-card" style="margin-top:24px">
-        <div class="settings-card-header" onclick="toggleCard('auto-config-body')">
+      <div class="settings-card" style="margin-top:var(--space-6)">
+        <div class="settings-card-header" role="button" tabindex="0" aria-expanded="false" aria-controls="auto-config-body" onclick="toggleCard('auto-config-body', this)" onkeydown="cardKeydown(event, 'auto-config-body', this)">
           <div>
             <h3>Auto-configure searches</h3>
             <p>Let the AI read your profile and set up search queries automatically</p>
@@ -119,7 +119,7 @@
       </div>
 
       <div class="settings-card">
-        <div class="settings-card-header" onclick="toggleCard('filter-body')">
+        <div class="settings-card-header" role="button" tabindex="0" aria-expanded="false" aria-controls="filter-body" onclick="toggleCard('filter-body', this)" onkeydown="cardKeydown(event, 'filter-body', this)">
           <div><h3>Filters</h3><p>Title filter, blacklist, company blacklist</p></div>
           <span id="toggle-filter-body" class="toggle-icon">▼</span>
         </div>
@@ -158,7 +158,7 @@
       <div class="section-desc page-desc">Irreversible actions for this profile.</div>
 
       {% if profile.slug != active_slug %}
-      <div class="danger-card" style="margin-bottom:12px">
+      <div class="danger-card" style="margin-bottom:var(--space-3)">
         <div class="info">
           <h4>Delete this profile</h4>
           <p>Permanently deletes all jobs, resumes, and settings for this profile.</p>
@@ -166,7 +166,7 @@
         <button class="btn btn-danger-outline" onclick="deleteProfile()">Delete profile</button>
       </div>
       {% else %}
-      <div class="danger-card" style="margin-bottom:12px;border-color:#2d3748">
+      <div class="danger-card" style="margin-bottom:var(--space-3);border-color:var(--border)">
         <div class="info">
           <h4>Delete this profile</h4>
           <p>Switch to another profile first before deleting this one.</p>
@@ -202,11 +202,19 @@ function showSection(name) {
   document.getElementById(`nav-${name}`).classList.add("active");
 }
 
-function toggleCard(bodyId) {
+function toggleCard(bodyId, header) {
   const body = document.getElementById(bodyId);
   const icon = document.getElementById(`toggle-${bodyId}`);
-  body.classList.toggle("hidden");
-  if (icon) icon.textContent = body.classList.contains("hidden") ? "▼" : "▲";
+  const hidden = body.classList.toggle("hidden");
+  if (icon) icon.textContent = hidden ? "▼" : "▲";
+  if (header) header.setAttribute("aria-expanded", hidden ? "false" : "true");
+}
+
+function cardKeydown(e, bodyId, header) {
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    toggleCard(bodyId, header);
+  }
 }
 
 async function loadProfileForm() {

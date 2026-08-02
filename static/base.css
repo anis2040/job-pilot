@@ -65,8 +65,10 @@
   --space-4:      16px;
   --space-5:      20px;
   --space-6:      24px;
+  --space-7:      28px;
   --space-8:      32px;
   --space-10:     40px;
+  --space-12:     48px;
 
   /* Shadows */
   --shadow-sm:    0 1px 3px rgba(0,0,0,0.4);
@@ -198,7 +200,7 @@ a.btn { text-decoration: none; }
 .badge-pending { background: var(--blue-dim);    color: var(--blue-light); }
 .badge-applied { background: var(--green-bg);    color: var(--green); }
 .badge-skipped { background: var(--red-bg);      color: var(--red); }
-.badge-active  { background: var(--green-bg);    color: var(--green); }
+.badge-active  { background: var(--green-bg);    color: var(--green);        border: 1px solid var(--green-border); }
 .badge-none    { background: var(--red-bg);      color: var(--red); }
 .badge-free    { background: var(--green-bg);    color: var(--green); }
 .badge-paid    { background: var(--blue-dim);    color: var(--blue-light); }
@@ -427,7 +429,7 @@ a.btn { text-decoration: none; }
   border: 1px solid var(--border);
   border-radius: var(--radius);
   color: var(--text);
-  padding: 7px 11px;
+  padding: 9px 12px;
   font-size: var(--text-base);
   font-family: inherit;
   outline: none;
@@ -594,3 +596,9 @@ a.btn { text-decoration: none; }
 .confirm-icon.danger { background: var(--red-bg); color: var(--red); }
 .confirm-msg { font-size: var(--text-base); color: var(--text-soft); line-height: var(--leading-relaxed); margin-bottom: var(--space-5); }
 .confirm-actions { display: flex; justify-content: flex-end; gap: var(--space-2); }
+
+/* ── Mobile touch-target bumps (WCAG 2.5.8) ───────────────────────────────── */
+@media (max-width: 640px) {
+  .modal-close, .btn-icon { width: 44px; height: 44px; }
+  .btn-sm { min-height: 40px; }
+}

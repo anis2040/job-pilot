@@ -53,8 +53,9 @@
     border-radius: var(--radius); padding: 5px 12px;
   }
   .job-meta-item.remote-remote { color: var(--green);  background: #0d2e1a; border-color: #1a4d2e; }
-  .job-meta-item.remote-hybrid { color: var(--yellow); background: #1a1400; border-color: #3d2f00; }
-  .job-hero-actions { display: flex; gap: var(--space-3); flex-wrap: wrap; }
+  .job-meta-item.remote-hybrid { color: var(--yellow); background: #1a1400; border-color: #5a4500; }
+  .job-hero-actions { display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: center; }
+  .hero-action-divider { width: 1px; align-self: stretch; background: var(--border); margin: 2px 0; }
 
   /* ── Description ── */
   .job-description {
@@ -81,7 +82,7 @@
     overflow: hidden;
   }
   .sidebar-card-header { padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border-faint); }
-  .sidebar-card-header h3 { font-size: var(--text-base); font-weight: 700; color: var(--text); }
+  .sidebar-card-header h3 { font-size: var(--text-base); font-weight: 600; color: var(--text); }
   .sidebar-card-body { padding: var(--space-4) var(--space-5); display: flex; flex-direction: column; gap: var(--space-3); }
 
   /* Action card */
@@ -100,7 +101,7 @@
   .doc-error-msg { font-size: var(--text-xs); color: var(--red); background: var(--red-bg); padding: 4px 8px; border-radius: var(--radius-sm); }
 
   /* Details card */
-  .detail-row { display: flex; flex-direction: column; gap: 2px; }
+  .detail-row { display: flex; flex-direction: column; gap: var(--space-1); }
   .detail-row-label { font-size: var(--text-xs); color: var(--text-faint); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
   .detail-row-value { font-size: var(--text-base); color: var(--text-soft); }
   .detail-row-value a { color: var(--blue-light); text-decoration: none; }
@@ -108,14 +109,14 @@
 
   /* Skills card */
   .skills-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
-  .skill-tag { display: inline-flex; align-items: center; padding: 3px 10px; background: var(--blue-dim); border: 1px solid var(--blue); border-radius: var(--radius-full); font-size: var(--text-xs); color: var(--blue-light); font-weight: 500; }
+  .skill-tag { display: inline-flex; align-items: center; padding: 5px 12px; background: var(--blue-dim); border: 1px solid var(--blue); border-radius: var(--radius-full); font-size: var(--text-xs); color: var(--blue-light); font-weight: 500; }
 
   /* Timeline card */
   .timeline { display: flex; flex-direction: column; gap: 0; }
   .timeline-item { display: flex; gap: var(--space-3); align-items: flex-start; position: relative; padding-bottom: var(--space-3); }
   .timeline-item:last-child { padding-bottom: 0; }
-  .timeline-item:not(:last-child)::after { content: ''; position: absolute; left: 7px; top: 16px; bottom: 0; width: 1px; background: var(--border-faint); }
-  .timeline-dot { width: 15px; height: 15px; border-radius: 50%; flex-shrink: 0; margin-top: 2px; border: 2px solid var(--border); background: var(--bg-page); }
+  .timeline-item:not(:last-child)::after { content: ''; position: absolute; left: 6px; top: 16px; bottom: 0; width: 1px; background: var(--border-faint); }
+  .timeline-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; margin-top: 3px; border: 2px solid var(--border); background: var(--bg-page); }
   .timeline-dot.active { border-color: var(--blue); background: var(--blue); }
   .timeline-dot.green  { border-color: var(--green); background: var(--green-bg); }
   .timeline-dot.red    { border-color: var(--red); background: var(--red-bg); }
@@ -123,12 +124,12 @@
   .timeline-date  { font-size: var(--text-xs); color: var(--text-faint); margin-top: 1px; }
 
   /* Salary highlight */
-  .salary-value { font-size: var(--text-md); font-weight: 700; color: var(--green); }
+  .salary-value { font-size: var(--text-lg); font-weight: 700; color: var(--green); }
 
   /* Similar jobs card */
-  .similar-job { display: flex; flex-direction: column; gap: 3px; padding: var(--space-3) 0; border-bottom: 1px solid var(--border-faint); cursor: pointer; transition: background 0.1s; text-decoration: none; }
-  .similar-job:last-child { border-bottom: none; padding-bottom: 0; }
-  .similar-job:first-child { padding-top: 0; }
+  .similar-job { display: flex; flex-direction: column; gap: 3px; padding: var(--space-3) var(--space-2); margin: 0 calc(-1 * var(--space-2)); border-bottom: 1px solid var(--border-faint); border-radius: var(--radius-sm); cursor: pointer; transition: background 0.1s; text-decoration: none; }
+  .similar-job:last-child { border-bottom: none; }
+  .similar-job:hover { background: var(--bg-raised); }
   .similar-job:hover .similar-job-title { color: var(--blue-light); }
   .similar-job-title { font-size: var(--text-base); font-weight: 600; color: var(--text); line-height: var(--leading-tight); }
   .similar-job-meta  { font-size: var(--text-xs); color: var(--text-muted); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
@@ -255,7 +256,9 @@ function remoteItemClass(r) {
 
 // ── Render hero ───────────────────────────────────────────────────────────
 function renderHero(j) {
-  document.getElementById("header-title").textContent = `${j.title} — ${j.company}`;
+  const headerTitle = document.getElementById("header-title");
+  headerTitle.textContent = `${j.title} — ${j.company}`;
+  headerTitle.title = `${j.title} — ${j.company}`;   // tooltip when truncated
   document.title = `${j.title} at ${j.company} — Job Scraper`;
 
   const remoteIcon = { Remote: "🌐", Hybrid: "🏠", "On-site": "🏢" }[j.remote] || "🏢";
@@ -273,6 +276,7 @@ function renderHero(j) {
     <div class="job-hero-meta">${metaItems}</div>
     <div class="job-hero-actions">
       <a href="${safeUrl(j.url)}" target="_blank" rel="noopener" class="btn btn-primary">View original posting ↗</a>
+      <span class="hero-action-divider"></span>
       ${renderStatusActions(j)}
     </div>`;
 }
@@ -478,7 +482,7 @@ async function setStatus(newStatus) {
   const heroActions = document.querySelector(".job-hero-actions");
   if (heroActions) {
     const viewBtn = heroActions.querySelector("a");
-    heroActions.innerHTML = (viewBtn ? viewBtn.outerHTML : "") + renderStatusActions(job);
+    heroActions.innerHTML = (viewBtn ? viewBtn.outerHTML : "") + `<span class="hero-action-divider"></span>` + renderStatusActions(job);
   }
   showToast(newStatus === "applied" ? "✓ Marked as applied" : newStatus === "skipped" ? "Skipped" : "↩ Restored", newStatus === "skipped" ? "err" : "ok");
 }
