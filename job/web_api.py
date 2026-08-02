@@ -13,7 +13,7 @@ from .db import get_job, update_description, init_db, already_seen, is_duplicate
 from .linkedin_fetcher import fetch_description as li_fetch_description
 from .config import load_config
 from .fetcher import fetch_search
-from .profiles import get_profile_path, get_resumes_path
+from .profiles import get_profile_path, get_resumes_path, company_resumes_path, company_cover_letters_path
 
 _BASE = Path(__file__).parent.parent
 
@@ -696,9 +696,9 @@ def _build_cover_letter_prompt(row: dict, company: str, title: str, name_slug: s
 
     resume_tex_content = ""
     for candidate in [
-        _resumes_path() / company / f"{name_slug}_Resume.tex",
-        _resumes_path() / company.replace(" ", "") / f"{name_slug}_Resume.tex",
-        _resumes_path() / company.replace(" ", "").replace("/", "") / f"{name_slug}_Resume.tex",
+        _resumes_path() / company / "resumes" / f"{name_slug}_Resume.tex",
+        _resumes_path() / company.replace(" ", "") / "resumes" / f"{name_slug}_Resume.tex",
+        _resumes_path() / company.replace(" ", "").replace("/", "") / "resumes" / f"{name_slug}_Resume.tex",
     ]:
         if candidate.exists():
             resume_tex_content = f"\n\nThe resume for this role (for consistency):\n```latex\n{candidate.read_text()[:3000]}\n```"
@@ -768,7 +768,7 @@ def _build_document(job_id: str, doc_type: str) -> None:
 
         company_folder = _sanitize_folder_name(meta.get("company", company), folder_fallback)
 
-        output_dir = _resumes_path() / company_folder
+        output_dir = _resumes_path() / company_folder / ("resumes" if is_resume else "cover-letters")
         output_dir.mkdir(parents=True, exist_ok=True)
 
         tex_path = output_dir / f"{name_slug}_{tex_suffix}.tex"

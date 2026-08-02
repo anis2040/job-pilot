@@ -130,7 +130,6 @@ def create_profile(name: str) -> str:
         profile_dir = PROFILES_DIR / slug
         counter += 1
     profile_dir.mkdir(parents=True, exist_ok=True)
-    (profile_dir / "resumes").mkdir(exist_ok=True)
     return slug
 
 
@@ -157,4 +156,15 @@ def _active_profile_subpath(filename: str) -> Path | None:
 def get_profile_path() -> Path | None:  return _active_profile_subpath("profile.md")
 def get_config_path()  -> Path | None:  return _active_profile_subpath("config.yaml")
 def get_db_path()      -> str  | None:  return str(_active_profile_subpath("state.db")) if active_profile_dir() else None
-def get_resumes_path() -> Path | None:  return _active_profile_subpath("resumes")
+
+def get_resumes_path() -> Path | None:
+    d = active_profile_dir()
+    return d if d else None
+
+def company_resumes_path(company: str) -> Path | None:
+    d = active_profile_dir()
+    return d / company / "resumes" if d else None
+
+def company_cover_letters_path(company: str) -> Path | None:
+    d = active_profile_dir()
+    return d / company / "cover-letters" if d else None

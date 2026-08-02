@@ -101,7 +101,8 @@ def _pdf_url(path: str | None) -> str | None:
     if not path:
         return None
     p = Path(path)
-    return f"/pdf/{p.parent.name}/{p.name}"
+    # path is profiles/<slug>/<company>/<subdir>/<file>
+    return f"/pdf/{p.parent.parent.name}/{p.parent.name}/{p.name}"
 
 
 def _require_profile_dir(slug: str):
@@ -132,13 +133,10 @@ def _format_relative_age(dt_str: str | None, *, days_only: bool = False) -> str:
         return ""
 
 
-def _find_pdf_path(resumes: Path, company: str, target: str) -> str | None:
-    """Search 3 company-name variants for a PDF file. Returns path string or None."""
-    for candidate in [
-        resumes / company / target,
-        resumes / company.replace(" ", "") / target,
-        resumes / company.replace(" ", "").replace("/", "") / target,
-    ]:
+def _find_pdf_path(profile_dir: Path, company: str, subdir: str, target: str) -> str | None:
+    """Search 3 company-name variants under profile_dir/<company>/<subdir>/. Returns path string or None."""
+    for co in [company, company.replace(" ", ""), company.replace(" ", "").replace("/", "")]:
+        candidate = profile_dir / co / subdir / target
         if candidate.exists():
             return str(candidate)
     return None
@@ -159,13 +157,13 @@ def _serialize_job(row, task_status: dict, cl_task_status: dict) -> dict:
     cl_pdf_path = cl_ts.get("pdf_path")
 
     try:
-        resumes = _resumes_path()
+        profile_dir = _resumes_path()
         if resume_status == "idle" and not pdf_path:
-            pdf_path = _find_pdf_path(resumes, company, f"{name_slug}_Resume.pdf")
+            pdf_path = _find_pdf_path(profile_dir, company, "resumes", f"{name_slug}_Resume.pdf")
             if pdf_path:
                 resume_status = "done"
         if cl_status == "idle" and not cl_pdf_path:
-            cl_pdf_path = _find_pdf_path(resumes, company, f"{name_slug}_Cover_Letter.pdf")
+            cl_pdf_path = _find_pdf_path(profile_dir, company, "cover-letters", f"{name_slug}_Cover_Letter.pdf")
             if cl_pdf_path:
                 cl_status = "done"
     except RuntimeError:
@@ -578,9 +576,11 @@ def api_fetch_status():
     return jsonify(get_fetch_status())
 
 
-@app.route("/pdf/<company>/<filename>")
-def serve_pdf(company, filename):
-    pdf = _resumes_path() / company / filename
+@app.route("/pdf/<company>/<subdir>/<filename>")
+def serve_pdf(company, subdir, filename):
+    if subdir not in ("resumes", "cover-letters"):
+        abort(404)
+    pdf = _resumes_path() / company / subdir / filename
     if not pdf.exists():
         abort(404)
     return send_file(str(pdf), mimetype="application/pdf")
@@ -833,7 +833,6 @@ def api_setup_save_profile():
 
     profile_dir.mkdir(parents=True, exist_ok=True)
     (profile_dir / "profile.md").write_text(content)
-    (profile_dir / "resumes").mkdir(exist_ok=True)
 
     # Rename the folder to the proper name-based slug if it's still a temp name
     current_slug = profile_dir.name
@@ -862,22 +861,43 @@ if __name__ == "__main__":
             if "=" in line and not line.startswith("#"):
                 k, v = line.split("=", 1)
                 os.environ.setdefault(k.strip(), v.strip())
-    # Repair symlinks and migrate legacy root resumes/ on startup
+    # Repair symlinks and migrate legacy folder structures on startup
     active_slug = get_active_slug()
     if active_slug:
         from job.profiles import _update_symlinks
         _update_symlinks(PROFILES_DIR / active_slug)
         init_db()
-        # Migrate any resumes still in the legacy project-root resumes/ folder
         import shutil as _shutil
-        legacy_resumes = BASE / "resumes"
-        profile_resumes = get_resumes_path()
-        if legacy_resumes.exists() and profile_resumes:
-            for company_dir in legacy_resumes.iterdir():
-                if company_dir.is_dir():
-                    dest = profile_resumes / company_dir.name
-                    if not dest.exists():
-                        _shutil.copytree(company_dir, dest)
+        profile_dir = PROFILES_DIR / active_slug
+
+        # Migration 1: legacy project-root resumes/<company>/ → profiles/<slug>/<company>/resumes/
+        legacy_root = BASE / "resumes"
+        if legacy_root.exists():
+            for company_dir in legacy_root.iterdir():
+                if not company_dir.is_dir():
+                    continue
+                dest = profile_dir / company_dir.name / "resumes"
+                if not dest.exists():
+                    dest.mkdir(parents=True, exist_ok=True)
+                for f in company_dir.iterdir():
+                    if f.is_file() and not (dest / f.name).exists():
+                        _shutil.copy2(f, dest / f.name)
+
+        # Migration 2: profiles/<slug>/resumes/<company>/<files> → profiles/<slug>/<company>/resumes/ or cover-letters/
+        old_resumes = profile_dir / "resumes"
+        if old_resumes.is_dir():
+            for company_dir in old_resumes.iterdir():
+                if not company_dir.is_dir():
+                    continue
+                for f in company_dir.iterdir():
+                    if not f.is_file():
+                        continue
+                    subdir = "cover-letters" if "Cover_Letter" in f.name else "resumes"
+                    dest_dir = profile_dir / company_dir.name / subdir
+                    dest_dir.mkdir(parents=True, exist_ok=True)
+                    if not (dest_dir / f.name).exists():
+                        _shutil.copy2(f, dest_dir / f.name)
+            _shutil.rmtree(old_resumes, ignore_errors=True)
     # Clean up orphaned new-profile-* folders (created but never completed)
     if PROFILES_DIR.exists():
         import shutil as _shutil2

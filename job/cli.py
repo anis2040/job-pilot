@@ -18,7 +18,7 @@ from .db import (
 )
 from .fetcher import fetch_search
 from .linkedin_fetcher import fetch_description as li_fetch_description
-from .profiles import get_resumes_path
+from .profiles import get_profile_path
 
 app = typer.Typer(help="Job hunt automator — fetch, track, and manage job listings.")
 console = Console()
@@ -60,11 +60,12 @@ def _remote_color(remote: str) -> str:
 def _resume_exists(company: str) -> bool:
     if not company:
         return False
-    resumes_dir = get_resumes_path()
-    if not resumes_dir:
-        return False
     from .web_api import _candidate_name_slug
-    pdf = resumes_dir / company / f"{_candidate_name_slug()}_Resume.pdf"
+    from .profiles import company_resumes_path
+    path = company_resumes_path(company)
+    if not path:
+        return False
+    pdf = path / f"{_candidate_name_slug()}_Resume.pdf"
     return pdf.exists()
 
 
@@ -338,8 +339,6 @@ def resume(
         latex_template = skill_dir / "references" / "latex_template.md"
         if latex_template.exists():
             skill_instructions += f"\n\n## latex_template.md (embedded)\n\n{latex_template.read_text()}"
-        profile_path = get_resumes_path().parent / "profile.md" if get_resumes_path() else None
-        from .profiles import get_profile_path
         profile_path = get_profile_path()
         if profile_path and profile_path.exists():
             skill_instructions += f"\n\n## profile.md (embedded)\n\n{profile_path.read_text()}"

@@ -23,7 +23,7 @@ Write a cover letter that sounds like a real person wrote it, not a template. Th
 
 When present, `profile.md` is the single source of truth. Never fabricate clients, projects, metrics, or tools not listed there.
 
-The resume for this role is at `../resumes/<CompanyName>/{{NAME_SLUG}}_Resume.tex`. Read it before writing — the cover letter must not repeat bullet points verbatim, but must be consistent with what was emphasized.
+The resume for this role is at `../<CompanyName>/resumes/{{NAME_SLUG}}_Resume.tex`. Read it before writing — the cover letter must not repeat bullet points verbatim, but must be consistent with what was emphasized.
 
 ---
 
@@ -91,8 +91,8 @@ Express genuine interest in this specific company/role — reference something r
 \end{document}
 ```
 
-**Output directory:** same folder as the resume. Save as:
-- `../resumes/<CompanyName>/{{NAME_SLUG}}_Cover_Letter.tex`
+**Output directory:** same profile folder as the resume, under `cover-letters/`. Save as:
+- `../<CompanyName>/cover-letters/{{NAME_SLUG}}_Cover_Letter.tex`
 
 ---
 
@@ -103,14 +103,14 @@ Detect the platform and use the appropriate commands:
 **macOS/Linux:**
 ```bash
 export PATH="/usr/local/texlive/2026basic/bin/universal-darwin:$PATH"
-cd ../resumes/<CompanyName>
+cd ../<CompanyName>/cover-letters
 pdflatex -interaction=nonstopmode {{NAME_SLUG}}_Cover_Letter.tex
 find . -maxdepth 1 -name "{{NAME_SLUG}}_Cover_Letter.*" ! -name "*.pdf" ! -name "*.tex" -delete
 ```
 
 **Windows:**
 ```powershell
-cd ..\resumes\<CompanyName>
+cd ..\<CompanyName>\cover-letters
 pdflatex -interaction=nonstopmode {{NAME_SLUG}}_Cover_Letter.tex
 del {{NAME_SLUG}}_Cover_Letter.aux, {{NAME_SLUG}}_Cover_Letter.log, {{NAME_SLUG}}_Cover_Letter.out 2>$null
 ```
@@ -123,8 +123,8 @@ If compilation fails, fix LaTeX errors (unescaped `&`, `%`, `_`, `#`; unclosed e
 
 ## Deliver
 
-1. Confirm the PDF exists at `../resumes/<CompanyName>/{{NAME_SLUG}}_Cover_Letter.pdf`
+1. Confirm the PDF exists at `../<CompanyName>/cover-letters/{{NAME_SLUG}}_Cover_Letter.pdf`
 2. Report the output paths:
-   - `../resumes/<CompanyName>/{{NAME_SLUG}}_Cover_Letter.pdf`
-   - `../resumes/<CompanyName>/{{NAME_SLUG}}_Cover_Letter.tex`
+   - `../<CompanyName>/cover-letters/{{NAME_SLUG}}_Cover_Letter.pdf`
+   - `../<CompanyName>/cover-letters/{{NAME_SLUG}}_Cover_Letter.tex`
 3. Print the plain-text body of the letter (the three paragraphs only, no LaTeX) so it can be pasted into an online application form.
