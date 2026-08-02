@@ -6,8 +6,13 @@
 <title>{% block title %}Job Scraper{% endblock %}</title>
 <link rel="stylesheet" href="/static/base.css">
 {% block styles %}{% endblock %}
+<style>
+  .skip-link { position: absolute; left: -9999px; top: 4px; background: var(--blue); color: #fff; padding: 6px 14px; border-radius: var(--radius); font-size: var(--text-base); font-weight: 600; z-index: 9999; }
+  .skip-link:focus { left: 4px; }
+</style>
 </head>
 <body>
+<a href="#main-content" class="skip-link">Skip to content</a>
 {% block body %}{% endblock %}
 <div class="toast" id="toast"></div>
 <script src="/static/ui.js"></script>

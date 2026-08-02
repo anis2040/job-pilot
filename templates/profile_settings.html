@@ -76,12 +76,15 @@
 
       {% include "partials/autofill_bar.html" %}
 
-      {% include "partials/profile_form.html" %}
-
-      <div id="profile-save-alert"></div>
-      <div class="save-row" style="margin-top:16px">
-        <button class="btn btn-primary" onclick="saveProfileForm()">Save profile</button>
-        <span class="save-notice" id="profile-save-ok" style="display:none">✓ Saved</span>
+      <div class="settings-card">
+        <div class="settings-card-body">
+          {% include "partials/profile_form.html" %}
+          <div id="profile-save-alert"></div>
+          <div class="save-row">
+            <button class="btn btn-primary" onclick="saveProfileForm()">Save profile</button>
+            <span class="save-notice" id="profile-save-ok" style="display:none">✓ Saved</span>
+          </div>
+        </div>
       </div>
 
       <div class="settings-card" style="margin-top:24px">

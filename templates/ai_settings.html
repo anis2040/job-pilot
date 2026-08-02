@@ -80,7 +80,7 @@
 
   {% for p in providers %}
   <div class="provider-card" id="card-{{ p.id }}">
-    <div class="card-header" onclick="selectProvider('{{ p.id }}')">
+    <div class="card-header" onclick="toggleCard('{{ p.id }}')" role="button" aria-expanded="false" id="hdr-{{ p.id }}">
       <span class="select-indicator" id="ind-{{ p.id }}">✓</span>
       <div class="card-header-text">
         <h3>{{ p.label }}</h3>
@@ -88,12 +88,14 @@
       </div>
       <span class="{{ p.badge_class }}">{{ p.badge_text }}</span>
       <span class="badge-no-key" id="nokey-{{ p.id }}" style="display:none">No key</span>
+      <span class="toggle-icon" id="chevron-{{ p.id }}" style="margin-left:8px">▾</span>
     </div>
-    <div class="card-body">
+    <div class="card-body" id="body-{{ p.id }}" style="display:none">
       <div class="input-group">
         <label>API Key</label>
         <div class="input-row">
-          <input type="password" id="{{ p.id }}-key-input" placeholder="{{ p.placeholder }}" onclick="event.stopPropagation()">
+          <input type="password" id="{{ p.id }}-key-input" placeholder="{{ p.placeholder }}" onclick="event.stopPropagation()" autocomplete="off">
+          <button class="btn btn-ghost btn-sm" type="button" onclick="toggleKeyVisibility('{{ p.id }}')" id="eye-{{ p.id }}" title="Show/hide key" style="padding:5px 8px;">👁</button>
           <button class="btn btn-primary btn-sm" onclick="saveKey('{{ p.id }}')">Save</button>
         </div>
         <div class="hint">{{ p.hint | safe }}</div>
@@ -126,6 +128,23 @@ let PROVIDERS = [];
 let preferredProvider = null;
 let providerAvailable = {};
 
+function toggleCard(pid) {
+  const body = document.getElementById(`body-${pid}`);
+  const chevron = document.getElementById(`chevron-${pid}`);
+  const hdr = document.getElementById(`hdr-${pid}`);
+  const isOpen = body.style.display !== "none";
+  body.style.display = isOpen ? "none" : "";
+  chevron.textContent = isOpen ? "▾" : "▴";
+  hdr.setAttribute("aria-expanded", String(!isOpen));
+  if (!isOpen) selectProvider(pid);
+}
+
+function toggleKeyVisibility(pid) {
+  const inp = document.getElementById(`${pid}-key-input`);
+  if (!inp) return;
+  inp.type = inp.type === "password" ? "text" : "password";
+}
+
 async function load() {
   const res  = await fetch("/api/ai-settings");
   const data = await res.json();
@@ -144,7 +163,7 @@ async function load() {
     document.getElementById("active-badge").style.display = "";
     document.getElementById("none-badge").style.display   = "none";
   } else {
-    document.getElementById("active-provider-name").textContent = "None";
+    document.getElementById("active-provider-name").textContent = "None configured";
     document.getElementById("active-model-name").textContent    = "";
     document.getElementById("active-badge").style.display = "none";
     document.getElementById("none-badge").style.display   = "";
@@ -167,6 +186,14 @@ async function load() {
     }
 
     document.getElementById(`nokey-${provider}`).style.display = info.key_set ? "none" : "";
+  }
+
+  // Auto-expand the active/preferred provider
+  if (preferredProvider) {
+    const body = document.getElementById(`body-${preferredProvider}`);
+    const chevron = document.getElementById(`chevron-${preferredProvider}`);
+    const hdr = document.getElementById(`hdr-${preferredProvider}`);
+    if (body) { body.style.display = ""; chevron.textContent = "▴"; hdr.setAttribute("aria-expanded", "true"); }
   }
 
   renderSelection();
