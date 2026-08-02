@@ -287,6 +287,14 @@ def _log_tokens(tag: str, model: str, **counts: int) -> None:
     print(f"[{tag}/{model}] {parts}")
 
 
+def _blacklisted(text: str, blacklist: list[str]) -> str | None:
+    combined = text.lower()
+    for kw in blacklist:
+        if kw in combined:
+            return kw
+    return None
+
+
 def _get_groq_client():
     """Return a Groq client if GROQ_API_KEY is set, else None."""
     _load_env()
@@ -787,7 +795,6 @@ def _should_include_job(job, config) -> tuple[bool, str | None]:
         return False, None
     if config.title_filter and not any(kw in job.title.lower() for kw in config.title_filter):
         return False, None
-    from .cli import _blacklisted
     kw = _blacklisted(job.title + " " + job.description, config.blacklist)
     if kw:
         return False, kw
