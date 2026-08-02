@@ -95,8 +95,8 @@
         <label>API Key</label>
         <div class="input-row">
           <input type="password" id="{{ p.id }}-key-input" placeholder="{{ p.placeholder }}" onclick="event.stopPropagation()" autocomplete="off">
-          <button class="btn btn-ghost btn-sm" type="button" onclick="toggleKeyVisibility('{{ p.id }}')" id="eye-{{ p.id }}" title="Show/hide key" style="padding:5px 8px;">👁</button>
-          <button class="btn btn-primary btn-sm" onclick="saveKey('{{ p.id }}')">Save</button>
+          <button class="btn btn-ghost btn-sm" type="button" onclick="event.stopPropagation(); toggleKeyVisibility('{{ p.id }}')" id="eye-{{ p.id }}" title="Show/hide key" style="padding:5px 8px;">👁</button>
+          <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); saveKey('{{ p.id }}')">Save</button>
         </div>
         <div class="hint">{{ p.hint | safe }}</div>
         <div id="{{ p.id }}-key-status" class="key-status"></div>
