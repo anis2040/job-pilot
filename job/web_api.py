@@ -489,11 +489,15 @@ def _build_resume(job_id: str) -> None:
                 update_description(job_id, desc)
                 row["description"] = desc
 
-        if not row.get("description"):
-            raise ValueError("No job description available — cannot build resume")
-
         company = row.get("company") or "Unknown"
-        title = row.get("title") or "Job"
+        title   = row.get("title")   or "Job"
+        desc    = row.get("description") or ""
+
+        job_context = desc if len(desc) > 50 else (
+            f"No full job description available. "
+            f"Tailor the resume for a {title} role at {company} "
+            f"based on typical responsibilities for this position."
+        )
 
         _set_stage(job_id, "Generating resume…")
 
