@@ -19,7 +19,7 @@
   .detail-header .back-btn {
     display: flex; align-items: center; gap: 6px;
     color: var(--text-muted); text-decoration: none;
-    font-size: var(--text-base); transition: color 0.1s;
+    font-size: var(--text-base); transition: color var(--dur-fast) var(--ease-standard);
   }
   .detail-header .back-btn:hover { color: var(--text); }
   .detail-header-title { font-size: var(--text-base); font-weight: 600; color: var(--text-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
@@ -127,7 +127,7 @@
   .salary-value { font-size: var(--text-lg); font-weight: 700; color: var(--green); }
 
   /* Similar jobs card */
-  .similar-job { display: flex; flex-direction: column; gap: 3px; padding: var(--space-3) var(--space-2); margin: 0 calc(-1 * var(--space-2)); border-bottom: 1px solid var(--border-faint); border-radius: var(--radius-sm); cursor: pointer; transition: background 0.1s; text-decoration: none; }
+  .similar-job { display: flex; flex-direction: column; gap: 3px; padding: var(--space-3) var(--space-2); margin: 0 calc(-1 * var(--space-2)); border-bottom: 1px solid var(--border-faint); border-radius: var(--radius-sm); cursor: pointer; transition: background var(--dur-fast) var(--ease-standard); text-decoration: none; }
   .similar-job:last-child { border-bottom: none; }
   .similar-job:hover { background: var(--bg-raised); }
   .similar-job:hover .similar-job-title { color: var(--blue-light); }

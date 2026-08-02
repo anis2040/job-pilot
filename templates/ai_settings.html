@@ -19,16 +19,16 @@
   .active-banner .provider-name { color: var(--text); font-weight: 600; }
   .active-banner .model-name { color: var(--text-soft); font-size: var(--text-sm); }
 
-  .provider-card { background: var(--bg-surface); border: 2px solid var(--border); border-radius: var(--radius-lg); margin-bottom: var(--space-4); overflow: hidden; transition: border-color .15s; }
+  .provider-card { background: var(--bg-surface); border: 2px solid var(--border); border-radius: var(--radius-lg); margin-bottom: var(--space-4); overflow: hidden; transition: border-color var(--dur-fast) var(--ease-standard); }
   .provider-card.is-preferred { border-color: var(--blue); }
 
-  .card-header { display: flex; align-items: center; gap: var(--space-3); padding: 14px var(--space-5); border-bottom: 1px solid var(--border-faint); cursor: pointer; user-select: none; transition: background .12s; }
+  .card-header { display: flex; align-items: center; gap: var(--space-3); padding: 14px var(--space-5); border-bottom: 1px solid var(--border-faint); cursor: pointer; user-select: none; transition: background var(--dur-fast) var(--ease-standard); }
   .card-header:hover { background: var(--bg-hover); }
   .card-header-text { flex: 1; }
   .card-header h3 { font-size: var(--text-md); font-weight: 700; color: var(--text-white); }
   .card-header .sub { font-size: var(--text-xs); color: var(--text-muted); margin-top: 2px; }
 
-  .select-indicator { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border); flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all .15s; font-size: 0.7rem; color: transparent; }
+  .select-indicator { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border); flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all var(--dur-fast) var(--ease-standard); font-size: 0.7rem; color: transparent; }
   .provider-card.is-preferred .select-indicator { border-color: var(--blue); background: var(--blue); color: #fff; }
   .card-header:hover .select-indicator { border-color: var(--blue-light); }
 
