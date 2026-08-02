@@ -120,13 +120,14 @@
   @media (min-width: 1200px) {
     .split-wrap.split-active { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: var(--space-4); align-items: start; }
     .split-wrap.split-active .jobs-list { margin-top: 0; }
-    .split-wrap.split-active .detail-panel { display: block; }
+    /* Panel visual style — only shown (display:flex) when the wrap is active */
     .detail-panel {
       position: sticky; top: 72px;
       background: var(--bg-surface); border: 1px solid var(--border);
       border-radius: var(--radius-lg); overflow: hidden;
-      max-height: calc(100vh - 96px); display: flex; flex-direction: column;
+      max-height: calc(100vh - 96px); flex-direction: column;
     }
+    .split-wrap.split-active .detail-panel { display: flex; }
     /* Compact rows when split so more fit beside the panel */
     .split-active .job-row-docs { display: none; }
   }
