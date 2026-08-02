@@ -134,17 +134,39 @@ def _inject_name(instructions: str, slug: str) -> str:
     return instructions.replace("{{NAME_SLUG}}", slug).replace("{{CANDIDATE_NAME}}", slug.replace("_", " "))
 
 
+def _load_env() -> None:
+    """Load .env file from project root into os.environ."""
+    import os
+    env_path = _BASE / ".env"
+    if not env_path.exists():
+        return
+    for line in env_path.read_text().splitlines():
+        if "=" in line and not line.startswith("#"):
+            k, v = line.split("=", 1)
+            k, v = k.strip(), v.strip()
+            # Always set ANTHROPIC_API_KEY from .env — it's the explicit user config
+            if k == "ANTHROPIC_API_KEY":
+                os.environ[k] = v
+            else:
+                os.environ.setdefault(k, v)
+
+
 def _get_anthropic_client():
     """Return an Anthropic client pointed at the public API, or None."""
+    _load_env()
     try:
         import anthropic
         import os
         api_key = os.environ.get("ANTHROPIC_API_KEY")
         auth_token = os.environ.get("ANTHROPIC_AUTH_TOKEN")
 
-        # Build a candidate client
         if api_key:
-            client = anthropic.Anthropic(api_key=api_key)
+            # Force the public API URL — ignore ANTHROPIC_BASE_URL proxy overrides
+            client = anthropic.Anthropic(
+                api_key=api_key,
+                base_url="https://api.anthropic.com",
+            )
+            return client
         elif auth_token:
             client = anthropic.Anthropic(auth_token=auth_token)
         elif shutil.which("claude"):
@@ -152,7 +174,7 @@ def _get_anthropic_client():
         else:
             return None
 
-        # Reject proxy/work endpoints — only use the public Anthropic API
+        # For token/OAuth clients, reject proxy endpoints
         base = str(getattr(getattr(client, "_client", None), "base_url", ""))
         if base and "anthropic.com" not in base:
             return None
