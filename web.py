@@ -263,6 +263,10 @@ def api_profiles_switch(slug):
     clear_task_state()
     init_db()
     job_count = stats().get("pending", 0) + stats().get("applied", 0) + stats().get("skipped", 0)
+    # Pre-warm cache for the new profile in background
+    import threading as _threading
+    from job.web_api import _prewarm_cache
+    _threading.Thread(target=_prewarm_cache, daemon=True).start()
     return jsonify({"ok": True, "slug": slug, "empty": job_count == 0})
 
 
@@ -783,5 +787,10 @@ if __name__ == "__main__":
         for d in PROFILES_DIR.iterdir():
             if d.is_dir() and d.name.startswith("new-profile-") and not (d / "profile.md").exists():
                 _shutil2.rmtree(d, ignore_errors=True)
+
+    # Pre-warm the Anthropic prompt cache in background (1h TTL)
+    import threading as _threading
+    from job.web_api import _prewarm_cache
+    _threading.Thread(target=_prewarm_cache, daemon=True).start()
 
     app.run(debug=False, port=5050)

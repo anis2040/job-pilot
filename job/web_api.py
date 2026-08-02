@@ -198,7 +198,7 @@ def _build_with_sdk(system_text: str, user_prompt: str, stage_fn=None) -> str:
         system=[{
             "type": "text",
             "text": system_text,
-            "cache_control": {"type": "ephemeral"},
+            "cache_control": {"type": "ephemeral", "ttl": "1h"},
         }],
         messages=[{"role": "user", "content": user_prompt}],
     )
@@ -301,7 +301,37 @@ def _generate_content(system_text: str, user_prompt: str, cwd: str, stage_fn=Non
     )
 
 
-def _compile_latex(tex_path: Path) -> Path:
+def _prewarm_cache() -> None:
+    """Write the stable skill prompt to Anthropic's cache on startup.
+    Costs one cache-write; every subsequent build within 1h is a cache hit."""
+    client = _get_anthropic_client()
+    if client is None:
+        return
+    try:
+        from job.profiles import get_profile_path
+        profile = get_profile_path()
+        if not profile or not profile.exists():
+            return  # no profile yet — nothing to cache
+
+        skill_text = (_skill_path() / "SKILL.md").read_text()
+        latex = _skill_path() / "references" / "latex_template.md"
+        if latex.exists():
+            skill_text += f"\n\n## latex_template.md (embedded)\n\n{latex.read_text()}"
+        if profile.exists():
+            skill_text += f"\n\n## profile.md (embedded)\n\n{profile.read_text()}"
+        slug = _candidate_name_slug()
+        skill_text = _inject_name(skill_text, slug)
+
+        client.messages.create(
+            model="claude-opus-5",
+            max_tokens=0,
+            system=[{"type": "text", "text": skill_text,
+                     "cache_control": {"type": "ephemeral", "ttl": "1h"}}],
+            messages=[{"role": "user", "content": "warmup"}],
+        )
+        print("[cache] pre-warmed on startup (1h TTL)")
+    except Exception:
+        pass  # pre-warm is best-effort, never block startup
     """Run pdflatex on a .tex file. Returns path to the generated PDF."""
     tex_dir = tex_path.parent
     tex_name = tex_path.name
