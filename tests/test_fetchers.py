@@ -77,6 +77,38 @@ def test_infer_remote_worldwide():
     assert infer_remote("Available worldwide", "") == RemoteType.REMOTE
 
 
+# ── JSON-LD description extraction ──────────────────────────────────────────────
+
+def _soup(html):
+    from bs4 import BeautifulSoup
+    return BeautifulSoup(html, "lxml")
+
+def test_jsonld_description_single_object():
+    from job.fetcher_utils import jsonld_job_description
+    html = '<html><head><script type="application/ld+json">{"@type":"JobPosting","description":"<p>Build <b>great</b> things</p>"}</script></head></html>'
+    out = jsonld_job_description(_soup(html))
+    assert "Build" in out and "great" in out and "<p>" not in out
+
+def test_jsonld_description_in_graph():
+    from job.fetcher_utils import jsonld_job_description
+    html = '<script type="application/ld+json">{"@graph":[{"@type":"WebPage"},{"@type":"JobPosting","description":"Senior role details"}]}</script>'
+    assert "Senior role details" in jsonld_job_description(_soup(html))
+
+def test_jsonld_description_list():
+    from job.fetcher_utils import jsonld_job_description
+    html = '<script type="application/ld+json">[{"@type":"Organization"},{"@type":"JobPosting","description":"Listed desc"}]</script>'
+    assert "Listed desc" in jsonld_job_description(_soup(html))
+
+def test_jsonld_description_absent_returns_empty():
+    from job.fetcher_utils import jsonld_job_description
+    assert jsonld_job_description(_soup("<html><body>no ld json</body></html>")) == ""
+
+def test_jsonld_description_malformed_json_safe():
+    from job.fetcher_utils import jsonld_job_description
+    html = '<script type="application/ld+json">{not valid json,,,}</script>'
+    assert jsonld_job_description(_soup(html)) == ""
+
+
 # ── SOURCES registry ──────────────────────────────────────────────────────────
 
 def test_sources_is_list_of_tuples():
@@ -95,6 +127,59 @@ def test_sources_contains_expected_entries():
 def test_sources_no_duplicates():
     ids = [src for src, _ in SOURCES]
     assert len(ids) == len(set(ids))
+
+
+# ── SOURCE_REGISTRY + capability dispatch ──────────────────────────────────────
+
+def test_registry_prefixes_unique_and_match_fetchers():
+    from job.fetcher import SOURCE_REGISTRY
+    prefixes = [s.prefix for s in SOURCE_REGISTRY]
+    assert len(prefixes) == len(set(prefixes)), "job_id prefixes must be unique"
+    for s in SOURCE_REGISTRY:
+        assert s.prefix.endswith("_"), f"{s.id} prefix should end with _"
+        assert s.fetch_fn.startswith("fetch_")
+
+def test_registry_matches_sources_view():
+    from job.fetcher import SOURCE_REGISTRY, SOURCES, _SOURCE_TO_FN
+    assert SOURCES == [(s.id, s.default_pages) for s in SOURCE_REGISTRY]
+    assert _SOURCE_TO_FN == {s.id: s.fetch_fn for s in SOURCE_REGISTRY}
+
+def test_source_can_describe():
+    from job.fetcher import source_can_describe
+    assert source_can_describe("li_123") is True       # linkedin declares describe
+    assert source_can_describe("ss_456") is True        # stepstone declares describe
+    assert source_can_describe("jc_789") is False       # jobicy has no describe
+    assert source_can_describe("bogus_1") is False      # unknown prefix
+
+def test_fetch_description_dispatches_by_prefix(monkeypatch):
+    import job.fetcher as ft
+    ss = ft._source_for_job_id("ss_1")
+    original = ss.describe
+    try:
+        object.__setattr__(ss, "describe", lambda url: f"SS:{url}")
+        assert ft.fetch_description("ss_1", "http://job") == "SS:http://job"
+    finally:
+        object.__setattr__(ss, "describe", original)
+
+def test_fetch_description_empty_for_no_url():
+    from job.fetcher import fetch_description
+    assert fetch_description("li_1", "") == ""
+
+def test_fetch_description_empty_for_unsupported_source():
+    from job.fetcher import fetch_description
+    assert fetch_description("jc_1", "http://x") == ""       # jobicy has no describe
+    assert fetch_description("zzz_1", "http://x") == ""       # unknown prefix
+
+def test_fetch_description_swallows_errors():
+    import job.fetcher as ft
+    def boom(url): raise RuntimeError("scrape failed")
+    ss = ft._source_for_job_id("ss_1")
+    original = ss.describe
+    try:
+        object.__setattr__(ss, "describe", boom)
+        assert ft.fetch_description("ss_1", "http://x") == ""     # error -> "" not raised
+    finally:
+        object.__setattr__(ss, "describe", original)
 
 
 # ── LinkedIn ──────────────────────────────────────────────────────────────────

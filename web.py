@@ -424,24 +424,20 @@ def job_detail_page(job_id):
 
 @app.route("/api/job/<job_id>/description")
 def api_job_description(job_id):
-    """Return description for a job — from DB if stored, otherwise scrape LinkedIn live."""
+    """Return description for a job — from DB if stored, otherwise scrape on demand
+    via the source's declared describe capability (see job.fetcher.SOURCE_REGISTRY)."""
     row = get_job(job_id)
     if not row:
         return jsonify({"error": "Job not found"}), 404
 
     description = dict(row).get("description") or ""
 
-    if not description and job_id.startswith("li_"):
-        from job.linkedin_fetcher import fetch_description as _li_desc
-        from job.db import _connect
-        job_url = dict(row).get("url") or ""
-        if job_url:
-            description = _li_desc(job_url)
-            if description:
-                with _connect() as con:
-                    con.execute("UPDATE jobs SET description = ? WHERE job_id = ?",
-                                (description, job_id))
-                    con.commit()
+    if not description:
+        from job.fetcher import fetch_description as _fetch_desc
+        from job.db import update_description
+        description = _fetch_desc(job_id, dict(row).get("url") or "")
+        if description:
+            update_description(job_id, description)
 
     return jsonify({"description": description})
 

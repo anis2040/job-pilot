@@ -287,21 +287,19 @@ async function renderDescription(j) {
     return;
   }
 
-  // LinkedIn — fetch lazily with a loading indicator
-  const isLinkedIn = j.job_id && j.job_id.startsWith("li_");
-  if (isLinkedIn) {
-    el.innerHTML = `<div style="display:flex;align-items:center;gap:10px;color:var(--text-muted);font-size:var(--text-base);">
-      <span class="spinner" style="color:var(--blue-light)"></span> Fetching description from LinkedIn…
-    </div>`;
-    try {
-      const data = await fetch(`/api/job/${j.job_id}/description`).then(r => r.json());
-      if (data.description) {
-        j.description = data.description;
-        _setDescription(el, data.description);
-        return;
-      }
-    } catch {}
-  }
+  // No stored description — try fetching on demand. The backend scrapes only
+  // for sources that support it (see SOURCE_REGISTRY) and returns "" otherwise.
+  el.innerHTML = `<div style="display:flex;align-items:center;gap:10px;color:var(--text-muted);font-size:var(--text-base);">
+    <span class="spinner" style="color:var(--blue-light)"></span> Fetching full description…
+  </div>`;
+  try {
+    const data = await fetch(`/api/job/${j.job_id}/description`).then(r => r.json());
+    if (data.description) {
+      j.description = data.description;
+      _setDescription(el, data.description);
+      return;
+    }
+  } catch {}
 
   // Fallback — no description available
   el.innerHTML = `<p class="description-empty">No description available — <a href="${safeUrl(j.url)}" target="_blank" style="color:var(--blue-light)">view on source site ↗</a></p>`;

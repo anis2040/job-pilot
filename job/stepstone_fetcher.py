@@ -4,7 +4,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from .config import SearchConfig
-from .fetcher_utils import infer_remote, strip_tags
+from .fetcher_utils import infer_remote, strip_tags, jsonld_job_description
 from .models import RawJob
 from .utils import parse_experience, location_matches
 
@@ -102,3 +102,37 @@ def fetch_stepstone(search: SearchConfig) -> list[RawJob]:
             time.sleep(2)
 
     return results
+
+
+def fetch_description(job_url: str) -> str:
+    """Scrape the full description from a StepStone job detail page.
+
+    Prefers the schema.org JobPosting JSON-LD block (stable), then falls back
+    to CSS selectors against the rendered ad content.
+    """
+    if not job_url:
+        return ""
+    try:
+        resp = httpx.get(job_url, headers=_HEADERS, timeout=15, follow_redirects=True)
+        resp.raise_for_status()
+    except httpx.HTTPError:
+        return ""
+
+    soup = BeautifulSoup(resp.text, "lxml")
+
+    # 1. Structured data — most reliable
+    desc = jsonld_job_description(soup)
+    if desc:
+        return desc
+
+    # 2. CSS fallback
+    el = soup.select_one(
+        "[data-at='job-ad-content'], div.listing-content, "
+        "section[class*='job-ad'], article[class*='job-ad']"
+    )
+    if not el:
+        candidates = soup.select("section, article, div.content")
+        el = max(candidates, key=lambda e: len(e.get_text()), default=None) if candidates else None
+    if not el:
+        return ""
+    return el.get_text("\n", strip=True)[:4000]

@@ -628,8 +628,8 @@
         ${desc}
       </div>`;
 
-    // Lazy-fetch LinkedIn descriptions
-    if (!j.description && j.job_id.startsWith("li_")) {
+    // Lazy-fetch full description for any source that supports it (backend decides)
+    if (!j.description) {
       fetch(`/api/job/${j.job_id}/description`).then(r => r.json()).then(d => {
         if (d.description && selectedJobId === j.job_id) { j.description = d.description; renderPanel(j); }
       }).catch(() => {});

@@ -1,4 +1,5 @@
 from __future__ import annotations
+import json
 import re
 import httpx
 
@@ -28,3 +29,30 @@ def infer_remote(*text_fields: str) -> str:
     if "remote" in combined or "homeoffice" in combined or "home office" in combined or "worldwide" in combined or "anywhere" in combined:
         return RemoteType.REMOTE
     return RemoteType.ONSITE
+
+
+def jsonld_job_description(soup) -> str:
+    """Extract description from a schema.org JobPosting JSON-LD block, if present.
+
+    Most modern job boards (StepStone, LinkedIn, many ATS) embed a
+    <script type="application/ld+json"> JobPosting object whose `description`
+    field holds the full listing — far more stable than CSS selectors.
+    Returns cleaned plain text, or "" if not found.
+    """
+    for tag in soup.find_all("script", attrs={"type": "application/ld+json"}):
+        raw = tag.string or tag.get_text() or ""
+        if not raw.strip():
+            continue
+        try:
+            data = json.loads(raw)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        # JSON-LD may be a single object, a list, or a @graph container
+        candidates = data if isinstance(data, list) else data.get("@graph", [data]) if isinstance(data, dict) else []
+        for item in candidates:
+            if isinstance(item, dict) and item.get("@type") == "JobPosting":
+                desc = item.get("description") or ""
+                if desc:
+                    return strip_tags(desc)[:4000]
+    return ""
+

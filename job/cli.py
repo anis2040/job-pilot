@@ -17,8 +17,7 @@ from .db import (
     update_status, get_pending, get_pending_deduped, get_jobs_by_status,
     update_description, log_fetch, last_fetch_at, get_job, stats as db_stats,
 )
-from .fetcher import fetch_search
-from .linkedin_fetcher import fetch_description as li_fetch_description
+from .fetcher import fetch_search, fetch_description as fetch_job_description, source_can_describe
 from .profiles import get_profile_path
 
 app = typer.Typer(help="Job hunt automator — fetch, track, and manage job listings.")
@@ -301,10 +300,10 @@ def resume(
     for i, row in enumerate(candidates, 1):
         if row["description"] and len(row["description"]) > 100:
             continue
-        if not row["job_id"].startswith("li_"):
+        if not source_can_describe(row["job_id"]):
             continue
         console.print(f"  [{i}/{len(candidates)}] {row['company']} — {row['title']}")
-        desc = li_fetch_description(row["url"])
+        desc = fetch_job_description(row["job_id"], row["url"])
         if desc:
             update_description(row["job_id"], desc)
             candidates[i - 1]["description"] = desc

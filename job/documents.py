@@ -4,7 +4,7 @@ from pathlib import Path
 
 from . import paths
 from .db import get_job, update_description, init_db
-from .linkedin_fetcher import fetch_description as li_fetch_description
+from .fetcher import fetch_description as fetch_job_description
 from .profiles import get_profile_path, get_resumes_path
 from .ai_providers import _get_anthropic_client, _get_model, _generate_content
 from .latex import _compile_latex, _parse_latex_response
@@ -174,16 +174,16 @@ def _build_document(job_id: str, doc_type: str) -> None:
         row = dict(row)
 
         if is_resume:
-            if job_id.startswith("li_") and (not row.get("description") or len(row["description"]) < 100):
+            if (not row.get("description") or len(row["description"]) < 100):
                 stage_fn(job_id, "Fetching job description…")
-                desc = li_fetch_description(row["url"])
+                desc = fetch_job_description(job_id, row.get("url") or "")
                 if desc:
                     update_description(job_id, desc)
                     row["description"] = desc
         else:
-            if job_id.startswith("li_") and not row.get("description"):
+            if not row.get("description"):
                 stage_fn(job_id, "Fetching job description…")
-                desc = li_fetch_description(row["url"])
+                desc = fetch_job_description(job_id, row.get("url") or "")
                 if desc:
                     update_description(job_id, desc)
                     row["description"] = desc
