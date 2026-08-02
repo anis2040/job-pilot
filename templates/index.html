@@ -426,6 +426,7 @@
     document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
     el.classList.add("active");
     currentStatus = el.dataset.status;
+    closePanel();          // any open preview belongs to the previous tab
     loadJobs();
   }
 
@@ -715,14 +716,17 @@
   }
 
   function updateCounts() {
+    // Fetch each count independently — `jobs` only holds the current tab's rows,
+    // so we can't derive other tabs' counts from it.
+    fetch("/api/jobs?status=pending").then(r => r.json()).then(d => {
+      document.getElementById("tab-cnt-pending").textContent = d.length;
+    });
     fetch("/api/jobs?status=applied").then(r => r.json()).then(d => {
       document.getElementById("tab-cnt-applied").textContent = d.length;
     });
     fetch("/api/jobs?status=skipped").then(r => r.json()).then(d => {
       document.getElementById("tab-cnt-skipped").textContent = d.length;
     });
-    const n = jobs.filter(j => j.status === "pending").length;
-    document.getElementById("tab-cnt-pending").textContent = n;
   }
 
   // ── Polling ───────────────────────────────────────────────────────────────

@@ -104,10 +104,25 @@ def fetch_description(job_url: str) -> str:
         return ""
 
     soup = BeautifulSoup(resp.text, "lxml")
-    el = soup.select_one("div.description__text, div.show-more-less-html__markup, section.show-more-less-html")
+    # Prefer the inner markup container (content only). The outer
+    # section.show-more-less-html also contains the "Show more"/"Show less"
+    # toggle buttons, whose text would otherwise leak into the description.
+    el = soup.select_one("div.show-more-less-html__markup, div.description__text, section.show-more-less-html")
     if not el:
         return ""
-    return el.get_text("\n", strip=True)[:4000]
+    # Drop any toggle buttons that live inside the container.
+    for btn in el.select("button, .show-more-less-html__button"):
+        btn.decompose()
+    text = el.get_text("\n", strip=True)
+    return _strip_show_toggle(text)[:4000]
+
+
+def _strip_show_toggle(text: str) -> str:
+    """Remove LinkedIn's 'Show more'/'Show less' toggle labels that leak into
+    scraped text as standalone lines."""
+    lines = [ln for ln in text.split("\n")
+             if ln.strip().lower() not in ("show more", "show less")]
+    return "\n".join(lines).strip()
 
 
 def _infer_remote_linkedin(location: str, card) -> str:

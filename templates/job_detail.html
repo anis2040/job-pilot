@@ -310,7 +310,13 @@ async function renderDescription(j) {
 }
 
 function _setDescription(el, text) {
-  const html = escapeHtml(text)
+  // Strip LinkedIn "Show more"/"Show less" toggle labels that leak into
+  // already-stored descriptions (belt-and-suspenders with the scraper fix).
+  const cleaned = String(text || "")
+    .split("\n")
+    .filter(ln => !/^\s*(show more|show less)\s*$/i.test(ln))
+    .join("\n");
+  const html = escapeHtml(cleaned)
     .replace(/\n{2,}/g, "</p><p>")
     .replace(/\n/g, "<br>");
   el.innerHTML = `<div class="description-body"><p>${html}</p></div>`;
