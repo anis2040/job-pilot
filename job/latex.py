@@ -61,6 +61,23 @@ def _compile_latex(tex_path: Path) -> Path:
     return pdf_path
 
 
+def _sanitize_latex(text: str) -> str:
+    """Strip invisible/problematic Unicode that pdflatex can't handle."""
+    # Zero-width and other invisible characters that sneak in from scraped content
+    _STRIP = (
+        "​",  # zero-width space
+        "‌",  # zero-width non-joiner
+        "‍",  # zero-width joiner
+        "‎",  # left-to-right mark
+        "‏",  # right-to-left mark
+        "﻿",  # BOM / zero-width no-break space
+        "­",  # soft hyphen
+    )
+    for ch in _STRIP:
+        text = text.replace(ch, "")
+    return text
+
+
 def _parse_latex_response(response_text: str) -> tuple[str, dict]:
     """Extract LaTeX content and metadata JSON from model response."""
     # Find the JSON block after \end{document}
@@ -76,11 +93,11 @@ def _parse_latex_response(response_text: str) -> tuple[str, dict]:
     # Extract LaTeX — everything from \documentclass to \end{document}
     latex_match = re.search(r'(\\documentclass.*?\\end\{document\})', response_text, re.DOTALL)
     if latex_match:
-        return latex_match.group(1), meta
+        return _sanitize_latex(latex_match.group(1)), meta
 
     # Fallback: strip markdown code fences
     text = response_text.strip()
     if text.startswith("```"):
         text = "\n".join(text.split("\n")[1:])
         text = text.rsplit("```", 1)[0].strip()
-    return text, meta
+    return _sanitize_latex(text), meta
