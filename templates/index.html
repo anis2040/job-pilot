@@ -184,7 +184,7 @@
   /* Right: date + source + actions */
   .job-row-right { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2); flex-shrink: 0; }
   .job-row-meta-right { display: flex; align-items: center; gap: 6px; }
-  .job-row-age { font-size: var(--text-xs); color: var(--text-faint); white-space: nowrap; }
+  .job-row-posted { font-size: var(--text-xs); color: var(--text-muted); white-space: nowrap; }
   .source-badge { font-size: var(--text-xs); color: var(--text-faint); background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1px 7px; font-family: "SF Mono", monospace; }
   .job-row-actions { display: flex; gap: var(--space-2); align-items: center; }
 
@@ -315,10 +315,21 @@
   </div>
   <div class="filter-divider"></div>
   <div class="filter-group">
+    <span class="filter-label">Posted</span>
+    <select class="filter-select" id="filter-posted" aria-label="Filter by posting date" onchange="applyFiltersAndSort()">
+      <option value="">Any time</option>
+      <option value="1">Past 24 hours</option>
+      <option value="7">Past week</option>
+      <option value="30">Past month</option>
+    </select>
+  </div>
+  <div class="filter-divider"></div>
+  <div class="filter-group">
     <span class="filter-label">Sort</span>
     <select class="filter-select" id="filter-sort" aria-label="Sort jobs" onchange="applyFiltersAndSort()">
-      <option value="newest">Newest first</option>
-      <option value="oldest">Oldest first</option>
+      <option value="posted">Posted date</option>
+      <option value="newest">Recently fetched</option>
+      <option value="oldest">Oldest fetched</option>
       <option value="title">Title A–Z</option>
       <option value="company">Company A–Z</option>
     </select>
@@ -403,8 +414,6 @@
 <script>
   let currentStatus = "pending";
   let jobs = [];
-  let sortKey = "first_seen_at";
-  let sortDir = -1;
   let REMOTE_CSS = {};
   let COUNTS = { pending: 0, applied: 0, skipped: 0 };
   const SPLIT_MIN = 1200;
@@ -495,7 +504,7 @@
       </div>
       <div class="job-row-right">
         <div class="job-row-meta-right">
-          <span class="job-row-age">${escapeHtml(job.age || "")}</span>
+          ${job.posted ? `<span class="job-row-posted" title="Posted on the original site">${escapeHtml(job.posted)}</span>` : ""}
           <span class="source-badge">${escapeHtml(job.source || "")}</span>
         </div>
         <div class="job-row-actions">${actionsSlot(job)}</div>
@@ -644,7 +653,8 @@
   function clearFilters() {
     document.querySelectorAll(".filter-chip.active").forEach(c => { c.classList.remove("active"); c.setAttribute("aria-pressed", "false"); });
     document.getElementById("filter-source").value = "";
-    document.getElementById("filter-sort").value = "newest";
+    document.getElementById("filter-posted").value = "";
+    document.getElementById("filter-sort").value = "posted";
     document.getElementById("search-input").value = "";
     applyFiltersAndSort();
   }
@@ -662,7 +672,8 @@
     const q = (document.getElementById("search-input")?.value || "").toLowerCase().trim();
     const activeRemote = [...document.querySelectorAll(".filter-chip.active[data-filter='remote']")].map(c => c.dataset.value);
     const srcFilter = document.getElementById("filter-source")?.value || "";
-    const sort = document.getElementById("filter-sort")?.value || "newest";
+    const postedDays = parseInt(document.getElementById("filter-posted")?.value || "", 10);
+    const sort = document.getElementById("filter-sort")?.value || "posted";
 
     let filtered = jobs;
 
@@ -676,7 +687,24 @@
     if (activeRemote.length) filtered = filtered.filter(j => activeRemote.includes(j.remote));
     if (srcFilter) filtered = filtered.filter(j => j.source === srcFilter);
 
+    // Posted-date range filter — only applies to jobs that report a posting date
+    if (!isNaN(postedDays)) {
+      const cutoff = Date.now() - postedDays * 86400000;
+      filtered = filtered.filter(j => {
+        if (!j.posted_at) return false;   // unknown posting date excluded from date filters
+        const t = Date.parse(j.posted_at);
+        return !isNaN(t) && t >= cutoff;
+      });
+    }
+
     filtered = [...filtered].sort((a, b) => {
+      if (sort === "posted") {
+        // Jobs with a known posting date first, newest posting first
+        const ta = a.posted_at ? Date.parse(a.posted_at) : -Infinity;
+        const tb = b.posted_at ? Date.parse(b.posted_at) : -Infinity;
+        if (tb !== ta) return tb - ta;
+        return (b.first_seen_at || "").localeCompare(a.first_seen_at || "");
+      }
       if (sort === "newest") return (b.first_seen_at || "").localeCompare(a.first_seen_at || "");
       if (sort === "oldest") return (a.first_seen_at || "").localeCompare(b.first_seen_at || "");
       if (sort === "title")  return (a.title||"").localeCompare(b.title||"");
@@ -693,7 +721,7 @@
     }
 
     // Show/hide clear button
-    const hasFilters = q || activeRemote.length || srcFilter || sort !== "newest";
+    const hasFilters = q || activeRemote.length || srcFilter || !isNaN(postedDays) || sort !== "posted";
     const clearBtn = document.getElementById("filter-clear");
     if (clearBtn) clearBtn.style.display = hasFilters ? "" : "none";
 

@@ -154,6 +154,26 @@ def _format_relative_age(dt_str: str | None, *, days_only: bool = False) -> str:
         return ""
 
 
+def _format_posted(dt_str: str | None) -> str:
+    """Human posting date: 'Today' / 'Yesterday' / 'Nd ago' for the last week,
+    then an absolute date ('15 Jan') for anything older. '' if unknown."""
+    if not dt_str:
+        return ""
+    try:
+        dt = datetime.fromisoformat(dt_str)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+        days = int((now - dt).total_seconds() // 86400)
+        if days <= 0:   return "Today"
+        if days == 1:   return "Yesterday"
+        if days < 7:    return f"{days}d ago"
+        # Older: absolute date, with year only if not the current year
+        return dt.strftime("%-d %b") if dt.year == now.year else dt.strftime("%-d %b %Y")
+    except Exception:
+        return ""
+
+
 def _find_pdf_path(profile_dir: Path, company: str, subdir: str, suffix: str) -> str | None:
     """Find a built PDF for `company`, matching by filename `suffix`
     (e.g. "_Resume.pdf" / "_Cover_Letter.pdf") regardless of the name prefix.
@@ -218,7 +238,9 @@ def _serialize_job(row, task_status: dict, cl_task_status: dict) -> dict:
         "remote": r.get("remote") or "",
         "experience": r.get("experience") or "",
         "age": _format_relative_age(r.get("first_seen_at")),
-        "posted": _format_relative_age(r.get("posted_at"), days_only=True),
+        "posted": _format_posted(r.get("posted_at")),
+        "posted_at": r.get("posted_at") or "",
+        "first_seen_at": r.get("first_seen_at") or "",
         "status": r.get("status") or "pending",
         "source": _source_label(r.get("search_name") or ""),
         "resume_status": resume_status,
