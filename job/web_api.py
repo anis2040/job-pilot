@@ -282,6 +282,11 @@ def _is_gemini_text_model(name: str) -> bool:
     return not any(b in n for b in bad)
 
 
+def _log_tokens(tag: str, model: str, **counts: int) -> None:
+    parts = " ".join(f"{k}={v}" for k, v in counts.items())
+    print(f"[{tag}/{model}] {parts}")
+
+
 def _get_groq_client():
     """Return a Groq client if GROQ_API_KEY is set, else None."""
     _load_env()
@@ -326,10 +331,10 @@ def _build_with_groq(system_text: str, user_prompt: str, stage_fn=None) -> str:
             ) from e
         raise
     u = response.usage
-    input_t  = getattr(u, "prompt_tokens",     0) or 0
-    output_t = getattr(u, "completion_tokens", 0) or 0
-    total_t  = getattr(u, "total_tokens",      0) or 0
-    print(f"[groq/{model}] input={input_t} output={output_t} total={total_t}")
+    _log_tokens("groq", model,
+                input=getattr(u, "prompt_tokens", 0) or 0,
+                output=getattr(u, "completion_tokens", 0) or 0,
+                total=getattr(u, "total_tokens", 0) or 0)
     return response.choices[0].message.content
 
 
@@ -424,14 +429,11 @@ def _build_with_gemini_sdk(system_text: str, user_prompt: str, backend_out=None)
     )
     u = response.usage_metadata
     if u:
-        prompt_toks = getattr(u, "prompt_token_count",         0) or 0
-        output_toks = getattr(u, "candidates_token_count",     0) or 0
-        cached_toks = getattr(u, "cached_content_token_count", 0) or 0
-        total_toks  = getattr(u, "total_token_count",          0) or 0
-        print(
-            f"[gemini/{model}] input={prompt_toks} output={output_toks} "
-            f"cached={cached_toks} total={total_toks}"
-        )
+        _log_tokens("gemini", model,
+                    input=getattr(u, "prompt_token_count", 0) or 0,
+                    output=getattr(u, "candidates_token_count", 0) or 0,
+                    cached=getattr(u, "cached_content_token_count", 0) or 0,
+                    total=getattr(u, "total_token_count", 0) or 0)
     if backend_out is not None:
         backend_out.append("sdk")
     return response.text
@@ -468,14 +470,11 @@ def _build_with_gemini_cli(system_text: str, user_prompt: str, cwd: str, backend
         stats = data.get("stats", {}).get("models", {})
         for model_name, model_data in stats.items():
             toks = model_data.get("tokens", {})
-            input_t  = toks.get("input", 0) or 0
-            output_t = toks.get("candidates", 0) or 0
-            cached_t = toks.get("cached", 0) or 0
-            total_t  = toks.get("total", 0) or 0
-            print(
-                f"[gemini/cli/{model_name}] input={input_t} output={output_t} "
-                f"cached={cached_t} total={total_t}"
-            )
+            _log_tokens(f"gemini/cli", model_name,
+                        input=toks.get("input", 0) or 0,
+                        output=toks.get("candidates", 0) or 0,
+                        cached=toks.get("cached", 0) or 0,
+                        total=toks.get("total", 0) or 0)
     except RuntimeError:
         raise
     except Exception:
@@ -613,7 +612,6 @@ def _compile_latex(tex_path: Path) -> Path:
         **extra,
     )
 
-    pdf_path = tex_dir / tex_path.stem / ".." / tex_path.with_suffix(".pdf").name
     pdf_path = tex_path.with_suffix(".pdf")
     if not pdf_path.exists():
         err_snippet = result.stdout[-1000:] if result.stdout else result.stderr[-500:]
@@ -655,6 +653,60 @@ def _parse_latex_response(response_text: str) -> tuple[str, dict]:
     return text, meta
 
 
+def _build_resume_prompt(row: dict, company: str, title: str, name_slug: str, skill_dir) -> tuple[str, str]:
+    """Build system skill_text and user_prompt for a resume. Returns (skill_text, user_prompt)."""
+    skill_text = (skill_dir / "SKILL.md").read_text()
+    latex_template = skill_dir / "references" / "latex_template.md"
+    if latex_template.exists():
+        skill_text += f"\n\n## latex_template.md (embedded)\n\n{latex_template.read_text()}"
+    skill_text = _append_profile(skill_text)
+    skill_text = _inject_name(skill_text, name_slug)
+
+    desc = row.get("description") or ""
+    job_context = desc if len(desc) > 50 else (
+        f"No full job description available. "
+        f"Tailor the resume for a {title} role at {company} "
+        f"based on typical responsibilities for this position."
+    )
+    user_prompt = (
+        f"Apply to this job for me. Here is the job description:\n\n"
+        f"Company: {company}\n"
+        f"Title: {title}\n"
+        f"Location: {row.get('location') or ''}\n"
+        f"URL: {row.get('url') or ''}\n\n"
+        f"{job_context}"
+    )
+    return skill_text, user_prompt
+
+
+def _build_cover_letter_prompt(row: dict, company: str, title: str, name_slug: str, skill_dir) -> tuple[str, str]:
+    """Build system skill_text and user_prompt for a cover letter. Returns (skill_text, user_prompt)."""
+    skill_text = (skill_dir / "SKILL.md").read_text()
+    skill_text = _append_profile(skill_text)
+    skill_text = _inject_name(skill_text, name_slug)
+    skill_text += "\n\n## Output format\nReturn ONLY the raw LaTeX content (starting with \\documentclass), no explanations. After \\end{document} include a JSON block: ```json {\"company\": \"<name>\"} ```"
+
+    resume_tex_content = ""
+    for candidate in [
+        _resumes_path() / company / f"{name_slug}_Resume.tex",
+        _resumes_path() / company.replace(" ", "") / f"{name_slug}_Resume.tex",
+        _resumes_path() / company.replace(" ", "").replace("/", "") / f"{name_slug}_Resume.tex",
+    ]:
+        if candidate.exists():
+            resume_tex_content = f"\n\nThe resume for this role (for consistency):\n```latex\n{candidate.read_text()[:3000]}\n```"
+            break
+
+    user_prompt = (
+        f"Write a cover letter for this job.\n\n"
+        f"Company: {company}\n"
+        f"Title: {title}\n"
+        f"Location: {row.get('location') or ''}\n\n"
+        f"Job description:\n{row['description']}"
+        f"{resume_tex_content}"
+    )
+    return skill_text, user_prompt
+
+
 def _build_document(job_id: str, doc_type: str) -> None:
     """Shared document builder for resumes and cover letters."""
     is_resume = doc_type == "resume"
@@ -687,51 +739,12 @@ def _build_document(job_id: str, doc_type: str) -> None:
         title = row.get("title") or "Job"
         name_slug = _candidate_name_slug()
 
-        skill_text = (skill_dir / "SKILL.md").read_text()
         if is_resume:
-            latex_template = skill_dir / "references" / "latex_template.md"
-            if latex_template.exists():
-                skill_text += f"\n\n## latex_template.md (embedded)\n\n{latex_template.read_text()}"
-        skill_text = _append_profile(skill_text)
-        skill_text = _inject_name(skill_text, name_slug)
-        if not is_resume:
-            skill_text += "\n\n## Output format\nReturn ONLY the raw LaTeX content (starting with \\documentclass), no explanations. After \\end{document} include a JSON block: ```json {\"company\": \"<name>\"} ```"
-
-        if is_resume:
-            desc = row.get("description") or ""
-            job_context = desc if len(desc) > 50 else (
-                f"No full job description available. "
-                f"Tailor the resume for a {title} role at {company} "
-                f"based on typical responsibilities for this position."
-            )
             stage_fn(job_id, "Generating resume…")
-            user_prompt = (
-                f"Apply to this job for me. Here is the job description:\n\n"
-                f"Company: {company}\n"
-                f"Title: {title}\n"
-                f"Location: {row.get('location') or ''}\n"
-                f"URL: {row.get('url') or ''}\n\n"
-                f"{job_context}"
-            )
+            skill_text, user_prompt = _build_resume_prompt(row, company, title, name_slug, skill_dir)
         else:
-            resume_tex_content = ""
-            for candidate in [
-                _resumes_path() / company / f"{name_slug}_Resume.tex",
-                _resumes_path() / company.replace(" ", "") / f"{name_slug}_Resume.tex",
-                _resumes_path() / company.replace(" ", "").replace("/", "") / f"{name_slug}_Resume.tex",
-            ]:
-                if candidate.exists():
-                    resume_tex_content = f"\n\nThe resume for this role (for consistency):\n```latex\n{candidate.read_text()[:3000]}\n```"
-                    break
             stage_fn(job_id, "Generating cover letter…")
-            user_prompt = (
-                f"Write a cover letter for this job.\n\n"
-                f"Company: {company}\n"
-                f"Title: {title}\n"
-                f"Location: {row.get('location') or ''}\n\n"
-                f"Job description:\n{row['description']}"
-                f"{resume_tex_content}"
-            )
+            skill_text, user_prompt = _build_cover_letter_prompt(row, company, title, name_slug, skill_dir)
 
         response_text = _generate_content(skill_text, user_prompt, cwd=str(skill_dir),
                                           stage_fn=lambda s: stage_fn(job_id, s))
@@ -767,6 +780,20 @@ def _build_cover_letter(job_id: str) -> None:
     _build_document(job_id, "cover_letter")
 
 
+def _should_include_job(job, config) -> tuple[bool, str | None]:
+    """Return (True, None) if job passes all filters, else (False, matched_keyword_or_reason).
+    Pure — no I/O, no DB access."""
+    if job.company and job.company.lower() in config.company_blacklist:
+        return False, None
+    if config.title_filter and not any(kw in job.title.lower() for kw in config.title_filter):
+        return False, None
+    from .cli import _blacklisted
+    kw = _blacklisted(job.title + " " + job.description, config.blacklist)
+    if kw:
+        return False, kw
+    return True, None
+
+
 def _run_fetch() -> None:
     try:
         init_db()
@@ -783,15 +810,10 @@ def _run_fetch() -> None:
             for job in jobs:
                 if already_seen(job.job_id):
                     continue
-                if job.company and job.company.lower() in config.company_blacklist:
-                    continue
-                if config.title_filter:
-                    if not any(kw in job.title.lower() for kw in config.title_filter):
-                        continue
-                from .cli import _blacklisted
-                kw = _blacklisted(job.title + " " + job.description, config.blacklist)
-                if kw:
-                    insert_filter_log(job.job_id, job.title, kw)
+                include, kw = _should_include_job(job, config)
+                if not include:
+                    if kw:
+                        insert_filter_log(job.job_id, job.title, kw)
                     continue
                 if is_duplicate(job.title, job.company):
                     continue

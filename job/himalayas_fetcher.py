@@ -1,14 +1,9 @@
-import re
 import httpx
 
 from .config import SearchConfig
+from .fetcher_utils import SHARED_HEADERS, http_get, strip_tags
 from .models import RawJob
 from .utils import parse_experience, location_matches
-
-_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (compatible; job-scraper/1.0)",
-    "Accept": "application/json",
-}
 
 
 def fetch_himalayas(search: SearchConfig) -> list[RawJob]:
@@ -20,12 +15,9 @@ def fetch_himalayas(search: SearchConfig) -> list[RawJob]:
 
     for _ in range(pages):
         try:
-            resp = httpx.get(
+            resp = http_get(
                 "https://himalayas.app/jobs/api",
                 params={"q": search.query, "limit": limit, "offset": offset},
-                headers=_HEADERS,
-                timeout=15,
-                follow_redirects=True,
             )
             resp.raise_for_status()
         except httpx.HTTPError as e:
@@ -51,7 +43,7 @@ def fetch_himalayas(search: SearchConfig) -> list[RawJob]:
             title = item.get("title", "")
             company = item.get("companyName", "")
             location = loc_str if loc_str else "Remote"
-            description = _strip_tags(item.get("description") or item.get("excerpt") or "")
+            description = strip_tags(item.get("description") or item.get("excerpt") or "")
             seniority = " ".join(item.get("seniority") or [])
             experience = parse_experience(title + " " + seniority + " " + description)
             remote = _infer_remote(item)
@@ -82,9 +74,4 @@ def _infer_remote(item: dict) -> str:
     loc_text = " ".join(restrictions).lower()
     if "hybrid" in emp or "hybrid" in loc_text:
         return "Hybrid"
-    # Himalayas is a remote job board — all listed jobs are remote
     return "Remote"
-
-
-def _strip_tags(html: str) -> str:
-    return re.sub(r"<[^>]+>", " ", html).strip()

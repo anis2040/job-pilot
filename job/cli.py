@@ -151,24 +151,12 @@ def fetch() -> None:
         for job in jobs:
             if already_seen(job.job_id):
                 continue
-
-            # Company blacklist
-            if job.company and job.company.lower() in config.company_blacklist:
+            from .web_api import _should_include_job
+            include, kw = _should_include_job(job, config)
+            if not include:
+                if kw:
+                    insert_filter_log(job.job_id, job.title, kw)
                 continue
-
-            # Title filter — if set, only keep jobs whose title matches at least one keyword
-            if config.title_filter:
-                title_lower = job.title.lower()
-                if not any(kw in title_lower for kw in config.title_filter):
-                    continue
-
-            # Keyword blacklist
-            kw = _blacklisted(job.title + " " + job.description, config.blacklist)
-            if kw:
-                insert_filter_log(job.job_id, job.title, kw)
-                continue
-
-            # Auto-dedup across sources
             if is_duplicate(job.title, job.company):
                 continue
 

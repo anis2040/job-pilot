@@ -2,14 +2,11 @@ import time
 import httpx
 
 from .config import SearchConfig
+from .fetcher_utils import SHARED_HEADERS, http_get
 from .models import RawJob
 from .utils import parse_experience, location_matches
 
 _BASE = "https://boards-api.greenhouse.io/v1/boards"
-_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (compatible; job-scraper/1.0)",
-    "Accept": "application/json",
-}
 
 # Well-known companies using Greenhouse that hire for product/BA roles.
 # Each entry is the board token found in their careers URL:
@@ -37,7 +34,7 @@ def fetch_greenhouse(search: SearchConfig) -> list[RawJob]:
     for token in companies:
         url = f"{_BASE}/{token}/jobs"
         try:
-            resp = httpx.get(url, headers=_HEADERS, timeout=10, follow_redirects=True)
+            resp = http_get(url, headers=SHARED_HEADERS, timeout=10)
             if resp.status_code == 404:
                 continue
             resp.raise_for_status()

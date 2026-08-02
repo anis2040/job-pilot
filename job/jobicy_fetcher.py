@@ -1,14 +1,9 @@
-import re
 import httpx
 
 from .config import SearchConfig
+from .fetcher_utils import SHARED_HEADERS, http_get, strip_tags
 from .models import RawJob
 from .utils import parse_experience, location_matches
-
-_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (compatible; job-scraper/1.0)",
-    "Accept": "application/json",
-}
 
 
 def fetch_jobicy(search: SearchConfig) -> list[RawJob]:
@@ -23,12 +18,9 @@ def fetch_jobicy(search: SearchConfig) -> list[RawJob]:
         params["geo"] = geo_code
 
     try:
-        resp = httpx.get(
+        resp = http_get(
             "https://jobicy.com/api/v2/remote-jobs",
             params=params,
-            headers=_HEADERS,
-            timeout=15,
-            follow_redirects=True,
         )
         resp.raise_for_status()
     except httpx.HTTPError as e:
@@ -47,7 +39,7 @@ def fetch_jobicy(search: SearchConfig) -> list[RawJob]:
         title = item.get("jobTitle", "")
         company = item.get("companyName", "")
         job_types = item.get("jobType", [])
-        description = _strip_tags(item.get("jobDescription") or item.get("jobExcerpt") or "")
+        description = strip_tags(item.get("jobDescription") or item.get("jobExcerpt") or "")
         experience = parse_experience(title + " " + item.get("jobLevel", "") + " " + description)
         remote = _infer_remote(title, job_types, geo)
 
@@ -102,7 +94,3 @@ def _infer_remote(title: str, job_types: list, geo: str) -> str:
     if "remote" in combined or "worldwide" in combined or "anywhere" in combined:
         return "Remote"
     return "On-site"
-
-
-def _strip_tags(html: str) -> str:
-    return re.sub(r"<[^>]+>", " ", html).strip()

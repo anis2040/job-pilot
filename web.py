@@ -68,6 +68,24 @@ def _write_env_var(env_path: Path, key: str, value: str) -> None:
     env_path.write_text("\n".join(lines) + "\n")
 
 
+def _run_install(cmd: list, timeout: int) -> dict:
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        return {"ok": r.returncode == 0, "output": (r.stdout or r.stderr)[-1000:]}
+    except Exception as e:
+        return {"ok": False, "output": str(e)}
+
+
+def _read_config_yaml(path: Path) -> dict:
+    with open(path) as f:
+        return yaml.safe_load(f) or {}
+
+
+def _write_config_yaml(path: Path, data: dict) -> None:
+    with open(path, "w") as f:
+        yaml.dump(data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+
+
 def _save_api_key(env_key: str, provider: str):
     data = request.get_json()
     key = (data.get("key") or "").strip()
@@ -77,6 +95,19 @@ def _save_api_key(env_key: str, provider: str):
     os.environ[env_key] = key
     _clear_model_cache(provider)
     return jsonify({"ok": True})
+
+
+def _pdf_url(path: str | None) -> str | None:
+    if not path:
+        return None
+    p = Path(path)
+    return f"/pdf/{p.parent.name}/{p.name}"
+
+
+def _require_profile_dir(slug: str):
+    if not (PROFILES_DIR / slug).is_dir():
+        return jsonify({"error": "Profile not found"}), 404
+    return None
 
 
 def _format_relative_age(dt_str: str | None, *, days_only: bool = False) -> str:
@@ -154,11 +185,11 @@ def _serialize_job(row, task_status: dict, cl_task_status: dict) -> dict:
         "source": _source_label(r.get("search_name") or ""),
         "resume_status": resume_status,
         "resume_stage": ts.get("stage", ""),
-        "pdf_url": f"/pdf/{Path(pdf_path).parent.name}/{Path(pdf_path).name}" if pdf_path else None,
+        "pdf_url": _pdf_url(pdf_path),
         "resume_error": ts.get("error"),
         "cl_status": cl_status,
         "cl_stage": cl_ts.get("stage", ""),
-        "cl_pdf_url": f"/pdf/{Path(cl_pdf_path).parent.name}/{Path(cl_pdf_path).name}" if cl_pdf_path else None,
+        "cl_pdf_url": _pdf_url(cl_pdf_path),
         "cl_error": cl_ts.get("error"),
     }
 
@@ -203,9 +234,7 @@ def profile_picker():
 
 @app.route("/api/profiles/<slug>/clear-jobs", methods=["POST"])
 def api_profile_clear_jobs(slug):
-    profile_dir = PROFILES_DIR / slug
-    if not profile_dir.is_dir():
-        return jsonify({"error": "Profile not found"}), 404
+    if err := _require_profile_dir(slug): return err
     import sqlite3
     db_path = str(profile_dir / "state.db")
     try:
@@ -303,18 +332,16 @@ def api_profiles_delete(slug):
 
 @app.route("/api/profiles/<slug>/profile-md", methods=["GET"])
 def api_profile_md_get(slug):
+    if err := _require_profile_dir(slug): return err
     profile_dir = PROFILES_DIR / slug
-    if not profile_dir.is_dir():
-        return jsonify({"error": "Profile not found"}), 404
     profile_md = profile_dir / "profile.md"
     return jsonify({"content": profile_md.read_text() if profile_md.exists() else ""})
 
 
 @app.route("/api/profiles/<slug>/profile-md", methods=["POST"])
 def api_profile_md_save(slug):
+    if err := _require_profile_dir(slug): return err
     profile_dir = PROFILES_DIR / slug
-    if not profile_dir.is_dir():
-        return jsonify({"error": "Profile not found"}), 404
     data = request.get_json()
     content = (data.get("content") or "").strip()
     if not content:
@@ -332,21 +359,18 @@ def api_profile_config_get(slug):
     config_p = PROFILES_DIR / slug / "config.yaml"
     if not config_p.exists():
         return jsonify({"searches": [], "title_filter": [], "blacklist": [], "company_blacklist": []})
-    with open(config_p) as f:
-        return jsonify(yaml.safe_load(f) or {})
+    return jsonify(_read_config_yaml(config_p))
 
 
 @app.route("/api/profiles/<slug>/config", methods=["POST"])
 def api_profile_config_save(slug):
+    if err := _require_profile_dir(slug): return err
     profile_dir = PROFILES_DIR / slug
-    if not profile_dir.is_dir():
-        return jsonify({"error": "Profile not found"}), 404
     data = request.get_json()
     if not isinstance(data.get("searches"), list) or not data["searches"]:
         return jsonify({"error": "At least one search entry required"}), 400
     config_p = profile_dir / "config.yaml"
-    with open(config_p, "w") as f:
-        yaml.dump(data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    _write_config_yaml(config_p, data)
     # If active profile, clear and re-fetch
     if slug == get_active_slug():
         clear_all_jobs()
@@ -377,11 +401,7 @@ def api_build_resume(job_id):
 @app.route("/api/resume-status/<job_id>")
 def api_resume_status(job_id):
     ts = get_task_status(job_id)
-    pdf_url = None
-    if ts.get("pdf_path"):
-        p = Path(ts["pdf_path"])
-        pdf_url = f"/pdf/{p.parent.name}/{p.name}"
-    return jsonify({"status": ts.get("status", "idle"), "stage": ts.get("stage", ""), "pdf_url": pdf_url, "error": ts.get("error")})
+    return jsonify({"status": ts.get("status", "idle"), "stage": ts.get("stage", ""), "pdf_url": _pdf_url(ts.get("pdf_path")), "error": ts.get("error")})
 
 
 @app.route("/api/cover-letter/<job_id>", methods=["POST"])
@@ -396,11 +416,7 @@ def api_build_cover_letter(job_id):
 @app.route("/api/cover-letter-status/<job_id>")
 def api_cover_letter_status(job_id):
     ts = get_cl_task_status(job_id)
-    pdf_url = None
-    if ts.get("pdf_path"):
-        p = Path(ts["pdf_path"])
-        pdf_url = f"/pdf/{p.parent.name}/{p.name}"
-    return jsonify({"status": ts.get("status", "idle"), "stage": ts.get("stage", ""), "pdf_url": pdf_url, "error": ts.get("error")})
+    return jsonify({"status": ts.get("status", "idle"), "stage": ts.get("stage", ""), "pdf_url": _pdf_url(ts.get("pdf_path")), "error": ts.get("error")})
 
 
 @app.route("/api/job-status/<job_id>/<new_status>", methods=["POST"])
@@ -416,9 +432,7 @@ def api_config_get():
     config_p = _config_path()
     if not config_p.exists():
         return jsonify({"searches": [], "title_filter": [], "blacklist": [], "company_blacklist": []})
-    with open(config_p) as f:
-        data = yaml.safe_load(f)
-    return jsonify(data)
+    return jsonify(_read_config_yaml(config_p))
 
 
 @app.route("/api/config", methods=["POST"])
@@ -434,8 +448,7 @@ def api_config_save():
             return jsonify({"error": f"Search entry missing fields: {required - s.keys()}"}), 400
     config_p = _config_path()
     config_p.parent.mkdir(parents=True, exist_ok=True)
-    with open(config_p, "w") as f:
-        yaml.dump(data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    _write_config_yaml(config_p, data)
     return jsonify({"ok": True})
 
 
@@ -494,30 +507,29 @@ def api_ai_settings_get():
 def api_ai_settings_save():
     data = request.get_json() or {}
     env_path = BASE / ".env"
-    lines = env_path.read_text().splitlines() if env_path.exists() else []
     updated_keys = set()
 
-    # Save model choices
     for field, env_key in [("groq_model", "GROQ_MODEL"), ("anthropic_model", "ANTHROPIC_MODEL"), ("gemini_model", "GEMINI_MODEL")]:
         val = (data.get(field) or "").strip()
         if val:
-            lines = [l for l in lines if not l.startswith(f"{env_key}=")]
-            lines.append(f"{env_key}={val}")
+            _write_env_var(env_path, env_key, val)
             os.environ[env_key] = val
             updated_keys.add(env_key)
 
-    # Save preferred provider
     preferred = (data.get("preferred_provider") or "").strip().lower()
     if preferred in ("groq", "anthropic", "gemini", ""):
-        lines = [l for l in lines if not l.startswith("PREFERRED_PROVIDER=")]
         if preferred:
-            lines.append(f"PREFERRED_PROVIDER={preferred}")
+            _write_env_var(env_path, "PREFERRED_PROVIDER", preferred)
             os.environ["PREFERRED_PROVIDER"] = preferred
         else:
+            _write_env_var(env_path, "PREFERRED_PROVIDER", "")
+            # _write_env_var writes KEY= which we then strip to a clean removal
+            if env_path.exists():
+                lines = [l for l in env_path.read_text().splitlines() if l != "PREFERRED_PROVIDER="]
+                env_path.write_text("\n".join(lines) + "\n")
             os.environ.pop("PREFERRED_PROVIDER", None)
         updated_keys.add("PREFERRED_PROVIDER")
 
-    env_path.write_text("\n".join(lines) + "\n")
     return jsonify({"ok": True, "updated": list(updated_keys)})
 
 
@@ -636,10 +648,7 @@ Profile:
             return jsonify({"ok": False, "error": "Could not extract job titles from profile."})
 
         config_p = _config_path()
-        existing = {}
-        if config_p.exists():
-            with open(config_p) as f:
-                existing = yaml.safe_load(f) or {}
+        existing = _read_config_yaml(config_p) if config_p.exists() else {}
 
         primary_title = titles[0]
         searches = [
@@ -659,8 +668,7 @@ Profile:
         clear_task_state()
 
         config_p.parent.mkdir(parents=True, exist_ok=True)
-        with open(config_p, "w") as f:
-            yaml.dump(new_config, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        _write_config_yaml(config_p, new_config)
 
         return jsonify({"ok": True, "searches": searches, "title_filter": new_config["title_filter"], "location": location})
     except subprocess.TimeoutExpired:
@@ -689,16 +697,11 @@ def api_setup_claude_login():
 
 @app.route("/api/setup/install-node", methods=["POST"])
 def api_setup_install_node():
-    try:
-        if sys.platform == "darwin":
-            r = subprocess.run(["brew", "install", "node"], capture_output=True, text=True, timeout=300)
-        elif sys.platform == "linux":
-            r = subprocess.run(["sudo", "apt-get", "install", "-y", "nodejs", "npm"], capture_output=True, text=True, timeout=300)
-        else:
-            return jsonify({"ok": False, "output": "Auto-install not supported on Windows. Download from https://nodejs.org/en/download"})
-        return jsonify({"ok": r.returncode == 0, "output": (r.stdout or r.stderr)[-500:]})
-    except Exception as e:
-        return jsonify({"ok": False, "output": str(e)})
+    if sys.platform == "darwin":
+        return jsonify(_run_install(["brew", "install", "node"], 300))
+    if sys.platform == "linux":
+        return jsonify(_run_install(["sudo", "apt-get", "install", "-y", "nodejs", "npm"], 300))
+    return jsonify({"ok": False, "output": "Auto-install not supported on Windows. Download from https://nodejs.org/en/download"})
 
 
 @app.route("/api/setup/install-cli", methods=["POST"])
@@ -708,11 +711,7 @@ def api_setup_install_cli():
     if provider not in ("claude", "gemini"):
         return jsonify({"error": "Invalid provider"}), 400
     pkg = "@anthropic-ai/claude-code" if provider == "claude" else "@google/gemini-cli"
-    try:
-        r = subprocess.run(["npm", "install", "-g", pkg], capture_output=True, text=True, timeout=180)
-        return jsonify({"ok": r.returncode == 0, "output": (r.stdout or r.stderr)[-1000:]})
-    except Exception as e:
-        return jsonify({"ok": False, "output": str(e)})
+    return jsonify(_run_install(["npm", "install", "-g", pkg], 180))
 
 
 @app.route("/api/setup/save-groq-key", methods=["POST"])
@@ -732,16 +731,11 @@ def api_setup_save_anthropic_key():
 
 @app.route("/api/setup/install-pdflatex", methods=["POST"])
 def api_setup_install_pdflatex():
-    try:
-        if sys.platform == "darwin":
-            r = subprocess.run(["brew", "install", "--cask", "basictex"], capture_output=True, text=True, timeout=600)
-        elif sys.platform == "linux":
-            r = subprocess.run(["sudo", "apt-get", "install", "-y", "texlive-latex-extra"], capture_output=True, text=True, timeout=600)
-        else:
-            return jsonify({"ok": False, "output": "Auto-install not supported on Windows. Install MiKTeX from https://miktex.org/download"})
-        return jsonify({"ok": r.returncode == 0, "output": (r.stdout or r.stderr)[-1000:]})
-    except Exception as e:
-        return jsonify({"ok": False, "output": str(e)})
+    if sys.platform == "darwin":
+        return jsonify(_run_install(["brew", "install", "--cask", "basictex"], 600))
+    if sys.platform == "linux":
+        return jsonify(_run_install(["sudo", "apt-get", "install", "-y", "texlive-latex-extra"], 600))
+    return jsonify({"ok": False, "output": "Auto-install not supported on Windows. Install MiKTeX from https://miktex.org/download"})
 
 
 @app.route("/api/setup/parse-resume", methods=["POST"])

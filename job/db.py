@@ -3,6 +3,10 @@ import sqlite3
 from datetime import datetime, timezone
 
 
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
 def _connect() -> sqlite3.Connection:
     from .profiles import get_db_path
     db_path = get_db_path()
@@ -86,7 +90,7 @@ def insert_job(
     posted_at: str | None,
     search_name: str,
 ) -> None:
-    now = datetime.now(timezone.utc).isoformat()
+    now = _now_iso()
     with _connect() as con:
         con.execute(
             """
@@ -102,7 +106,7 @@ def insert_job(
 
 
 def insert_filter_log(job_id: str, title: str, matched_keyword: str) -> None:
-    now = datetime.now(timezone.utc).isoformat()
+    now = _now_iso()
     with _connect() as con:
         con.execute(
             "INSERT OR IGNORE INTO filter_log (job_id, title, matched_keyword, filtered_at) VALUES (?, ?, ?, ?)",
@@ -112,7 +116,7 @@ def insert_filter_log(job_id: str, title: str, matched_keyword: str) -> None:
 
 
 def log_fetch(source: str, new_count: int) -> None:
-    now = datetime.now(timezone.utc).isoformat()
+    now = _now_iso()
     with _connect() as con:
         con.execute(
             "INSERT INTO fetch_log (fetched_at, source, new_count) VALUES (?, ?, ?)",
@@ -136,7 +140,7 @@ def last_fetch_at(source: str | None = None) -> str | None:
 
 
 def update_status(job_id: str, status: str) -> bool:
-    now = datetime.now(timezone.utc).isoformat()
+    now = _now_iso()
     with _connect() as con:
         cur = con.execute(
             "UPDATE jobs SET status = ?, status_updated_at = ? WHERE job_id = ?",
