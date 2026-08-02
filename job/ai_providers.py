@@ -323,8 +323,9 @@ def _build_with_gemini_cli(system_text: str, user_prompt: str, cwd: str, backend
     if sys.platform == "win32":
         extra["creationflags"] = subprocess.CREATE_NO_WINDOW
     model = _get_model("gemini")
+    gemini_exe = shutil.which("gemini") or "gemini"
     result = subprocess.run(
-        ["gemini", "-m", model, "-p", user_prompt, "--yolo", "--skip-trust", "--output-format", "json"],
+        [gemini_exe, "-m", model, "-p", user_prompt, "--yolo", "--skip-trust", "--output-format", "json"],
         capture_output=True, text=True, cwd=cwd, timeout=600, **extra,
     )
     if gemini_md.exists():

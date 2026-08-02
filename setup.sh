@@ -97,7 +97,57 @@ fi
 
 info "Python: $PYTHON ($PY_VER)"
 
-# ── 4. Create virtual environment ─────────────────────────────────────────────
+# ── 4. Install Node.js if missing ─────────────────────────────────────────────
+if ! command -v node &>/dev/null; then
+    info "Node.js not found. Installing automatically..."
+    if [[ "$OS" == "Darwin" ]]; then
+        brew install node
+    elif command -v apt-get &>/dev/null; then
+        sudo apt-get install -y nodejs npm
+    elif command -v dnf &>/dev/null; then
+        sudo dnf install -y nodejs npm
+    elif command -v yum &>/dev/null; then
+        sudo yum install -y nodejs npm
+    elif command -v pacman &>/dev/null; then
+        sudo pacman -Sy --noconfirm nodejs npm
+    else
+        info "[WARN] No supported package manager — skipping Node.js install."
+        info "       Install manually from https://nodejs.org/ if you want Gemini/Claude CLI support."
+    fi
+    hash -r 2>/dev/null || true
+fi
+if command -v node &>/dev/null; then
+    info "Node.js: $(node --version)"
+fi
+
+# ── 5. Install pdflatex if missing ────────────────────────────────────────────
+if ! command -v pdflatex &>/dev/null; then
+    info "pdflatex not found. Installing automatically..."
+    info "(Required to compile resumes and cover letters to PDF)"
+    if [[ "$OS" == "Darwin" ]]; then
+        brew install --cask basictex
+        eval "$(/usr/libexec/path_helper)"
+    elif command -v apt-get &>/dev/null; then
+        sudo apt-get install -y texlive-latex-extra
+    elif command -v dnf &>/dev/null; then
+        sudo dnf install -y texlive-latex texlive-collection-latexextra
+    elif command -v yum &>/dev/null; then
+        sudo yum install -y texlive-latex texlive-collection-latexextra
+    elif command -v pacman &>/dev/null; then
+        sudo pacman -Sy --noconfirm texlive-latexextra
+    else
+        info "[WARN] No supported package manager — skipping pdflatex install."
+        info "       Install manually from https://tug.org/texlive/ if you need PDF generation."
+    fi
+    hash -r 2>/dev/null || true
+fi
+if command -v pdflatex &>/dev/null; then
+    info "pdflatex: $(pdflatex --version | head -1)"
+else
+    info "[WARN] pdflatex still not found. PDF generation will not work."
+fi
+
+# ── 6. Create virtual environment ─────────────────────────────────────────────
 if [[ ! -d ".venv" ]]; then
     info "Creating virtual environment..."
     "$PYTHON" -m venv .venv || {
@@ -106,14 +156,14 @@ if [[ ! -d ".venv" ]]; then
     }
 fi
 
-# ── 5. Activate ────────────────────────────────────────────────────────────────
+# ── 7. Activate ────────────────────────────────────────────────────────────────
 # shellcheck disable=SC1091
 source .venv/bin/activate || {
     err "Could not activate virtual environment. Try deleting the .venv folder and running ./setup.sh again."
     exit 1
 }
 
-# ── 6. Install dependencies ────────────────────────────────────────────────────
+# ── 8. Install dependencies ────────────────────────────────────────────────────
 info "Installing dependencies..."
 pip install -r requirements.txt -q || {
     err "pip install failed. Check your internet connection and try again."
@@ -121,7 +171,7 @@ pip install -r requirements.txt -q || {
 }
 info "Dependencies installed."
 
-# ── 7. Open browser after Flask starts ────────────────────────────────────────
+# ── 9. Open browser after Flask starts ────────────────────────────────────────
 if [[ "$OS" == "Darwin" ]]; then
     (sleep 3 && open "http://localhost:5050") &
 else
@@ -130,7 +180,7 @@ else
                  x-www-browser "http://localhost:5050" 2>/dev/null || true)) &
 fi
 
-# ── 8. Launch ──────────────────────────────────────────────────────────────────
+# ── 10. Launch ──────────────────────────────────────────────────────────────────
 echo ""
 info "Setup complete. Starting job-scraper at http://localhost:5050"
 info "Browser will open automatically. Press Ctrl+C to stop the app."

@@ -719,7 +719,9 @@ def api_setup_claude_login():
             kwargs["creationflags"] = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
         else:
             kwargs["start_new_session"] = True
-        subprocess.Popen(["claude", "login"], **kwargs)
+        # shutil.which resolves claude.cmd on Windows; fall back to bare name
+        claude_exe = shutil.which("claude") or "claude"
+        subprocess.Popen([claude_exe, "login"], **kwargs)
         return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -730,7 +732,15 @@ def api_setup_install_node():
     if sys.platform == "darwin":
         return jsonify(_run_install(["brew", "install", "node"], 300))
     if sys.platform == "linux":
-        return jsonify(_run_install(["sudo", "apt-get", "install", "-y", "nodejs", "npm"], 300))
+        if shutil.which("apt-get"):
+            return jsonify(_run_install(["sudo", "apt-get", "install", "-y", "nodejs", "npm"], 300))
+        if shutil.which("dnf"):
+            return jsonify(_run_install(["sudo", "dnf", "install", "-y", "nodejs", "npm"], 300))
+        if shutil.which("yum"):
+            return jsonify(_run_install(["sudo", "yum", "install", "-y", "nodejs", "npm"], 300))
+        if shutil.which("pacman"):
+            return jsonify(_run_install(["sudo", "pacman", "-Sy", "--noconfirm", "nodejs", "npm"], 300))
+        return jsonify({"ok": False, "output": "No supported package manager found. Install Node.js from https://nodejs.org/"})
     # Windows — use winget
     return jsonify(_run_install(
         ["winget", "install", "--id", "OpenJS.NodeJS.LTS", "--silent",
@@ -771,7 +781,15 @@ def api_setup_install_pdflatex():
     if sys.platform == "darwin":
         return jsonify(_run_install(["brew", "install", "--cask", "basictex"], 600))
     if sys.platform == "linux":
-        return jsonify(_run_install(["sudo", "apt-get", "install", "-y", "texlive-latex-extra"], 600))
+        if shutil.which("apt-get"):
+            return jsonify(_run_install(["sudo", "apt-get", "install", "-y", "texlive-latex-extra"], 600))
+        if shutil.which("dnf"):
+            return jsonify(_run_install(["sudo", "dnf", "install", "-y", "texlive-latex", "texlive-collection-latexextra"], 600))
+        if shutil.which("yum"):
+            return jsonify(_run_install(["sudo", "yum", "install", "-y", "texlive-latex", "texlive-collection-latexextra"], 600))
+        if shutil.which("pacman"):
+            return jsonify(_run_install(["sudo", "pacman", "-Sy", "--noconfirm", "texlive-latexextra"], 600))
+        return jsonify({"ok": False, "output": "No supported package manager found. Install TeX Live from https://tug.org/texlive/"})
     # Windows — use winget
     return jsonify(_run_install(
         ["winget", "install", "--id", "MiKTeX.MiKTeX", "--silent",
