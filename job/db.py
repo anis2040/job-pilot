@@ -223,3 +223,4 @@ def clear_all_jobs() -> None:
         con.execute("DELETE FROM jobs")
         con.execute("DELETE FROM filter_log")
         con.execute("DELETE FROM fetch_log")
+        con.commit()

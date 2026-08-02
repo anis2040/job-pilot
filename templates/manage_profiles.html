@@ -46,6 +46,13 @@
   </div>
 </div>
 <script>
+// Escape untrusted strings before interpolating into innerHTML.
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+}
+
 async function addNewProfile() {
   const res = await fetch("/api/profiles/new", { method: "POST" });
   const data = await res.json();
@@ -62,13 +69,13 @@ async function load() {
   }
   list.innerHTML = profiles.map(p => `
     <div class="profile-row" onclick="window.location='/profile-settings/${p.slug}'" style="cursor:pointer">
-      <div class="avatar" style="background:${p.color}">${p.initials}</div>
+      <div class="avatar" style="background:${p.color}">${escapeHtml(p.initials)}</div>
       <div class="info">
-        <div class="name">${p.name}</div>
-        <div class="path">profiles/${p.slug}/</div>
+        <div class="name">${escapeHtml(p.name)}</div>
+        <div class="path">profiles/${escapeHtml(p.slug)}/</div>
       </div>
       ${p.slug === active_slug ? '<span class="badge-active">Active</span>' : `<button class="btn btn-ghost" onclick="event.stopPropagation();switchTo('${p.slug}')">Switch</button>`}
-      <button class="btn btn-danger" onclick="event.stopPropagation();del('${p.slug}', '${p.name}')" ${p.slug === active_slug ? 'disabled title="Switch away before deleting"' : ''}>Delete</button>
+      <button class="btn btn-danger" data-slug="${escapeHtml(p.slug)}" data-name="${escapeHtml(p.name)}" onclick="event.stopPropagation();del(this.dataset.slug, this.dataset.name)" ${p.slug === active_slug ? 'disabled title="Switch away before deleting"' : ''}>Delete</button>
     </div>`).join("");
 }
 

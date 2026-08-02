@@ -948,6 +948,20 @@
       let sortKey = "title";
       let sortDir = 1;
 
+      // Escape untrusted strings before interpolating into innerHTML.
+      // Job/profile data can originate from scraped listings, so treat it as untrusted.
+      function escapeHtml(s) {
+        return String(s ?? "").replace(/[&<>"']/g, (c) => ({
+          "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+        }[c]));
+      }
+
+      // Only allow http(s) URLs into href; anything else becomes a harmless anchor.
+      function safeUrl(u) {
+        const s = String(u ?? "");
+        return /^https?:\/\//i.test(s) ? escapeHtml(s) : "#";
+      }
+
       function switchTab(el) {
         document
           .querySelectorAll(".tab")
@@ -1027,13 +1041,13 @@
           return `<span><span class="spinner"></span>${stage}</span>`;
         }
         if (rs === "done" && job.pdf_url) {
-          return `<a href="${job.pdf_url}" target="_blank" class="btn btn-sm btn-resume-done">📄 Open CV</a>`;
+          return `<a href="${safeUrl(job.pdf_url)}" target="_blank" class="btn btn-sm btn-resume-done">📄 Open CV</a>`;
         }
         if (rs === "error") {
           const isSetupError = (job.resume_error || "").includes("profile.md");
           const errMsg = isSetupError
             ? `<a href="/setup" style="color:#f87171">Profile not set up — click to fix</a>`
-            : `<span title="${job.resume_error || ""}">⚠ Error</span>`;
+            : `<span title="${escapeHtml(job.resume_error || "")}">⚠ Error</span>`;
           return `${errMsg}
             <button class="btn btn-sm btn-resume" onclick="buildResume('${job.job_id}')">Retry</button>`;
         }
@@ -1047,13 +1061,13 @@
           return `<span><span class="spinner" style="border-color:#0369a1"></span>${stage}</span>`;
         }
         if (rs === "done" && job.cl_pdf_url) {
-          return `<a href="${job.cl_pdf_url}" target="_blank" class="btn btn-sm btn-cl-done">✉ Open Letter</a>`;
+          return `<a href="${safeUrl(job.cl_pdf_url)}" target="_blank" class="btn btn-sm btn-cl-done">✉ Open Letter</a>`;
         }
         if (rs === "error") {
           const isSetupError = (job.cl_error || "").includes("profile.md");
           const errMsg = isSetupError
             ? `<a href="/setup" style="color:#f87171">Profile not set up — click to fix</a>`
-            : `<span title="${job.cl_error || ""}">⚠ Error</span>`;
+            : `<span title="${escapeHtml(job.cl_error || "")}">⚠ Error</span>`;
           return `${errMsg}
             <button class="btn btn-sm btn-cl" onclick="buildCL('${job.job_id}')">Retry</button>`;
         }
@@ -1083,18 +1097,18 @@
           .map(
             (job) => `
     <tr id="row-${job.job_id}">
-      <td><a class="title-link" href="${job.url}" target="_blank" title="${
-              job.title
+      <td><a class="title-link" href="${safeUrl(job.url)}" target="_blank" title="${
+              escapeHtml(job.title)
             }">${
-              job.title.length > 42 ? job.title.slice(0, 42) + "…" : job.title
+              escapeHtml(job.title.length > 42 ? job.title.slice(0, 42) + "…" : job.title)
             }</a></td>
-      <td>${job.company}</td>
-      <td><span class="source-badge">${job.source}</span></td>
-      <td><span class="${remoteClass(job.remote)}">${job.remote}</span></td>
-      <td>${job.location}</td>
-      <td>${job.experience}</td>
+      <td>${escapeHtml(job.company)}</td>
+      <td><span class="source-badge">${escapeHtml(job.source)}</span></td>
+      <td><span class="${remoteClass(job.remote)}">${escapeHtml(job.remote)}</span></td>
+      <td>${escapeHtml(job.location)}</td>
+      <td>${escapeHtml(job.experience)}</td>
       <td>${job.posted || '<span style="color:#475569">—</span>'}</td>
-      <td>${job.age}</td>
+      <td>${escapeHtml(job.age)}</td>
       <td id="cv-${job.job_id}">${resumeCell(job)}</td>
       <td id="cl-${job.job_id}">${clCell(job)}</td>
       <td>${actionsCell(job)}</td>
@@ -1343,9 +1357,9 @@
         p.active ? "active-profile" : ""
       }" onclick="switchProfile('${p.slug}')">
         <span class="mini-avatar" style="background:${p.color}">${
-                p.initials
+                escapeHtml(p.initials)
               }</span>
-        <span style="flex:1">${p.name}</span>
+        <span style="flex:1">${escapeHtml(p.name)}</span>
         ${
           p.active
             ? `<a href="/profile-settings/${p.slug}" onclick="event.stopPropagation()" style="color:#64748b;font-size:0.72rem;text-decoration:none;padding:2px 6px;background:#0f1117;border-radius:4px">Settings</a>`

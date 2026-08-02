@@ -24,11 +24,8 @@ def _get_name(profile_path: Path) -> str:
     if not profile_path.exists():
         return "default"
     try:
-        for line in profile_path.read_text().splitlines():
-            if line.startswith("#"):
-                name = line.lstrip("#").split("—")[0].split("-")[0].strip()
-                if name:
-                    return name
+        from job.profiles import name_from_markdown
+        return name_from_markdown(profile_path.read_text()) or "default"
     except Exception:
         pass
     return "default"

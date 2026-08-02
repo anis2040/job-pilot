@@ -34,6 +34,17 @@ def slugify(name: str) -> str:
     return slug.strip("-") or "default"
 
 
+def name_from_markdown(text: str) -> str | None:
+    """Extract the candidate name from the first H1 heading in profile.md text.
+    Returns None if no usable heading is found."""
+    for line in text.splitlines():
+        if line.startswith("#"):
+            name = line.lstrip("#").split("—")[0].split("-")[0].strip()
+            if name:
+                return name
+    return None
+
+
 def _initials(name: str) -> str:
     parts = name.split()
     if len(parts) >= 2:
@@ -50,11 +61,9 @@ def _read_name(profile_dir: Path) -> str:
     profile_md = profile_dir / "profile.md"
     if profile_md.exists():
         try:
-            for line in profile_md.read_text().splitlines():
-                if line.startswith("#"):
-                    name = line.lstrip("#").split("—")[0].split("-")[0].strip()
-                    if name:
-                        return name
+            name = name_from_markdown(profile_md.read_text())
+            if name:
+                return name
         except Exception:
             pass
     return profile_dir.name.replace("-", " ").title()

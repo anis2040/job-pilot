@@ -1,7 +1,7 @@
 import httpx
 
 from .config import SearchConfig
-from .fetcher_utils import SHARED_HEADERS, http_get, strip_tags
+from .fetcher_utils import http_get, strip_tags
 from .models import RawJob
 from .utils import parse_experience, location_matches
 

@@ -119,13 +119,10 @@ def _candidate_name_slug() -> str:
         profile = get_profile_path()
         if not profile:
             return "Candidate"
-        text = profile.read_text()
-        for line in text.splitlines():
-            line = line.strip()
-            if line.startswith("#"):
-                name = line.lstrip("#").split("—")[0].split("-")[0].strip()
-                if name:
-                    return name.replace(" ", "_")
+        from .profiles import name_from_markdown
+        name = name_from_markdown(profile.read_text())
+        if name:
+            return name.replace(" ", "_")
     except Exception:
         pass
     return "Candidate"

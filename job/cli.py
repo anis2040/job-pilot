@@ -43,14 +43,6 @@ def _age(iso: str) -> str:
         return "?"
 
 
-def _blacklisted(text: str, blacklist: list[str]) -> str | None:
-    combined = text.lower()
-    for kw in blacklist:
-        if kw in combined:
-            return kw
-    return None
-
-
 def _remote_color(remote: str) -> str:
     colors = {"Remote": "green", "Hybrid": "yellow", "On-site": "red"}
     color = colors.get(remote, "white")
@@ -318,7 +310,7 @@ def resume(
         time.sleep(1.5)
 
     console.print(f"\n[bold]Generating resumes for {len(candidates)} job(s)…[/bold]\n")
-    from .web_api import _skill_path, _run_ai
+    from .web_api import _skill_path
     skill_dir = _skill_path()
 
     for i, row in enumerate(candidates, 1):

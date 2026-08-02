@@ -31,6 +31,24 @@ app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 app.secret_key = os.environ.get("SECRET_KEY", "job-scraper-dev-key-change-in-prod")
 
 
+@app.errorhandler(404)
+def _handle_404(e):
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "Not found"}), 404
+    return e
+
+
+@app.errorhandler(Exception)
+def _handle_exception(e):
+    # Let Flask handle its own HTTP exceptions (404, 405, etc.) normally.
+    from werkzeug.exceptions import HTTPException
+    if isinstance(e, HTTPException):
+        return e
+    if request.path.startswith("/api/"):
+        return jsonify({"error": str(e)}), 500
+    raise e
+
+
 def _config_path() -> Path:
     p = get_config_path()
     if not p:
@@ -87,7 +105,7 @@ def _write_config_yaml(path: Path, data: dict) -> None:
 
 
 def _save_api_key(env_key: str, provider: str):
-    data = request.get_json()
+    data = request.get_json() or {}
     key = (data.get("key") or "").strip()
     if not key:
         return jsonify({"error": "No key provided"}), 400
@@ -312,7 +330,8 @@ def api_profiles_switch(slug):
         return jsonify({"error": "Profile not found"}), 404
     clear_task_state()
     init_db()
-    job_count = stats().get("pending", 0) + stats().get("applied", 0) + stats().get("skipped", 0)
+    counts = stats()
+    job_count = counts.get("pending", 0) + counts.get("applied", 0) + counts.get("skipped", 0)
     # Pre-warm cache for the new profile in background
     import threading as _threading
     from job.web_api import _prewarm_cache
@@ -341,7 +360,7 @@ def api_profile_md_get(slug):
 def api_profile_md_save(slug):
     if err := _require_profile_dir(slug): return err
     profile_dir = PROFILES_DIR / slug
-    data = request.get_json()
+    data = request.get_json() or {}
     content = (data.get("content") or "").strip()
     if not content:
         return jsonify({"error": "Profile content is empty"}), 400
@@ -365,7 +384,7 @@ def api_profile_config_get(slug):
 def api_profile_config_save(slug):
     if err := _require_profile_dir(slug): return err
     profile_dir = PROFILES_DIR / slug
-    data = request.get_json()
+    data = request.get_json() or {}
     if not isinstance(data.get("searches"), list) or not data["searches"]:
         return jsonify({"error": "At least one search entry required"}), 400
     config_p = profile_dir / "config.yaml"
@@ -580,7 +599,11 @@ def api_fetch_status():
 def serve_pdf(company, subdir, filename):
     if subdir not in ("resumes", "cover-letters"):
         abort(404)
-    pdf = _resumes_path() / company / subdir / filename
+    base = _resumes_path().resolve()
+    pdf = (base / company / subdir / filename).resolve()
+    # Reject any path that escapes the active profile directory (path traversal).
+    if not pdf.is_relative_to(base):
+        abort(404)
     if not pdf.exists():
         abort(404)
     return send_file(str(pdf), mimetype="application/pdf")
@@ -707,7 +730,7 @@ def api_setup_install_node():
 
 @app.route("/api/setup/install-cli", methods=["POST"])
 def api_setup_install_cli():
-    data = request.get_json()
+    data = request.get_json() or {}
     provider = data.get("provider")
     if provider not in ("claude", "gemini"):
         return jsonify({"error": "Invalid provider"}), 400
@@ -803,18 +826,14 @@ Resume text:
 
 @app.route("/api/setup/save-profile", methods=["POST"])
 def api_setup_save_profile():
-    data = request.get_json()
+    data = request.get_json() or {}
     content = (data.get("content") or "").strip()
     if not content:
         return jsonify({"error": "Profile content is empty"}), 400
 
     # Extract name from first H1 heading for the slug
-    name = "default"
-    for line in content.splitlines():
-        line = line.strip()
-        if line.startswith("#"):
-            name = line.lstrip("#").split("—")[0].split("-")[0].strip() or name
-            break
+    from job.profiles import name_from_markdown
+    name = name_from_markdown(content) or "default"
 
     profile_dir = active_profile_dir()
 
@@ -910,4 +929,5 @@ if __name__ == "__main__":
     from job.web_api import _prewarm_cache
     _threading.Thread(target=_prewarm_cache, daemon=True).start()
 
-    app.run(debug=True, port=5050)
+    debug = os.environ.get("FLASK_DEBUG", "true").lower() in ("1", "true", "yes")
+    app.run(debug=debug, port=5050)
