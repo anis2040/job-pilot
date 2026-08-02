@@ -135,22 +135,29 @@ def _inject_name(instructions: str, slug: str) -> str:
 
 
 def _get_anthropic_client():
-    """Return an Anthropic client, or None if no Anthropic credentials available."""
+    """Return an Anthropic client pointed at the public API, or None."""
     try:
         import anthropic
         import os
         api_key = os.environ.get("ANTHROPIC_API_KEY")
         auth_token = os.environ.get("ANTHROPIC_AUTH_TOKEN")
+
+        # Build a candidate client
         if api_key:
-            return anthropic.Anthropic(api_key=api_key)
-        if auth_token:
-            return anthropic.Anthropic(auth_token=auth_token)
-        # Try OAuth profile from claude login — will raise if not logged in
-        client = anthropic.Anthropic()
-        # Quick check: if claude CLI exists, assume OAuth profile is valid
-        if shutil.which("claude"):
-            return client
-        return None
+            client = anthropic.Anthropic(api_key=api_key)
+        elif auth_token:
+            client = anthropic.Anthropic(auth_token=auth_token)
+        elif shutil.which("claude"):
+            client = anthropic.Anthropic()
+        else:
+            return None
+
+        # Reject proxy/work endpoints — only use the public Anthropic API
+        base = str(getattr(getattr(client, "_client", None), "base_url", ""))
+        if base and "anthropic.com" not in base:
+            return None
+
+        return client
     except Exception:
         return None
 
@@ -172,6 +179,19 @@ def _build_with_sdk(system_text: str, user_prompt: str, stage_fn=None) -> str:
             "cache_control": {"type": "ephemeral"},
         }],
         messages=[{"role": "user", "content": user_prompt}],
+    )
+    u = response.usage
+    cache_read   = getattr(u, "cache_read_input_tokens",   0) or 0
+    cache_write  = getattr(u, "cache_creation_input_tokens", 0) or 0
+    uncached     = getattr(u, "input_tokens", 0) or 0
+    output_toks  = getattr(u, "output_tokens", 0) or 0
+    total_input  = uncached + cache_read + cache_write
+    saved_pct    = round(cache_read / total_input * 100) if total_input else 0
+    print(
+        f"[cache] input={total_input} "
+        f"(uncached={uncached} write={cache_write} read={cache_read}) "
+        f"output={output_toks} "
+        f"saved={saved_pct}%"
     )
     return response.content[0].text
 
