@@ -12,6 +12,11 @@ from flask import Flask, render_template, jsonify, request, send_file, abort, re
 from job.db import init_db, get_pending_deduped, get_jobs_by_status, update_status, get_job, stats, last_fetch_at, clear_all_jobs
 from job.web_api import trigger_resume, get_task_status, trigger_cover_letter, get_cl_task_status, trigger_fetch, get_fetch_status, clear_task_state, call_ai
 from job.web_api import _candidate_name_slug
+from job.web_api import (
+    _get_groq_client, _get_anthropic_client, _get_gemini_client,
+    _get_model, _build_with_groq, _build_with_sdk, _build_with_gemini,
+    _GROQ_MODELS, _ANTHROPIC_MODELS, _GEMINI_MODELS, _MODEL_DEFAULTS,
+)
 from job.profiles import (
     list_profiles, get_active_slug, get_active_profile, set_active,
     create_profile, delete_profile, has_any_profiles, slugify,
@@ -415,6 +420,82 @@ def api_config_save():
     with open(config_p, "w") as f:
         yaml.dump(data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
     return jsonify({"ok": True})
+
+
+@app.route("/api/ai-settings", methods=["GET"])
+def api_ai_settings_get():
+    groq_ok      = _get_groq_client() is not None
+    anthropic_ok = _get_anthropic_client() is not None
+    gemini_ok    = _get_gemini_client() is not None or bool(shutil.which("gemini"))
+
+    if groq_ok:          active = "groq"
+    elif anthropic_ok:   active = "anthropic"
+    elif gemini_ok:      active = "gemini"
+    else:                active = None
+
+    import os
+    return jsonify({
+        "active_provider": active,
+        "providers": {
+            "groq": {
+                "configured": groq_ok,
+                "model": _get_model("groq"),
+                "key_set": bool(os.environ.get("GROQ_API_KEY")),
+                "models": _GROQ_MODELS,
+            },
+            "anthropic": {
+                "configured": anthropic_ok,
+                "model": _get_model("anthropic"),
+                "key_set": bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN") or shutil.which("claude")),
+                "models": _ANTHROPIC_MODELS,
+            },
+            "gemini": {
+                "configured": gemini_ok,
+                "model": _get_model("gemini"),
+                "key_set": bool(os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or shutil.which("gemini")),
+                "models": _GEMINI_MODELS,
+            },
+        }
+    })
+
+
+@app.route("/api/ai-settings", methods=["POST"])
+def api_ai_settings_save():
+    data = request.get_json() or {}
+    env_path = BASE / ".env"
+    lines = env_path.read_text().splitlines() if env_path.exists() else []
+    updated_keys = set()
+    for field, env_key in [("groq_model", "GROQ_MODEL"), ("anthropic_model", "ANTHROPIC_MODEL"), ("gemini_model", "GEMINI_MODEL")]:
+        val = (data.get(field) or "").strip()
+        if val:
+            lines = [l for l in lines if not l.startswith(f"{env_key}=")]
+            lines.append(f"{env_key}={val}")
+            import os; os.environ[env_key] = val
+            updated_keys.add(env_key)
+    env_path.write_text("\n".join(lines) + "\n")
+    return jsonify({"ok": True, "updated": list(updated_keys)})
+
+
+@app.route("/api/ai-settings/test", methods=["POST"])
+def api_ai_settings_test():
+    import time
+    data = request.get_json() or {}
+    provider = data.get("provider", "groq")
+    try:
+        t0 = time.time()
+        if provider == "groq":
+            result = _build_with_groq("You are a test.", "Say OK in one word.")
+        elif provider == "anthropic":
+            result = _build_with_sdk("You are a test.", "Say OK in one word.")
+        elif provider == "gemini":
+            from job.web_api import _skill_path
+            result = _build_with_gemini("You are a test.", "Say OK in one word.", cwd=str(_skill_path()))
+        else:
+            return jsonify({"ok": False, "error": f"Unknown provider: {provider}"}), 400
+        latency = round((time.time() - t0) * 1000)
+        return jsonify({"ok": True, "model": _get_model(provider), "latency_ms": latency, "response": result.strip()[:50]})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
 
 
 @app.route("/api/jobs/clear", methods=["POST"])

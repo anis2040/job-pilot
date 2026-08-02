@@ -184,6 +184,26 @@ def _get_anthropic_client():
         return None
 
 
+_GROQ_MODELS      = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768", "gemma2-9b-it"]
+_ANTHROPIC_MODELS = ["claude-haiku-4-5", "claude-sonnet-4-6", "claude-opus-4-6"]
+_GEMINI_MODELS    = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash"]
+
+_MODEL_DEFAULTS = {
+    "groq":      "llama-3.3-70b-versatile",
+    "anthropic": "claude-haiku-4-5",
+    "gemini":    "gemini-2.0-flash",
+}
+
+
+def _get_model(provider: str) -> str:
+    """Return the configured model for a provider, falling back to the default."""
+    import os
+    _load_env()
+    key = f"{provider.upper()}_MODEL"
+    val = os.environ.get(key, "").strip()
+    return val or _MODEL_DEFAULTS.get(provider, "")
+
+
 def _get_groq_client():
     """Return a Groq client if GROQ_API_KEY is set, else None."""
     _load_env()
@@ -205,7 +225,7 @@ def _build_with_groq(system_text: str, user_prompt: str, stage_fn=None) -> str:
         raise RuntimeError("No Groq client available")
     if stage_fn:
         stage_fn("Generating with Groq…")
-    model = "llama-3.3-70b-versatile"
+    model = _get_model("groq")
     response = client.chat.completions.create(
         model=model,
         messages=[
@@ -221,6 +241,9 @@ def _build_with_groq(system_text: str, user_prompt: str, stage_fn=None) -> str:
     total_t  = getattr(u, "total_tokens",      0) or 0
     print(f"[groq/{model}] input={input_t} output={output_t} total={total_t}")
     return response.choices[0].message.content
+
+
+def _build_with_sdk(system_text: str, user_prompt: str, stage_fn=None) -> str:
     """Call Claude via SDK with prompt caching. Returns response text."""
     import anthropic
     client = _get_anthropic_client()
@@ -228,8 +251,7 @@ def _build_with_groq(system_text: str, user_prompt: str, stage_fn=None) -> str:
         raise RuntimeError("No Anthropic client available")
     if stage_fn:
         stage_fn("Generating with Claude…")
-    # Use Haiku — cheapest model, free tier generous, instruction-following is excellent
-    model = "claude-haiku-4-5"
+    model = _get_model("anthropic")
     response = client.messages.create(
         model=model,
         max_tokens=4096,
@@ -241,17 +263,16 @@ def _build_with_groq(system_text: str, user_prompt: str, stage_fn=None) -> str:
         messages=[{"role": "user", "content": user_prompt}],
     )
     u = response.usage
-    cache_read   = getattr(u, "cache_read_input_tokens",   0) or 0
+    cache_read   = getattr(u, "cache_read_input_tokens",     0) or 0
     cache_write  = getattr(u, "cache_creation_input_tokens", 0) or 0
-    uncached     = getattr(u, "input_tokens", 0) or 0
-    output_toks  = getattr(u, "output_tokens", 0) or 0
+    uncached     = getattr(u, "input_tokens",                0) or 0
+    output_toks  = getattr(u, "output_tokens",               0) or 0
     total_input  = uncached + cache_read + cache_write
     saved_pct    = round(cache_read / total_input * 100) if total_input else 0
     print(
         f"[cache/{model}] input={total_input} "
         f"(uncached={uncached} write={cache_write} read={cache_read}) "
-        f"output={output_toks} "
-        f"saved={saved_pct}%"
+        f"output={output_toks} saved={saved_pct}%"
     )
     return response.content[0].text
 
@@ -279,7 +300,7 @@ def _build_with_gemini(system_text: str, user_prompt: str, cwd: str, stage_fn=No
     if client is not None:
         try:
             from google.genai import types
-            model = "gemini-2.0-flash"
+            model = _get_model("gemini")
             response = client.models.generate_content(
                 model=model,
                 contents=user_prompt,
@@ -381,7 +402,7 @@ def _prewarm_cache() -> None:
         skill_text = _inject_name(skill_text, slug)
 
         client.messages.create(
-            model="claude-haiku-4-5",
+            model=_get_model("anthropic"),
             max_tokens=0,
             system=[{"type": "text", "text": skill_text,
                      "cache_control": {"type": "ephemeral", "ttl": "1h"}}],

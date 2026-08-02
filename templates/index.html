@@ -127,6 +127,20 @@
   .tag button:hover { color: #f87171; }
   .tag-input { background: none; border: none; outline: none; color: #e2e8f0; font-size: 0.78rem; min-width: 120px; flex: 1; padding: 1px 0; }
   .save-notice { font-size: 0.75rem; color: #4ade80; display: none; }
+
+  /* AI Settings */
+  .ai-provider-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #1e2333; }
+  .ai-provider-row:last-child { border-bottom: none; }
+  .ai-provider-name { font-size: 0.82rem; font-weight: 600; color: #e2e8f0; width: 80px; flex-shrink: 0; }
+  .ai-provider-row select { background: #0f1117; border: 1px solid #2d3748; border-radius: 5px; color: #e2e8f0; padding: 5px 8px; font-size: 0.78rem; flex: 1; outline: none; }
+  .ai-provider-row select:focus { border-color: #3b82f6; }
+  .ai-provider-row select:disabled { opacity: 0.4; cursor: not-allowed; }
+  .ai-active-badge { background: #14532d; color: #4ade80; font-size: 0.65rem; font-weight: 700; padding: 2px 7px; border-radius: 99px; white-space: nowrap; }
+  .ai-test-btn { background: #1e2333; border: 1px solid #2d3748; border-radius: 5px; color: #94a3b8; padding: 4px 10px; font-size: 0.72rem; cursor: pointer; white-space: nowrap; }
+  .ai-test-btn:hover { border-color: #3b82f6; color: #60a5fa; }
+  .ai-test-ok  { color: #4ade80; font-size: 0.72rem; white-space: nowrap; }
+  .ai-test-err { color: #f87171; font-size: 0.72rem; white-space: nowrap; }
+  .ai-key-hint { font-size: 0.7rem; color: #475569; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -190,6 +204,14 @@
         <h3>Company Blacklist</h3>
         <div class="tag-input-wrap" id="company-blacklist-wrap" onclick="focusTagInput('company-blacklist-input')">
           <input class="tag-input" id="company-blacklist-input" placeholder="add company name, press Enter" onkeydown="tagKeydown(event,'company-blacklist-wrap','company-blacklist-input')">
+        </div>
+      </div>
+
+      <!-- AI Model Settings -->
+      <div class="settings-section">
+        <h3>⚡ AI Model</h3>
+        <div id="ai-settings-body">
+          <div style="color:#475569;font-size:0.78rem">Loading…</div>
         </div>
       </div>
 
@@ -532,6 +554,7 @@ async function openSettings() {
   renderTags("blacklist-wrap", "blacklist-input", cfg.blacklist || []);
   renderTags("company-blacklist-wrap", "company-blacklist-input", cfg.company_blacklist || []);
   document.getElementById("save-notice").style.display = "none";
+  await loadAISettings();
   document.getElementById("settings-modal").classList.add("open");
 }
 
@@ -563,6 +586,7 @@ async function saveSettings() {
   const data = await res.json();
   if (data.ok) {
     closeSettings();
+    await saveAISettings();
     const notice = document.getElementById("save-notice");
     notice.style.display = "inline";
     setTimeout(() => notice.style.display = "none", 2500);
@@ -609,6 +633,77 @@ async function switchProfile(slug) {
   const res = await fetch(`/api/profiles/switch/${slug}`, { method: "POST" });
   const data = await res.json();
   window.location.href = data.empty ? "/?fetch=1" : "/";
+}
+
+// ── AI Settings ───────────────────────────────────────────────────────────────
+
+let _aiSettings = null;
+
+async function loadAISettings() {
+  const res = await fetch("/api/ai-settings");
+  _aiSettings = await res.json();
+  renderAISettings(_aiSettings);
+}
+
+function renderAISettings(cfg) {
+  const el = document.getElementById("ai-settings-body");
+  if (!el) return;
+  const providers = cfg.providers || {};
+  const active = cfg.active_provider;
+  const LABELS = { groq: "Groq ⚡", anthropic: "Claude", gemini: "Gemini" };
+
+  el.innerHTML = Object.entries(providers).map(([pid, p]) => {
+    const isActive = pid === active;
+    const modelOpts = (p.models || []).map(m =>
+      `<option value="${m}" ${m === p.model ? "selected" : ""}>${m}</option>`
+    ).join("");
+    const keyHint = p.key_set ? "" : `<span class="ai-key-hint">no key</span>`;
+    return `
+      <div class="ai-provider-row">
+        <span class="ai-provider-name">${LABELS[pid] || pid}</span>
+        <select id="ai-model-${pid}" ${!p.configured ? "disabled" : ""} onchange="markAIDirty()">${modelOpts}</select>
+        ${isActive ? '<span class="ai-active-badge">Active</span>' : keyHint}
+        <button class="ai-test-btn" onclick="testAI('${pid}')" id="ai-test-btn-${pid}" ${!p.configured ? "disabled" : ""}>Test</button>
+        <span id="ai-test-result-${pid}"></span>
+      </div>`;
+  }).join("");
+}
+
+let _aiDirty = false;
+function markAIDirty() { _aiDirty = true; }
+
+async function saveAISettings() {
+  if (!_aiDirty) return;
+  const body = {};
+  for (const pid of ["groq", "anthropic", "gemini"]) {
+    const sel = document.getElementById(`ai-model-${pid}`);
+    if (sel && !sel.disabled) body[`${pid}_model`] = sel.value;
+  }
+  await fetch("/api/ai-settings", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(body) });
+  _aiDirty = false;
+}
+
+async function testAI(provider) {
+  const btn = document.getElementById(`ai-test-btn-${provider}`);
+  const result = document.getElementById(`ai-test-result-${provider}`);
+  btn.disabled = true;
+  btn.textContent = "…";
+  result.innerHTML = "";
+  try {
+    const res = await fetch("/api/ai-settings/test", {
+      method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({provider})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      result.innerHTML = `<span class="ai-test-ok">✓ ${data.latency_ms}ms</span>`;
+    } else {
+      result.innerHTML = `<span class="ai-test-err" title="${data.error}">✗ failed</span>`;
+    }
+  } catch(e) {
+    result.innerHTML = `<span class="ai-test-err">✗ error</span>`;
+  }
+  btn.disabled = false;
+  btn.textContent = "Test";
 }
 
 // ── Sort init ─────────────────────────────────────────────────────────────────
