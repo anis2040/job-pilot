@@ -11,7 +11,6 @@ from flask import Flask, render_template, jsonify, request, send_file, abort, re
 
 from job.db import init_db, get_pending_deduped, get_jobs_by_status, update_status, get_job, get_similar_jobs, stats, last_fetch_at, clear_all_jobs
 from job.web_api import trigger_resume, get_task_status, trigger_cover_letter, get_cl_task_status, trigger_fetch, get_fetch_status, clear_task_state, call_ai
-from job.web_api import _candidate_name_slug
 from job.web_api import (
     _get_groq_client, _get_anthropic_client, _get_gemini_client,
     _get_model, _list_models, _clear_model_cache, _build_with_groq, _build_with_sdk, _build_with_gemini,
@@ -155,19 +154,32 @@ def _format_relative_age(dt_str: str | None, *, days_only: bool = False) -> str:
         return ""
 
 
-def _find_pdf_path(profile_dir: Path, company: str, subdir: str, target: str) -> str | None:
-    """Search company-name variants under profile_dir. Checks the current layout
-    (<Company>/<subdir>/<file>) and the legacy layout (resumes/<Company>/<file>)."""
-    variants = [company, company.replace(" ", ""), company.replace(" ", "").replace("/", "")]
-    for co in variants:
-        candidate = profile_dir / co / subdir / target
-        if candidate.exists():
-            return str(candidate)
-    # Legacy layout: resumes/<Company>/<file> (all docs were dumped into resumes/)
-    for co in variants:
-        candidate = profile_dir / "resumes" / co / target
-        if candidate.exists():
-            return str(candidate)
+def _find_pdf_path(profile_dir: Path, company: str, subdir: str, suffix: str) -> str | None:
+    """Find a built PDF for `company`, matching by filename `suffix`
+    (e.g. "_Resume.pdf" / "_Cover_Letter.pdf") regardless of the name prefix.
+
+    PDFs may have been built under a different candidate name than the one
+    currently in profile.md (profile renamed, or resume vs cover-letter using
+    different names), so we match on the document-type suffix, not the exact
+    filename. Searches the given subdir, then the sibling docs subdir, then the
+    legacy flat layout (resumes/<Company>/<file>).
+    """
+    company_variants = [company, company.replace(" ", ""), company.replace(" ", "").replace("/", "")]
+    # Directories to scan, in priority order.
+    search_dirs: list[Path] = []
+    for co in company_variants:
+        search_dirs.append(profile_dir / co / subdir)          # current layout
+        search_dirs.append(profile_dir / co / "resumes")       # cover letters sometimes land here
+        search_dirs.append(profile_dir / "resumes" / co)       # legacy flat layout
+
+    seen: set[Path] = set()
+    for d in search_dirs:
+        if d in seen or not d.is_dir():
+            continue
+        seen.add(d)
+        matches = sorted(d.glob(f"*{suffix}"))
+        if matches:
+            return str(matches[0])
     return None
 
 
@@ -175,7 +187,6 @@ def _serialize_job(row, task_status: dict, cl_task_status: dict) -> dict:
     r = dict(row)
     job_id = r["job_id"]
     company = r.get("company") or ""
-    name_slug = _candidate_name_slug()
 
     ts = task_status.get(job_id, {})
     resume_status = ts.get("status", "idle")
@@ -188,11 +199,11 @@ def _serialize_job(row, task_status: dict, cl_task_status: dict) -> dict:
     try:
         profile_dir = _resumes_path()
         if resume_status == "idle" and not pdf_path:
-            pdf_path = _find_pdf_path(profile_dir, company, "resumes", f"{name_slug}_Resume.pdf")
+            pdf_path = _find_pdf_path(profile_dir, company, "resumes", "_Resume.pdf")
             if pdf_path:
                 resume_status = "done"
         if cl_status == "idle" and not cl_pdf_path:
-            cl_pdf_path = _find_pdf_path(profile_dir, company, "cover-letters", f"{name_slug}_Cover_Letter.pdf")
+            cl_pdf_path = _find_pdf_path(profile_dir, company, "cover-letters", "_Cover_Letter.pdf")
             if cl_pdf_path:
                 cl_status = "done"
     except RuntimeError:

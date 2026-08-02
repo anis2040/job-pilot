@@ -250,3 +250,42 @@ class TestApiConstants:
         data = web_client.get("/api/constants").get_json()
         assert set(data["default_blacklist"]) == set(DEFAULT_BLACKLIST)
 
+
+
+# ── PDF discovery (_find_pdf_path) ──────────────────────────────────────────────
+
+class TestFindPdfPath:
+    """Regression tests: built PDFs must be found by document-type suffix even
+    when the filename's name-prefix differs from the current profile name, and
+    across the current/sibling/legacy directory layouts."""
+
+    def _make(self, tmp_path, rel):
+        p = tmp_path / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(b"%PDF-1.4 test")
+        return p
+
+    def test_matches_different_name_prefix(self, tmp_path):
+        # Built under "Anis" but we search generically for a resume
+        self._make(tmp_path, "CGI/resumes/Anis_Helaoui_Resume.pdf")
+        found = web._find_pdf_path(tmp_path, "CGI", "resumes", "_Resume.pdf")
+        assert found and found.endswith("Anis_Helaoui_Resume.pdf")
+
+    def test_cover_letter_suffix(self, tmp_path):
+        self._make(tmp_path, "CGI/cover-letters/Yassine_Helaoui_Cover_Letter.pdf")
+        found = web._find_pdf_path(tmp_path, "CGI", "cover-letters", "_Cover_Letter.pdf")
+        assert found and found.endswith("_Cover_Letter.pdf")
+
+    def test_resume_search_ignores_cover_letter(self, tmp_path):
+        # A resumes/ dir containing only a cover letter must NOT match a resume search
+        self._make(tmp_path, "CGI/resumes/X_Cover_Letter.pdf")
+        assert web._find_pdf_path(tmp_path, "CGI", "resumes", "_Resume.pdf") is None
+
+    def test_company_name_variants(self, tmp_path):
+        # Spaces stripped in the stored dir name
+        self._make(tmp_path, "TheScionGroup/resumes/N_Resume.pdf")
+        found = web._find_pdf_path(tmp_path, "The Scion Group", "resumes", "_Resume.pdf")
+        assert found is not None
+
+    def test_missing_returns_none(self, tmp_path):
+        assert web._find_pdf_path(tmp_path, "Nope", "resumes", "_Resume.pdf") is None
