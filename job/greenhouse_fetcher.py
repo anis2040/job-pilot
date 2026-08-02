@@ -2,8 +2,8 @@ import time
 import httpx
 
 from .config import SearchConfig
-from .fetcher_utils import SHARED_HEADERS, http_get
-from .models import RawJob
+from .fetcher_utils import SHARED_HEADERS, http_get, infer_remote
+from .models import RawJob, RemoteType
 from .utils import parse_experience, location_matches
 
 _BASE = "https://boards-api.greenhouse.io/v1/boards"
@@ -55,10 +55,10 @@ def fetch_greenhouse(search: SearchConfig) -> list[RawJob]:
             if location_name and not location_matches(location_name, search.location):
                 continue
 
-            remote = _infer_remote(location_name)
+            remote = infer_remote(location_name)
 
             # Skip on-site if search is remote-only
-            if search.remote and remote == "On-site":
+            if search.remote and remote == RemoteType.ONSITE:
                 continue
 
             job_id = f"gh_{token}_{job['id']}"
@@ -83,12 +83,3 @@ def fetch_greenhouse(search: SearchConfig) -> list[RawJob]:
         time.sleep(0.15)
 
     return results
-
-
-def _infer_remote(location: str) -> str:
-    loc = location.lower()
-    if "hybrid" in loc:
-        return "Hybrid"
-    if "remote" in loc:
-        return "Remote"
-    return "On-site"

@@ -1,7 +1,7 @@
 import httpx
 
 from .config import SearchConfig
-from .fetcher_utils import http_get, strip_tags
+from .fetcher_utils import http_get, strip_tags, infer_remote
 from .models import RawJob
 from .utils import parse_experience, location_matches
 
@@ -41,7 +41,7 @@ def fetch_jobicy(search: SearchConfig) -> list[RawJob]:
         job_types = item.get("jobType", [])
         description = strip_tags(item.get("jobDescription") or item.get("jobExcerpt") or "")
         experience = parse_experience(title + " " + item.get("jobLevel", "") + " " + description)
-        remote = _infer_remote(title, job_types, geo)
+        remote = infer_remote(title, " ".join(job_types), geo)
 
         results.append(RawJob(
             job_id=job_id,
@@ -85,12 +85,3 @@ def _geo(location: str) -> str:
         return "singapore"
     # For unrecognised locations, don't pass a geo filter — let location_matches handle it
     return ""
-
-
-def _infer_remote(title: str, job_types: list, geo: str) -> str:
-    combined = (title + " " + " ".join(job_types) + " " + geo).lower()
-    if "hybrid" in combined:
-        return "Hybrid"
-    if "remote" in combined or "worldwide" in combined or "anywhere" in combined:
-        return "Remote"
-    return "On-site"

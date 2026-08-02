@@ -91,15 +91,15 @@ async function quickFetchJobs() {
     return;
   }
 
+  const constants = await fetch("/api/constants").then(r => r.json());
+  const searches = constants.sources.map(src => ({
+    name: `${src} - ${title}`, source: src, query: title, location, max_pages: 3, remote,
+  }));
+
   const config = {
-    searches: [
-      { name: `LinkedIn - ${title}`, source: "linkedin", query: title, location, max_pages: 3, remote },
-      { name: `Jobicy - ${title}`, source: "jobicy", query: title, location, max_pages: 3, remote },
-      { name: `Himalayas - ${title}`, source: "himalayas", query: title, location, max_pages: 2, remote },
-      { name: `Greenhouse - ${title}`, source: "greenhouse", query: title, location, max_pages: 3, remote },
-    ],
+    searches,
     title_filter: [title.toLowerCase()],
-    blacklist: ["internship", "junior", "unpaid"],
+    blacklist: constants.default_blacklist,
     company_blacklist: [],
   };
 

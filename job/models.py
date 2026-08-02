@@ -2,6 +2,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
+class RemoteType:
+    REMOTE = "Remote"
+    HYBRID = "Hybrid"
+    ONSITE = "On-site"
+    ALL = [REMOTE, HYBRID, ONSITE]
+
+
+DEFAULT_BLACKLIST = ["internship", "junior", "unpaid", "staffing"]
+
+JOB_STATUSES = ["pending", "applied", "skipped"]
+
+
 @dataclass
 class RawJob:
     job_id: str

@@ -1,50 +1,37 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{{ profile.name }} — Profile Settings</title>
-<link rel="stylesheet" href="/static/base.css">
-<style>
-  /* Top bar */
-  .topbar { border-bottom: 1px solid #1e2333; padding: 14px 32px; display: flex; align-items: center; gap: 14px; }
-  .topbar-back { color: #64748b; text-decoration: none; font-size: 0.82rem; display: flex; align-items: center; gap: 6px; }
-  .topbar-back:hover { color: #e2e8f0; }
-  .topbar-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; color: #fff; flex-shrink: 0; }
-  .topbar-name { font-weight: 700; color: #fff; font-size: 0.95rem; }
+{% extends "base.html" %}
+{% block title %}{{ profile.name }} — Profile Settings{% endblock %}
 
+{% block styles %}
+<style>
   /* Layout */
   .layout { display: flex; max-width: 960px; margin: 0 auto; padding: 32px 24px; gap: 40px; }
 
   /* Sidebar nav */
   .sidenav { width: 200px; flex-shrink: 0; }
-  .sidenav-section { font-size: 0.7rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: .06em; padding: 8px 12px 4px; }
-  .sidenav-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 6px; color: #94a3b8; font-size: 0.84rem; cursor: pointer; transition: all .1s; border: none; background: none; width: 100%; text-align: left; }
-  .sidenav-item:hover { background: #1e2333; color: #e2e8f0; }
-  .sidenav-item.active { background: #1e2a3a; color: #60a5fa; font-weight: 600; }
+  .sidenav-section { font-size: 0.7rem; font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: .06em; padding: 8px 12px 4px; }
+  .sidenav-item { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-radius: var(--radius); color: var(--text-soft); font-size: var(--text-md); cursor: pointer; transition: all .1s; border: none; background: none; width: 100%; text-align: left; }
+  .sidenav-item:hover { background: var(--bg-raised); color: var(--text); }
+  .sidenav-item.active { background: var(--bg-hover); color: var(--blue-light); font-weight: 600; }
   .sidenav-icon { font-size: 0.9rem; width: 18px; text-align: center; }
-  .sidenav-divider { height: 1px; background: #1e2333; margin: 8px 12px; }
+  .sidenav-divider { height: 1px; background: var(--border-faint); margin: var(--space-2) var(--space-3); }
 
   /* Main content */
   .main { flex: 1; min-width: 0; }
   .section { display: none; }
   .section.active { display: block; }
 
-  .section-title { font-size: 1.1rem; font-weight: 700; color: #fff; margin-bottom: 4px; }
-  .section-desc { font-size: 0.84rem; color: #64748b; margin-bottom: 24px; line-height: 1.5; }
-
-  /* Cards */
-  .settings-card { background: #1a1f2e; border: 1px solid #2d3748; border-radius: 10px; margin-bottom: 16px; overflow: hidden; }
-  .settings-card-header { padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; }
-  .settings-card-header h3 { font-size: 0.9rem; font-weight: 600; color: #e2e8f0; }
-  .settings-card-header p { font-size: 0.78rem; color: #64748b; margin-top: 2px; }
-  .settings-card-body { padding: 20px; border-top: 1px solid #1e2333; }
+  /* Settings cards */
+  .settings-card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-lg); margin-bottom: var(--space-4); overflow: hidden; }
+  .settings-card-header { padding: var(--space-4) var(--space-5); display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; }
+  .settings-card-header h3 { font-size: 0.9rem; font-weight: 600; color: var(--text); }
+  .settings-card-header p { font-size: var(--text-sm); color: var(--text-muted); margin-top: 2px; }
+  .settings-card-body { padding: var(--space-5); border-top: 1px solid var(--border-faint); }
   .settings-card-body.hidden { display: none; }
 
   /* Danger zone */
-  .danger-card { background: #1a1f2e; border: 1px solid #7f1d1d; border-radius: 10px; padding: 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-  .danger-card .info h4 { font-size: 0.9rem; font-weight: 600; color: #e2e8f0; margin-bottom: 3px; }
-  .danger-card .info p { font-size: 0.78rem; color: #64748b; }
+  .danger-card { background: var(--bg-surface); border: 1px solid var(--red-border); border-radius: var(--radius-lg); padding: var(--space-5); display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+  .danger-card .info h4 { font-size: 0.9rem; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+  .danger-card .info p { font-size: var(--text-sm); color: var(--text-muted); }
 
   @media (max-width: 640px) {
     .layout { flex-direction: column; gap: 24px; }
@@ -52,15 +39,13 @@
     .sidenav-section, .sidenav-divider { display: none; }
   }
 </style>
-<script src="/static/profile-form.js"></script>
-<script src="/static/search-settings.js"></script>
-</head>
-<body>
+{% endblock %}
 
+{% block body %}
 <div class="topbar">
   <a href="/manage-profiles" class="topbar-back">← Profiles</a>
   <div class="topbar-avatar" style="background:{{ profile.color }}">{{ profile.initials }}</div>
-  <span class="topbar-name">{{ profile.name }}</span>
+  <span class="topbar-title">{{ profile.name }}</span>
   {% if profile.slug == active_slug %}<span class="badge-active">Active</span>{% endif %}
 </div>
 
@@ -86,17 +71,10 @@
 
     <!-- Profile section -->
     <div class="section active" id="section-profile">
-      <div class="section-title">Profile</div>
-      <div class="section-desc">Your contact info, experience, and skills. The AI uses this exclusively to build resumes and cover letters.</div>
+      <div class="section-title page-title">Profile</div>
+      <div class="section-desc page-desc">Your contact info, experience, and skills. The AI uses this exclusively to build resumes and cover letters.</div>
 
-      <div class="autofill-bar">
-        <label class="autofill-label">
-          <span>⚡ Autofill from resume</span>
-          <input type="file" id="resume-upload" accept=".pdf,.docx,.txt" onchange="autofillFromResume(this)">
-          <span class="autofill-btn">Upload PDF / DOCX</span>
-        </label>
-        <span id="autofill-status"></span>
-      </div>
+      {% include "partials/autofill_bar.html" %}
 
       {% include "partials/profile_form.html" %}
 
@@ -112,7 +90,7 @@
             <h3>Auto-configure searches</h3>
             <p>Let the AI read your profile and set up search queries automatically</p>
           </div>
-          <span id="toggle-auto-config-body" style="color:#64748b;font-size:0.8rem">▼</span>
+          <span id="toggle-auto-config-body" class="toggle-icon">▼</span>
         </div>
         <div class="settings-card-body hidden" id="auto-config-body">
           <p style="font-size:0.84rem;color:#94a3b8;margin-bottom:12px">Analyzes your profile to extract job titles, location, and remote preference, then rewrites your search config.</p>
@@ -124,8 +102,8 @@
 
     <!-- Search section -->
     <div class="section" id="section-search">
-      <div class="section-title">Search Settings</div>
-      <div class="section-desc">Configure which job sources, queries, and locations to search.</div>
+      <div class="section-title page-title">Search Settings</div>
+      <div class="section-desc page-desc">Configure which job sources, queries, and locations to search.</div>
 
       <div class="settings-card">
         <div class="settings-card-header">
@@ -140,17 +118,17 @@
       <div class="settings-card">
         <div class="settings-card-header" onclick="toggleCard('filter-body')">
           <div><h3>Filters</h3><p>Title filter, blacklist, company blacklist</p></div>
-          <span id="toggle-filter-body" style="color:#64748b;font-size:0.8rem">▼</span>
+          <span id="toggle-filter-body" class="toggle-icon">▼</span>
         </div>
         <div class="settings-card-body hidden" id="filter-body">
           <div class="field">
-            <label>Title Filter <span style="color:#475569;font-weight:400">(keep jobs matching at least one)</span></label>
+            <label>Title Filter <span class="label-hint">(keep jobs matching at least one)</span></label>
             <div class="tag-wrap" id="title-filter-wrap" onclick="document.getElementById('title-filter-input').focus()">
               <input class="tag-input" id="title-filter-input" placeholder="add keyword, Enter" onkeydown="tagKeydown(event,'title-filter-wrap','title-filter-input')">
             </div>
           </div>
           <div class="field">
-            <label>Blacklist <span style="color:#475569;font-weight:400">(drop jobs containing these words)</span></label>
+            <label>Blacklist <span class="label-hint">(drop jobs containing these words)</span></label>
             <div class="tag-wrap" id="blacklist-wrap" onclick="document.getElementById('blacklist-input').focus()">
               <input class="tag-input" id="blacklist-input" placeholder="add keyword, Enter" onkeydown="tagKeydown(event,'blacklist-wrap','blacklist-input')">
             </div>
@@ -173,8 +151,8 @@
 
     <!-- Danger section -->
     <div class="section" id="section-danger">
-      <div class="section-title">Danger Zone</div>
-      <div class="section-desc">Irreversible actions for this profile.</div>
+      <div class="section-title page-title">Danger Zone</div>
+      <div class="section-desc page-desc">Irreversible actions for this profile.</div>
 
       {% if profile.slug != active_slug %}
       <div class="danger-card" style="margin-bottom:12px">
@@ -205,12 +183,14 @@
 
   </div>
 </div>
+{% endblock %}
 
+{% block scripts %}
+<script src="/static/profile-form.js"></script>
+<script src="/static/search-settings.js"></script>
 <script>
 const SLUG = "{{ profile.slug }}";
 const IS_ACTIVE = {{ 'true' if profile.slug == active_slug else 'false' }};
-
-// ── Nav ───────────────────────────────────────────────────────────────────────
 
 function showSection(name) {
   document.querySelectorAll(".section").forEach(s => s.classList.remove("active"));
@@ -226,8 +206,6 @@ function toggleCard(bodyId) {
   if (icon) icon.textContent = body.classList.contains("hidden") ? "▼" : "▲";
 }
 
-// ── Profile form ──────────────────────────────────────────────────────────────
-
 async function loadProfileForm() {
   const res = await fetch(`/api/profiles/${SLUG}/profile-md`);
   const data = await res.json();
@@ -242,8 +220,7 @@ async function saveProfileForm() {
   if (!name) { alertEl.innerHTML = `<div class="alert alert-error" style="margin-top:8px">Please enter your full name.</div>`; document.getElementById("p-name").focus(); return; }
   if (!email) { alertEl.innerHTML = `<div class="alert alert-error" style="margin-top:8px">Please enter your email.</div>`; document.getElementById("p-email").focus(); return; }
   const content = buildProfileMd();
-  const res = await fetch(`/api/profiles/${SLUG}/profile-md`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({content}) });
-  const data = await res.json();
+  const data = await apiPost(`/api/profiles/${SLUG}/profile-md`, { content });
   if (data.ok) {
     alertEl.innerHTML = "";
     const ok = document.getElementById("profile-save-ok");
@@ -254,11 +231,8 @@ async function saveProfileForm() {
   }
 }
 
-// ── Search settings ───────────────────────────────────────────────────────────
-
 async function loadSearchSettings() {
-  const res = await fetch(`/api/profiles/${SLUG}/config`);
-  const cfg = await res.json();
+  const cfg = await fetch(`/api/profiles/${SLUG}/config`).then(r => r.json());
   renderSearchRows(cfg.searches || [], "search-rows");
   renderTags("title-filter-wrap", "title-filter-input", cfg.title_filter || []);
   renderTags("blacklist-wrap", "blacklist-input", cfg.blacklist || []);
@@ -272,12 +246,10 @@ async function saveSearchSettings() {
   const queryTerms = [...new Set(searches.map(s => s.query.toLowerCase()).filter(Boolean))];
   const mergedFilter = titleFilter.length ? [...new Set([...titleFilter, ...queryTerms])] : queryTerms;
   const cfg = { searches, title_filter: mergedFilter, blacklist: collectTags("blacklist-wrap"), company_blacklist: collectTags("company-blacklist-wrap") };
-  const res = await fetch(`/api/profiles/${SLUG}/config`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(cfg) });
-  const data = await res.json();
+  const data = await apiPost(`/api/profiles/${SLUG}/config`, cfg);
   if (data.ok) {
-    if (IS_ACTIVE) {
-      window.location.href = "/?fetch=1";
-    } else {
+    if (IS_ACTIVE) { window.location.href = "/?fetch=1"; }
+    else {
       const ok = document.getElementById("search-save-ok");
       ok.style.display = "inline";
       setTimeout(() => ok.style.display = "none", 2500);
@@ -287,15 +259,12 @@ async function saveSearchSettings() {
   }
 }
 
-// ── Auto-config ───────────────────────────────────────────────────────────────
-
 async function autoConfig() {
   if (!IS_ACTIVE) { document.getElementById("auto-config-alert").innerHTML = `<div class="alert alert-error">Switch to this profile first.</div>`; return; }
   const btn = document.getElementById("btn-auto-config");
   btn.disabled = true;
   btn.innerHTML = `<span class="spinner"></span> Analyzing…`;
-  const res = await fetch("/api/setup/suggest-config", { method: "POST" });
-  const data = await res.json();
+  const data = await apiPost("/api/setup/suggest-config", {});
   if (data.ok) {
     document.getElementById("auto-config-alert").innerHTML = `<div class="alert alert-ok">✓ Configured for <strong>${data.title_filter.join(", ")}</strong> in <strong>${data.location}</strong></div>`;
     btn.innerHTML = "⚡ Configure from profile"; btn.disabled = false;
@@ -306,12 +275,9 @@ async function autoConfig() {
   }
 }
 
-// ── Danger ────────────────────────────────────────────────────────────────────
-
 async function deleteProfile() {
   if (!confirm(`Delete "${SLUG}" and all its data? This cannot be undone.`)) return;
-  const res = await fetch(`/api/profiles/delete/${SLUG}`, { method: "POST" });
-  const data = await res.json();
+  const data = await apiPost(`/api/profiles/delete/${SLUG}`, {});
   if (data.ok) window.location.href = "/manage-profiles";
   else alert(data.error);
 }
@@ -319,16 +285,12 @@ async function deleteProfile() {
 async function clearJobs() {
   if (!confirm("Clear all jobs for this profile? Resumes on disk are kept.")) return;
   const url = IS_ACTIVE ? "/api/jobs/clear" : `/api/profiles/${SLUG}/clear-jobs`;
-  const res = await fetch(url, { method: "POST" });
-  const data = await res.json();
+  const data = await apiPost(url, {});
   if (data.ok) alert("Jobs cleared.");
   else alert(data.error || "Failed.");
 }
 
-// ── Init ──────────────────────────────────────────────────────────────────────
-
 loadProfileForm();
 loadSearchSettings();
 </script>
-<div class="toast" id="toast"></div>
-<script src="/static/ui.js"></script>
+{% endblock %}

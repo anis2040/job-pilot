@@ -6,7 +6,9 @@ monkeypatched with a minimal FakeResponse carrying a realistic fixture payload.
 import pytest
 
 from job.config import SearchConfig
-from job.fetcher import fetch_search
+from job.fetcher import fetch_search, SOURCES
+from job.models import RemoteType, DEFAULT_BLACKLIST, JOB_STATUSES
+from job.fetcher_utils import infer_remote
 
 
 class FakeResponse:
@@ -32,6 +34,67 @@ def search():
         remote=True,
         max_pages=1,
     )
+
+
+# ── RemoteType constants ──────────────────────────────────────────────────────
+
+def test_remote_type_values():
+    assert RemoteType.REMOTE == "Remote"
+    assert RemoteType.HYBRID == "Hybrid"
+    assert RemoteType.ONSITE == "On-site"
+    assert set(RemoteType.ALL) == {"Remote", "Hybrid", "On-site"}
+
+
+def test_default_blacklist_not_empty():
+    assert len(DEFAULT_BLACKLIST) > 0
+    assert all(isinstance(w, str) for w in DEFAULT_BLACKLIST)
+
+
+def test_job_statuses():
+    assert "pending" in JOB_STATUSES
+    assert "applied" in JOB_STATUSES
+    assert "skipped" in JOB_STATUSES
+
+
+# ── infer_remote ──────────────────────────────────────────────────────────────
+
+def test_infer_remote_remote():
+    assert infer_remote("Remote Developer", "Berlin") == RemoteType.REMOTE
+
+def test_infer_remote_hybrid():
+    assert infer_remote("Hybrid Role", "Munich") == RemoteType.HYBRID
+
+def test_infer_remote_onsite():
+    assert infer_remote("Office Based", "Frankfurt") == RemoteType.ONSITE
+
+def test_infer_remote_homeoffice():
+    assert infer_remote("HomeOffice möglich", "Hamburg") == RemoteType.REMOTE
+
+def test_infer_remote_hybrid_takes_priority_over_remote():
+    assert infer_remote("Hybrid Remote role", "Berlin") == RemoteType.HYBRID
+
+def test_infer_remote_worldwide():
+    assert infer_remote("Available worldwide", "") == RemoteType.REMOTE
+
+
+# ── SOURCES registry ──────────────────────────────────────────────────────────
+
+def test_sources_is_list_of_tuples():
+    assert isinstance(SOURCES, list)
+    for src, mp in SOURCES:
+        assert isinstance(src, str)
+        assert isinstance(mp, int)
+        assert mp > 0
+
+def test_sources_contains_expected_entries():
+    ids = [src for src, _ in SOURCES]
+    for expected in ("linkedin", "jobicy", "himalayas", "greenhouse",
+                     "germantechjobs", "berlinstartupjobs", "stepstone"):
+        assert expected in ids, f"{expected} missing from SOURCES"
+
+def test_sources_no_duplicates():
+    ids = [src for src, _ in SOURCES]
+    assert len(ids) == len(set(ids))
 
 
 # ── LinkedIn ──────────────────────────────────────────────────────────────────
@@ -63,7 +126,7 @@ def test_linkedin_fetcher_parses_html(monkeypatch, search):
     assert job.job_id == "li_123456"
     assert job.company == "Acme Corp"
     assert job.title == "Senior Engineer"
-    assert job.remote == "Remote"
+    assert job.remote == RemoteType.REMOTE
 
 
 # ── Jobicy ────────────────────────────────────────────────────────────────────
@@ -164,7 +227,7 @@ def test_greenhouse_fetcher_parses_json(monkeypatch, search):
     job = results[0]
     assert job.job_id == "gh_acme_456"
     assert job.company == "Acme"
-    assert job.remote == "Remote"
+    assert job.remote == RemoteType.REMOTE
 
 
 def test_greenhouse_title_filter_excludes_non_matching(monkeypatch, search):
@@ -180,19 +243,165 @@ def test_greenhouse_title_filter_excludes_non_matching(monkeypatch, search):
     assert results == []
 
 
+# ── GermanTechJobs ────────────────────────────────────────────────────────────
+
+_GTJ_RSS = """<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>GermanTechJobs</title>
+    <item>
+      <title>Senior Engineer at TechGmbH (Berlin)</title>
+      <link>https://germantechjobs.de/jobs/techgmbh-senior-engineer</link>
+      <description>Great engineering role</description>
+      <pubDate>Mon, 01 Jan 2024 00:00:00 +0000</pubDate>
+    </item>
+  </channel>
+</rss>"""
+
+
+def test_germantechjobs_fetcher_parses_rss(monkeypatch, search):
+    import job.germantechjobs_fetcher as gtj
+
+    search.source = "germantechjobs"
+    search.location = "Germany"
+    monkeypatch.setattr(gtj, "http_get", lambda *a, **kw: FakeResponse(text=_GTJ_RSS))
+
+    results = gtj.fetch_germantechjobs(search)
+
+    assert len(results) == 1
+    job = results[0]
+    assert job.job_id == "gtj_techgmbh-senior-engineer"
+    assert job.company == "TechGmbH"
+    assert job.location == "Berlin"
+    assert "Senior Engineer" in job.title
+
+
+def test_germantechjobs_location_filter(monkeypatch, search):
+    """Jobs outside the search location are dropped."""
+    import job.germantechjobs_fetcher as gtj
+
+    search.source = "germantechjobs"
+    search.location = "United States"  # won't match Berlin
+    monkeypatch.setattr(gtj, "http_get", lambda *a, **kw: FakeResponse(text=_GTJ_RSS))
+
+    results = gtj.fetch_germantechjobs(search)
+    assert results == []
+
+
+# ── Berlin Startup Jobs ───────────────────────────────────────────────────────
+
+_BSJ_JSON = [
+    {
+        "id": 101,
+        "date": "2024-01-15T10:00:00",
+        "link": "https://berlinstartupjobs.com/listings/techco-backend-engineer",
+        "title": {"rendered": "Backend Engineer at TechCo"},
+        "content": {"rendered": "<p>Build scalable systems. Remote friendly.</p>"},
+    }
+]
+
+_BSJ_HEADERS = {"X-WP-TotalPages": "1"}
+
+
+class FakeResponseWithHeaders(FakeResponse):
+    def __init__(self, data, headers):
+        super().__init__(data=data)
+        self.headers = headers
+
+
+def test_berlinstartupjobs_fetcher_parses_json(monkeypatch, search):
+    import job.berlinstartupjobs_fetcher as bsj
+
+    search.source = "berlinstartupjobs"
+    search.location = "Germany"
+    monkeypatch.setattr(
+        bsj, "http_get",
+        lambda *a, **kw: FakeResponseWithHeaders(_BSJ_JSON, _BSJ_HEADERS),
+    )
+
+    results = bsj.fetch_berlinstartupjobs(search)
+
+    assert len(results) == 1
+    job = results[0]
+    assert job.job_id == "bsj_101"
+    assert job.location == "Berlin, Germany"
+    assert job.remote == RemoteType.REMOTE
+    assert "scalable" in job.description
+
+
+def test_berlinstartupjobs_location_filter(monkeypatch, search):
+    """Non-Germany searches should be skipped."""
+    import job.berlinstartupjobs_fetcher as bsj
+
+    search.source = "berlinstartupjobs"
+    search.location = "United States"
+    monkeypatch.setattr(
+        bsj, "http_get",
+        lambda *a, **kw: FakeResponseWithHeaders(_BSJ_JSON, _BSJ_HEADERS),
+    )
+
+    results = bsj.fetch_berlinstartupjobs(search)
+    assert results == []
+
+
+# ── StepStone ─────────────────────────────────────────────────────────────────
+
+_STEPSTONE_HTML = """
+<html><body>
+<article data-at="job-item" data-jobid="987654">
+  <h2 data-at="job-item-title"><a href="/stellenangebote--software-engineer--987654-inline.html">Software Engineer</a></h2>
+  <span data-at="job-item-company-name">MegaCorp GmbH</span>
+  <span data-at="job-item-location">Berlin, Deutschland</span>
+  <p data-at="job-item-snippet">Remote work possible</p>
+</article>
+</body></html>
+"""
+
+
+def test_stepstone_fetcher_parses_html(monkeypatch, search):
+    import job.stepstone_fetcher as ss
+    import httpx as _httpx
+
+    search.source = "stepstone"
+    search.location = "Germany"
+    monkeypatch.setattr(ss.httpx, "get", lambda *a, **kw: FakeResponse(text=_STEPSTONE_HTML))
+
+    results = ss.fetch_stepstone(search)
+
+    assert len(results) == 1
+    job = results[0]
+    assert job.job_id == "ss_987654"
+    assert job.company == "MegaCorp GmbH"
+    assert job.location == "Berlin, Deutschland"
+    assert job.remote == RemoteType.REMOTE
+
+
 # ── Router ────────────────────────────────────────────────────────────────────
 
 def test_router_dispatches_to_linkedin(monkeypatch, search):
     from job import fetcher as ft
-    from job.models import RawJob
 
-    sentinel = [RawJob("li_1", "http://x", "T", "C", "US", "Remote", "", "", None)]
+    sentinel = [RemoteType]  # any non-empty unique object
     monkeypatch.setattr(ft, "fetch_linkedin", lambda s: sentinel)
 
     search.source = "linkedin"
     assert fetch_search(search) is sentinel
 
 
+@pytest.mark.parametrize("source", [src for src, _ in SOURCES])
+def test_router_dispatches_all_sources(monkeypatch, search, source):
+    """Every source in SOURCES must be routable (not fall through to unknown)."""
+    from job import fetcher as ft
+
+    sentinel = []
+    fn_name = ft._SOURCE_TO_FN[source]
+    monkeypatch.setattr(ft, fn_name, lambda s: sentinel)
+
+    search.source = source
+    assert fetch_search(search) is sentinel
+
+
 def test_router_unknown_source_returns_empty(search):
     search.source = "bogus_source"
     assert fetch_search(search) == []
+

@@ -1,10 +1,21 @@
 // Shared search settings JS — used by index.html (modal) and profile_settings.html
 
-const SOURCES = ["linkedin", "jobicy", "himalayas", "greenhouse"];
+let SOURCES = [];
+
+async function loadSources() {
+  if (SOURCES.length) return;
+  try {
+    const res = await fetch("/api/sources");
+    SOURCES = await res.json();
+  } catch {
+    SOURCES = ["linkedin", "jobicy", "himalayas", "greenhouse"];
+  }
+}
 
 // ── Search rows ───────────────────────────────────────────────────────────────
 
-function renderSearchRows(searches, containerId = "searches-list") {
+async function renderSearchRows(searches, containerId = "searches-list") {
+  await loadSources();
   const groups = {};
   for (const s of searches) {
     const key = `${s.query}||${s.location || ""}||${s.remote ?? true}`;
@@ -26,7 +37,8 @@ function toggleSourceAll(row) {
   });
 }
 
-function addSearchRow(s = {}, containerId = "searches-list") {
+async function addSearchRow(s = {}, containerId = "searches-list") {
+  await loadSources();
   const list = document.getElementById(containerId) || document.getElementById("search-rows");
   if (!list) return;
   const row = document.createElement("div");

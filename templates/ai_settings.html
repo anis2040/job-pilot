@@ -1,70 +1,64 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI Settings — Job Scraper</title>
-<link rel="stylesheet" href="/static/base.css">
-<style>
-  header { padding: 16px 32px; border-bottom: 1px solid #1e2333; display: flex; align-items: center; gap: 16px; }
-  header a { color: #60a5fa; text-decoration: none; font-size: 0.82rem; }
-  header a:hover { text-decoration: underline; }
-  header h1 { font-size: 1.1rem; font-weight: 700; color: #fff; }
+{% extends "base.html" %}
+{% block title %}AI Settings — Job Scraper{% endblock %}
 
-  .page { max-width: 720px; margin: 0 auto; padding: 32px 24px; }
+{% block styles %}
+<style>
+  header { padding: var(--space-4) var(--space-8); border-bottom: 1px solid var(--border-faint); display: flex; align-items: center; gap: var(--space-4); }
+  header a { color: var(--blue-light); text-decoration: none; font-size: var(--text-base); }
+  header a:hover { text-decoration: underline; }
+  header h1 { font-size: var(--text-xl); font-weight: 700; color: var(--text-white); }
+
+  .page { max-width: var(--page-width); margin: 0 auto; padding: var(--space-8) var(--space-6); }
 
   .page-header { margin-bottom: 28px; }
-  .page-header h2 { font-size: 1.3rem; font-weight: 800; color: #fff; margin-bottom: 4px; }
-  .page-header p { font-size: 0.84rem; color: #64748b; }
+  .page-header h2 { font-size: var(--text-2xl); font-weight: 800; color: var(--text-white); margin-bottom: 4px; }
+  .page-header p { font-size: var(--text-md); color: var(--text-muted); }
 
-  .active-banner { display: flex; align-items: center; gap: 10px; background: #1a1f2e; border: 1px solid #2d3748; border-radius: 8px; padding: 12px 16px; margin-bottom: 24px; font-size: 0.84rem; flex-wrap: wrap; }
-  .active-banner .label { color: #64748b; }
-  .active-banner .provider-name { color: #e2e8f0; font-weight: 600; }
-  .active-banner .model-name { color: #94a3b8; font-size: 0.78rem; }
+  .active-banner { display: flex; align-items: center; gap: 10px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px 16px; margin-bottom: var(--space-6); font-size: var(--text-md); flex-wrap: wrap; }
+  .active-banner .label { color: var(--text-muted); }
+  .active-banner .provider-name { color: var(--text); font-weight: 600; }
+  .active-banner .model-name { color: var(--text-soft); font-size: var(--text-sm); }
 
-  .provider-card { background: #1a1f2e; border: 2px solid #2d3748; border-radius: 10px; margin-bottom: 16px; overflow: hidden; transition: border-color .15s; }
-  .provider-card.is-preferred { border-color: #3b82f6; }
+  .provider-card { background: var(--bg-surface); border: 2px solid var(--border); border-radius: var(--radius-lg); margin-bottom: var(--space-4); overflow: hidden; transition: border-color .15s; }
+  .provider-card.is-preferred { border-color: var(--blue); }
 
-  .card-header { display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid #1e2333; cursor: pointer; user-select: none; transition: background .12s; }
-  .card-header:hover { background: #1e2537; }
+  .card-header { display: flex; align-items: center; gap: var(--space-3); padding: 14px var(--space-5); border-bottom: 1px solid var(--border-faint); cursor: pointer; user-select: none; transition: background .12s; }
+  .card-header:hover { background: var(--bg-hover); }
   .card-header-text { flex: 1; }
-  .card-header h3 { font-size: 0.95rem; font-weight: 700; color: #fff; }
-  .card-header .sub { font-size: 0.74rem; color: #64748b; margin-top: 2px; }
+  .card-header h3 { font-size: 0.95rem; font-weight: 700; color: var(--text-white); }
+  .card-header .sub { font-size: var(--text-xs); color: var(--text-muted); margin-top: 2px; }
 
-  .select-indicator { width: 20px; height: 20px; border-radius: 50%; border: 2px solid #2d3748; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all .15s; font-size: 0.7rem; color: transparent; }
-  .provider-card.is-preferred .select-indicator { border-color: #3b82f6; background: #3b82f6; color: #fff; }
-  .card-header:hover .select-indicator { border-color: #60a5fa; }
+  .select-indicator { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border); flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all .15s; font-size: 0.7rem; color: transparent; }
+  .provider-card.is-preferred .select-indicator { border-color: var(--blue); background: var(--blue); color: #fff; }
+  .card-header:hover .select-indicator { border-color: var(--blue-light); }
 
-  .card-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; }
+  .card-body { padding: var(--space-4) var(--space-5); display: flex; flex-direction: column; gap: 14px; }
 
   .input-group { display: flex; flex-direction: column; gap: 5px; }
-  .input-group label { font-size: 0.75rem; font-weight: 600; color: #94a3b8; }
-  .input-row { display: flex; gap: 8px; align-items: center; }
-  .input-row input[type=password], .input-row input[type=text] { flex: 1; background: #0f1117; border: 1px solid #2d3748; border-radius: 6px; color: #e2e8f0; padding: 8px 12px; font-size: 0.84rem; outline: none; font-family: inherit; }
-  .input-row input:focus { border-color: #3b82f6; }
-  .hint { font-size: 0.72rem; color: #475569; }
-  .hint a { color: #60a5fa; text-decoration: none; }
-  .hint a:hover { text-decoration: underline; }
+  .input-group label { font-size: 0.75rem; font-weight: 600; color: var(--text-soft); }
+  .input-row { display: flex; gap: var(--space-2); align-items: center; }
+  .input-row input[type=password], .input-row input[type=text] { flex: 1; background: var(--bg-page); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); padding: 8px 12px; font-size: var(--text-md); outline: none; font-family: inherit; }
+  .input-row input:focus { border-color: var(--blue); }
 
   .model-row { display: flex; align-items: center; gap: 10px; }
-  .model-row label { font-size: 0.75rem; font-weight: 600; color: #94a3b8; white-space: nowrap; }
-  .model-row select { flex: 1; background: #0f1117; border: 1px solid #2d3748; border-radius: 6px; color: #e2e8f0; padding: 7px 10px; font-size: 0.82rem; outline: none; }
-  .model-row select:focus { border-color: #3b82f6; }
-  .model-row select option { background: #1a1f2e; }
+  .model-row label { font-size: 0.75rem; font-weight: 600; color: var(--text-soft); white-space: nowrap; }
+  .model-row select { flex: 1; background: var(--bg-page); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); padding: 7px 10px; font-size: var(--text-base); outline: none; }
+  .model-row select:focus { border-color: var(--blue); }
+  .model-row select option { background: var(--bg-surface); }
   .model-row select:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  .key-status { font-size: 0.76rem; min-height: 1em; }
-  .key-status.ok  { color: #4ade80; }
-  .key-status.err { color: #f87171; }
+  .key-status { font-size: var(--text-sm); min-height: 1em; }
+  .key-status.ok  { color: var(--green); }
+  .key-status.err { color: var(--red); }
 
-  .test-row { display: flex; align-items: center; gap: 10px; padding-top: 4px; border-top: 1px solid #1e2333; }
-  .test-result { font-size: 0.76rem; }
-  .test-result.ok  { color: #4ade80; }
-  .test-result.err { color: #f87171; }
+  .test-row { display: flex; align-items: center; gap: 10px; padding-top: 4px; border-top: 1px solid var(--border-faint); }
+  .test-result { font-size: var(--text-sm); }
+  .test-result.ok  { color: var(--green); }
+  .test-result.err { color: var(--red); }
 </style>
-</head>
-<body>
+{% endblock %}
 
+{% block body %}
 <header>
   <a href="/">← Back</a>
   <h1>⚡ AI Settings</h1>
@@ -84,106 +78,42 @@
     <span class="badge-none"   id="none-badge"   style="display:none">None configured</span>
   </div>
 
-  <!-- Groq -->
-  <div class="provider-card" id="card-groq">
-    <div class="card-header" onclick="selectProvider('groq')">
-      <span class="select-indicator" id="ind-groq">✓</span>
+  {% for p in providers %}
+  <div class="provider-card" id="card-{{ p.id }}">
+    <div class="card-header" onclick="selectProvider('{{ p.id }}')">
+      <span class="select-indicator" id="ind-{{ p.id }}">✓</span>
       <div class="card-header-text">
-        <h3>Groq</h3>
-        <div class="sub">Fast free inference — llama, mixtral, gemma</div>
+        <h3>{{ p.label }}</h3>
+        <div class="sub">{{ p.sub }}</div>
       </div>
-      <span class="badge-free">Free ⚡</span>
-      <span class="badge-no-key" id="nokey-groq" style="display:none">No key</span>
+      <span class="{{ p.badge_class }}">{{ p.badge_text }}</span>
+      <span class="badge-no-key" id="nokey-{{ p.id }}" style="display:none">No key</span>
     </div>
     <div class="card-body">
       <div class="input-group">
         <label>API Key</label>
         <div class="input-row">
-          <input type="password" id="groq-key-input" placeholder="gsk_…" onclick="event.stopPropagation()">
-          <button class="btn btn-primary btn-sm" onclick="saveKey('groq')">Save</button>
+          <input type="password" id="{{ p.id }}-key-input" placeholder="{{ p.placeholder }}" onclick="event.stopPropagation()">
+          <button class="btn btn-primary btn-sm" onclick="saveKey('{{ p.id }}')">Save</button>
         </div>
-        <div class="hint">Get a free key at <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys ↗</a>. Saved locally in <code>.env</code>.</div>
-        <div id="groq-key-status" class="key-status"></div>
+        <div class="hint">{{ p.hint | safe }}</div>
+        <div id="{{ p.id }}-key-status" class="key-status"></div>
       </div>
       <div class="model-row">
         <label>Model</label>
-        <select id="groq-model" onchange="saveModel('groq')" onclick="event.stopPropagation()"></select>
+        <select id="{{ p.id }}-model" onchange="saveModel('{{ p.id }}')" onclick="event.stopPropagation()"></select>
       </div>
       <div class="test-row">
-        <button class="btn btn-ghost btn-sm" onclick="testProvider('groq')" id="test-groq">Test connection</button>
-        <span class="test-result" id="test-groq-result"></span>
+        <button class="btn btn-ghost btn-sm" onclick="testProvider('{{ p.id }}')" id="test-{{ p.id }}">Test connection</button>
+        <span class="test-result" id="test-{{ p.id }}-result"></span>
       </div>
     </div>
   </div>
-
-  <!-- Anthropic -->
-  <div class="provider-card" id="card-anthropic">
-    <div class="card-header" onclick="selectProvider('anthropic')">
-      <span class="select-indicator" id="ind-anthropic">✓</span>
-      <div class="card-header-text">
-        <h3>Claude (Anthropic)</h3>
-        <div class="sub">High quality — Haiku, Sonnet, Opus</div>
-      </div>
-      <span class="badge-paid">API key</span>
-      <span class="badge-no-key" id="nokey-anthropic" style="display:none">No key</span>
-    </div>
-    <div class="card-body">
-      <div class="input-group">
-        <label>API Key</label>
-        <div class="input-row">
-          <input type="password" id="anthropic-key-input" placeholder="sk-ant-…" onclick="event.stopPropagation()">
-          <button class="btn btn-primary btn-sm" onclick="saveKey('anthropic')">Save</button>
-        </div>
-        <div class="hint">Get a key at <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com ↗</a>. Saved locally in <code>.env</code>.</div>
-        <div id="anthropic-key-status" class="key-status"></div>
-      </div>
-      <div class="model-row">
-        <label>Model</label>
-        <select id="anthropic-model" onchange="saveModel('anthropic')" onclick="event.stopPropagation()"></select>
-      </div>
-      <div class="test-row">
-        <button class="btn btn-ghost btn-sm" onclick="testProvider('anthropic')" id="test-anthropic">Test connection</button>
-        <span class="test-result" id="test-anthropic-result"></span>
-      </div>
-    </div>
-  </div>
-
-  <!-- Gemini -->
-  <div class="provider-card" id="card-gemini">
-    <div class="card-header" onclick="selectProvider('gemini')">
-      <span class="select-indicator" id="ind-gemini">✓</span>
-      <div class="card-header-text">
-        <h3>Gemini (Google)</h3>
-        <div class="sub">Free API key — Flash, Flash-lite, 1.5</div>
-      </div>
-      <span class="badge-free">Free</span>
-      <span class="badge-no-key" id="nokey-gemini" style="display:none">No key</span>
-    </div>
-    <div class="card-body">
-      <div class="input-group">
-        <label>API Key</label>
-        <div class="input-row">
-          <input type="password" id="gemini-key-input" placeholder="AIza…" onclick="event.stopPropagation()">
-          <button class="btn btn-primary btn-sm" onclick="saveKey('gemini')">Save</button>
-        </div>
-        <div class="hint">Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio ↗</a>. Saved locally in <code>.env</code>.</div>
-        <div id="gemini-key-status" class="key-status"></div>
-      </div>
-      <div class="model-row">
-        <label>Model</label>
-        <select id="gemini-model" onchange="saveModel('gemini')" onclick="event.stopPropagation()"></select>
-      </div>
-      <div class="test-row">
-        <button class="btn btn-ghost btn-sm" onclick="testProvider('gemini')" id="test-gemini">Test connection</button>
-        <span class="test-result" id="test-gemini-result"></span>
-      </div>
-    </div>
-  </div>
+  {% endfor %}
 </div>
+{% endblock %}
 
-<div class="toast" id="toast"></div>
-
-<script src="/static/ui.js"></script>
+{% block scripts %}
 <script>
 const KEY_ENDPOINTS = {
   groq:      "/api/setup/save-groq-key",
@@ -191,8 +121,8 @@ const KEY_ENDPOINTS = {
   gemini:    "/api/setup/save-gemini-key",
 };
 const PROVIDER_LABELS = { groq: "Groq", anthropic: "Claude", gemini: "Gemini" };
-const PROVIDERS = ["groq", "anthropic", "gemini"];
 
+let PROVIDERS = [];
 let preferredProvider = null;
 let providerAvailable = {};
 
@@ -200,12 +130,12 @@ async function load() {
   const res  = await fetch("/api/ai-settings");
   const data = await res.json();
 
+  PROVIDERS = Object.keys(data.providers);
   providerAvailable = {};
   for (const p of PROVIDERS) providerAvailable[p] = data.providers[p]?.key_set ?? false;
 
   preferredProvider = data.preferred_provider || data.active_provider || null;
 
-  // Active banner
   const active = data.active_provider;
   if (active) {
     const m = data.providers[active]?.model || "";
@@ -220,7 +150,6 @@ async function load() {
     document.getElementById("none-badge").style.display   = "";
   }
 
-  // Per-provider fields
   for (const [provider, info] of Object.entries(data.providers)) {
     const inp = document.getElementById(`${provider}-key-input`);
     if (inp) inp.value = info.key_set ? "••••••••••••••••" : "";
@@ -245,56 +174,25 @@ async function load() {
 
 function renderSelection() {
   for (const p of PROVIDERS) {
-    const selected = p === preferredProvider;
-    document.getElementById(`card-${p}`).classList.toggle("is-preferred", selected);
+    document.getElementById(`card-${p}`).classList.toggle("is-preferred", p === preferredProvider);
   }
 }
 
 async function selectProvider(p) {
   if (p === preferredProvider) return;
-
   preferredProvider = p;
   renderSelection();
-
-  try {
-    const res = await fetch("/api/ai-settings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ preferred_provider: p }),
-    });
-    const data = await res.json();
-    if (data.ok) {
-      showToast(`✓ Now using ${PROVIDER_LABELS[p]}`);
-      // Refresh banner
-      await load();
-    } else {
-      showToast(`✗ ${data.error || "Failed"}`, "err");
-    }
-  } catch {
-    showToast("✗ Request failed", "err");
-  }
-}
-
-async function _apiFetch(url, body) {
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    return { ok: true, data: await res.json() };
-  } catch (e) {
-    return { ok: false, error: e.message };
-  }
+  const data = await apiPost("/api/ai-settings", { preferred_provider: p });
+  if (data.ok) { showToast(`✓ Now using ${PROVIDER_LABELS[p]}`); await load(); }
+  else showToast(`✗ ${data.error || "Failed"}`, "err");
 }
 
 async function saveModel(provider) {
   const val = document.getElementById(`${provider}-model`)?.value;
   if (!val) return;
-  const field = `${provider}_model`;
-  const { ok } = await _apiFetch("/api/ai-settings", { [field]: val, preferred_provider: preferredProvider || "" });
-  if (ok) showToast(`✓ ${PROVIDER_LABELS[provider]} model set to ${val}`);
-  else    showToast("✗ Failed to save model", "err");
+  const data = await apiPost("/api/ai-settings", { [`${provider}_model`]: val, preferred_provider: preferredProvider || "" });
+  if (data.ok) showToast(`✓ ${PROVIDER_LABELS[provider]} model set to ${val}`);
+  else showToast("✗ Failed to save model", "err");
 }
 
 async function saveKey(provider) {
@@ -311,8 +209,8 @@ async function saveKey(provider) {
   statusEl.className = "key-status";
   statusEl.innerHTML = `<span class="spinner"></span> Saving…`;
 
-  const { ok, data } = await _apiFetch(KEY_ENDPOINTS[provider], { key });
-  if (ok && data.ok) {
+  const data = await apiPost(KEY_ENDPOINTS[provider], { key });
+  if (data.ok) {
     statusEl.className   = "key-status ok";
     statusEl.textContent = "✓ Saved.";
     inp.value = "••••••••••••••••";
@@ -320,7 +218,7 @@ async function saveKey(provider) {
     await load();
   } else {
     statusEl.className   = "key-status err";
-    statusEl.textContent = ok ? `✗ ${data.error || "Failed to save."}` : "✗ Request failed.";
+    statusEl.textContent = `✗ ${data.error || "Failed to save."}`;
   }
 }
 
@@ -332,8 +230,8 @@ async function testProvider(provider) {
   btn.innerHTML = `<span class="spinner"></span> Testing…`;
   resultEl.textContent = "";
 
-  const { ok, data } = await _apiFetch("/api/ai-settings/test", { provider });
-  if (ok && data.ok) {
+  const data = await apiPost("/api/ai-settings/test", { provider });
+  if (data.ok) {
     resultEl.className = "test-result ok";
     let label = `✓ ${data.model} — ${data.latency_ms}ms`;
     if (data.backend === "cli") {
@@ -343,7 +241,7 @@ async function testProvider(provider) {
     resultEl.textContent = label;
   } else {
     resultEl.className   = "test-result err";
-    resultEl.textContent = ok ? `✗ ${data.error || "Failed"}` : "✗ Request failed.";
+    resultEl.textContent = `✗ ${data.error || "Failed"}`;
   }
 
   btn.disabled    = false;
@@ -352,5 +250,4 @@ async function testProvider(provider) {
 
 load();
 </script>
-</body>
-</html>
+{% endblock %}

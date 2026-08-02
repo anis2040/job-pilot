@@ -1,10 +1,7 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Job Scraper — Setup</title>
-<link rel="stylesheet" href="/static/base.css">
+{% extends "base.html" %}
+{% block title %}Job Scraper — Setup{% endblock %}
+
+{% block styles %}
 <style>
   body { padding: 32px 16px; }
 
@@ -15,65 +12,56 @@
   .wizard-header p { color: #64748b; font-size: 0.88rem; }
 
   .steps { display: flex; align-items: center; justify-content: center; margin-bottom: 24px; }
-  .step-dot { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #2d3748; color: #475569; font-size: 0.72rem; font-weight: 700; display: flex; align-items: center; justify-content: center; transition: all .2s; flex-shrink: 0; cursor: pointer; }
-  .step-dot:hover { border-color: #60a5fa; color: #60a5fa; }
-  .step-dot.active { border-color: #3b82f6; background: #3b82f6; color: #fff; cursor: default; }
+  .step-dot { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border); color: var(--text-faint); font-size: var(--text-xs); font-weight: 700; display: flex; align-items: center; justify-content: center; transition: all .2s; flex-shrink: 0; cursor: pointer; }
+  .step-dot:hover { border-color: var(--blue-light); color: var(--blue-light); }
+  .step-dot.active { border-color: var(--blue); background: var(--blue); color: #fff; cursor: default; }
   .step-dot.done { border-color: #16a34a; background: #16a34a; color: #fff; }
-  .step-line { flex: 1; height: 2px; background: #2d3748; max-width: 48px; }
+  .step-line { flex: 1; height: 2px; background: var(--border); max-width: 48px; }
   .step-line.done { background: #16a34a; }
 
-  .card { background: #1a1f2e; border: 1px solid #2d3748; border-radius: 12px; padding: 24px 28px; }
-  .card h2 { font-size: 1.1rem; font-weight: 700; color: #fff; margin-bottom: 6px; }
-  .card .subtitle { font-size: 0.84rem; color: #64748b; margin-bottom: 16px; line-height: 1.5; }
+  .card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 24px 28px; overflow: visible; }
+  .card h2 { font-size: var(--text-xl); font-weight: 700; color: var(--text-white); margin-bottom: 6px; }
+  .card .subtitle { font-size: var(--text-md); color: var(--text-muted); margin-bottom: 16px; line-height: 1.5; }
 
   .check-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #1e2333; }
   .check-row:last-child { border-bottom: none; }
   .check-icon { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; flex-shrink: 0; }
-  .check-icon.ok { background: #14532d; color: #4ade80; }
-  .check-icon.warn { background: #451a03; color: #fb923c; }
-  .check-icon.loading { background: #1e2333; color: #475569; animation: pulse 1s infinite; }
+  .check-icon.ok { background: var(--green-bg); color: var(--green); }
+  .check-icon.warn { background: #451a03; color: var(--orange); }
+  .check-icon.loading { background: var(--bg-raised); color: var(--text-faint); animation: pulse 1s infinite; }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
   .check-label { flex: 1; font-size: 0.84rem; }
   .check-label strong { color: #e2e8f0; display: block; margin-bottom: 1px; }
   .check-label span { color: #64748b; font-size: 0.78rem; }
 
   .provider-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 4px; }
-  .provider-card { border: 2px solid #2d3748; border-radius: 8px; padding: 16px; cursor: pointer; transition: all .15s; position: relative; }
-  .provider-card:hover { border-color: #3b82f6; background: #1e2333; }
-  .provider-card.selected { border-color: #3b82f6; background: #1e2a3a; }
-  .provider-card h3 { font-size: 0.9rem; font-weight: 700; color: #fff; margin-bottom: 4px; }
-  .provider-card p { font-size: 0.76rem; color: #64748b; line-height: 1.4; }
-  .provider-card .badge-free { position: absolute; top: 10px; right: 10px; }
+  .provider-card { border: 2px solid var(--border); border-radius: var(--radius-md); padding: 16px; cursor: pointer; transition: all .15s; position: relative; }
+  .provider-card:hover { border-color: var(--blue); background: var(--bg-raised); }
+  .provider-card.selected { border-color: var(--blue); background: var(--bg-hover); }
+  .provider-card h3 { font-size: 0.9rem; font-weight: 700; color: var(--text-white); margin-bottom: 4px; }
+  .provider-card p { font-size: var(--text-sm); color: var(--text-muted); line-height: 1.4; }
+  .provider-card .badge-free  { position: absolute; top: 10px; right: 10px; }
   .provider-card .badge-login { position: absolute; top: 10px; right: 10px; }
 
   .input-group { margin-bottom: 16px; }
-  .input-group label { display: block; font-size: 0.78rem; font-weight: 600; color: #94a3b8; margin-bottom: 6px; }
-  .input-group input, .input-group textarea { width: 100%; background: #0f1117; border: 1px solid #2d3748; border-radius: 6px; color: #e2e8f0; padding: 9px 12px; font-size: 0.84rem; outline: none; font-family: inherit; }
-  .input-group input:focus, .input-group textarea:focus { border-color: #3b82f6; }
+  .input-group label { display: block; font-size: var(--text-sm); font-weight: 600; color: var(--text-soft); margin-bottom: 6px; }
+  .input-group input, .input-group textarea { width: 100%; background: var(--bg-page); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); padding: 9px 12px; font-size: var(--text-md); outline: none; font-family: inherit; }
+  .input-group input:focus, .input-group textarea:focus { border-color: var(--blue); }
   .input-group textarea { min-height: 280px; resize: vertical; font-family: "SF Mono", "Fira Code", monospace; font-size: 0.76rem; line-height: 1.5; }
-  .input-group .hint { font-size: 0.73rem; color: #475569; margin-top: 5px; }
-  .input-group .hint a { color: #60a5fa; text-decoration: none; }
-  .input-group .hint a:hover { text-decoration: underline; }
+  .input-group .hint { margin-top: 5px; }
 
-  .install-block { background: #0f1117; border: 1px solid #2d3748; border-radius: 6px; padding: 12px 14px; margin-top: 10px; }
-  .install-block p { font-size: 0.78rem; color: #94a3b8; margin-bottom: 8px; }
-  .install-block code { display: block; background: #1a1f2e; border-radius: 4px; padding: 8px 10px; font-size: 0.76rem; color: #a78bfa; font-family: "SF Mono", monospace; margin-bottom: 8px; white-space: pre-wrap; word-break: break-all; }
-  .install-log { font-size: 0.72rem; color: #64748b; font-family: monospace; max-height: 100px; overflow-y: auto; margin-top: 6px; white-space: pre-wrap; display: none; }
-
-  /* Wizard uses slightly larger buttons */
-  .btn { padding: 9px 20px; font-size: 0.84rem; }
-  .btn-sm { padding: 5px 12px; font-size: 0.76rem; }
-
+  /* Wizard uses .btn-lg for larger primary actions */
   .footer-nav { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; }
-  .footer-nav .step-hint { font-size: 0.76rem; color: #475569; }
+  .footer-nav .step-hint { font-size: var(--text-sm); color: var(--text-faint); }
 
   .success-icon { font-size: 3rem; text-align: center; margin-bottom: 16px; }
   .success-features { list-style: none; margin: 16px 0; }
   .success-features li { padding: 6px 0; font-size: 0.84rem; color: #94a3b8; }
   .success-features li::before { content: "✓ "; color: #4ade80; font-weight: 700; }
 </style>
-</head>
-<body>
+{% endblock %}
+
+{% block body %}
 
 <div class="wizard">
   <div class="wizard-header">
@@ -149,14 +137,7 @@
     <h2>Your Profile</h2>
     <p class="subtitle">Fill in your details below, or upload your existing resume to autofill the form.</p>
 
-    <div class="autofill-bar">
-      <label class="autofill-label">
-        <span>⚡ Autofill from resume</span>
-        <input type="file" id="resume-upload" accept=".pdf,.docx,.txt" onchange="autofillFromResume(this)">
-        <span class="autofill-btn">Upload PDF / DOCX</span>
-      </label>
-      <span id="autofill-status"></span>
-    </div>
+    {% include "partials/autofill_bar.html" %}
 
 
       {% include "partials/profile_form.html" %}
@@ -177,8 +158,10 @@
     <div style="text-align:center;padding:24px;color:#475569">Loading…</div>
   </div>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script src="/static/profile-form.js"></script>
 <script src="/static/setup.js"></script>
-</body>
+{% endblock %}
 </html>

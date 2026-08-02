@@ -1,7 +1,7 @@
 import httpx
 
 from .config import SearchConfig
-from .fetcher_utils import http_get, strip_tags
+from .fetcher_utils import http_get, strip_tags, infer_remote
 from .models import RawJob
 from .utils import parse_experience, location_matches
 
@@ -46,7 +46,7 @@ def fetch_himalayas(search: SearchConfig) -> list[RawJob]:
             description = strip_tags(item.get("description") or item.get("excerpt") or "")
             seniority = " ".join(item.get("seniority") or [])
             experience = parse_experience(title + " " + seniority + " " + description)
-            remote = _infer_remote(item)
+            remote = infer_remote(" ".join(restrictions), item.get("employmentType") or "")
             url = item.get("applicationLink") or slug
 
             results.append(RawJob(
@@ -66,12 +66,3 @@ def fetch_himalayas(search: SearchConfig) -> list[RawJob]:
             break
 
     return results
-
-
-def _infer_remote(item: dict) -> str:
-    restrictions = item.get("locationRestrictions") or []
-    emp = (item.get("employmentType") or "").lower()
-    loc_text = " ".join(restrictions).lower()
-    if "hybrid" in emp or "hybrid" in loc_text:
-        return "Hybrid"
-    return "Remote"

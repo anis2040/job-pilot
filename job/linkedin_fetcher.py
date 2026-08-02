@@ -4,7 +4,8 @@ import httpx
 from bs4 import BeautifulSoup
 
 from .config import SearchConfig
-from .models import RawJob
+from .fetcher_utils import infer_remote
+from .models import RawJob, RemoteType
 from .utils import parse_experience
 
 _HEADERS = {
@@ -66,7 +67,7 @@ def fetch_linkedin(search: SearchConfig) -> list[RawJob]:
             company = company_el.get_text(strip=True) if company_el else ""
             location_el = card.select_one("span.job-search-card__location")
             raw_location = location_el.get_text(strip=True) if location_el else ""
-            remote = _infer_remote(raw_location, card)
+            remote = _infer_remote_linkedin(raw_location, card)
             experience = parse_experience(title)
 
             link_el = card.select_one("a.base-card__full-link, a[href*='/jobs/view/']")
@@ -105,13 +106,7 @@ def fetch_description(job_url: str) -> str:
     return el.get_text("\n", strip=True)[:4000]
 
 
-def _infer_remote(location: str, card) -> str:
-    loc = location.lower()
+def _infer_remote_linkedin(location: str, card) -> str:
     badge = card.select_one("span.job-search-card__benefits-item, span[class*='remote']")
-    badge_text = badge.get_text(strip=True).lower() if badge else ""
-    combined = loc + " " + badge_text
-    if "hybrid" in combined:
-        return "Hybrid"
-    if "remote" in combined:
-        return "Remote"
-    return "On-site"
+    badge_text = badge.get_text(strip=True) if badge else ""
+    return infer_remote(location, badge_text)

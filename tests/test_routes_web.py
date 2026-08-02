@@ -210,3 +210,43 @@ class TestApiConfig:
         r = web_client.post("/api/config", json=payload)
         assert r.status_code == 200
         assert r.get_json()["ok"] is True
+
+
+# ── /api/sources ──────────────────────────────────────────────────────────────
+
+def test_api_sources_returns_list(web_client):
+    from job.fetcher import SOURCES
+    r = web_client.get("/api/sources")
+    assert r.status_code == 200
+    data = r.get_json()
+    assert isinstance(data, list)
+    assert data == [src for src, _ in SOURCES]
+
+
+# ── /api/constants ────────────────────────────────────────────────────────────
+
+class TestApiConstants:
+    def test_returns_200(self, web_client):
+        r = web_client.get("/api/constants")
+        assert r.status_code == 200
+
+    def test_sources_matches_registry(self, web_client):
+        from job.fetcher import SOURCES
+        data = web_client.get("/api/constants").get_json()
+        assert data["sources"] == [src for src, _ in SOURCES]
+
+    def test_remote_types_complete(self, web_client):
+        from job.models import RemoteType
+        data = web_client.get("/api/constants").get_json()
+        assert set(data["remote_types"]) == set(RemoteType.ALL)
+
+    def test_job_statuses_present(self, web_client):
+        from job.models import JOB_STATUSES
+        data = web_client.get("/api/constants").get_json()
+        assert set(data["job_statuses"]) == set(JOB_STATUSES)
+
+    def test_default_blacklist_matches(self, web_client):
+        from job.models import DEFAULT_BLACKLIST
+        data = web_client.get("/api/constants").get_json()
+        assert set(data["default_blacklist"]) == set(DEFAULT_BLACKLIST)
+

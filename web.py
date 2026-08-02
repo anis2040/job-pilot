@@ -25,6 +25,8 @@ from job.profiles import (
 )
 
 from job.paths import BASE
+from job.fetcher import SOURCES
+from job.models import RemoteType, DEFAULT_BLACKLIST, JOB_STATUSES
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
@@ -295,7 +297,12 @@ def manage_profiles():
 
 @app.route("/ai-settings")
 def ai_settings_page():
-    return render_template("ai_settings.html")
+    providers = [
+        {"id": "groq",      "label": "Groq",             "sub": "Fast free inference — llama, mixtral, gemma",  "badge_class": "badge-free",  "badge_text": "Free ⚡",  "placeholder": "gsk_…",    "hint": 'Get a free key at <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys ↗</a>. Saved locally in <code>.env</code>.'},
+        {"id": "anthropic", "label": "Claude (Anthropic)","sub": "High quality — Haiku, Sonnet, Opus",          "badge_class": "badge-paid",  "badge_text": "API key",  "placeholder": "sk-ant-…", "hint": 'Get a key at <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com ↗</a>. Saved locally in <code>.env</code>.'},
+        {"id": "gemini",    "label": "Gemini (Google)",   "sub": "Free API key — Flash, Flash-lite, 1.5",        "badge_class": "badge-free",  "badge_text": "Free",     "placeholder": "AIza…",    "hint": 'Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio ↗</a>. Saved locally in <code>.env</code>.'},
+    ]
+    return render_template("ai_settings.html", providers=providers)
 
 
 # ── Profile API ───────────────────────────────────────────────────────────────
@@ -639,6 +646,26 @@ def api_setup_status():
     })
 
 
+@app.route("/api/sources")
+def api_sources():
+    return jsonify([src for src, _ in SOURCES])
+
+
+@app.route("/api/constants")
+def api_constants():
+    return jsonify({
+        "sources": [src for src, _ in SOURCES],
+        "remote_types": RemoteType.ALL,
+        "remote_css": {
+            RemoteType.REMOTE: "remote-remote",
+            RemoteType.HYBRID: "remote-hybrid",
+            RemoteType.ONSITE: "remote-onsite",
+        },
+        "job_statuses": JOB_STATUSES,
+        "default_blacklist": DEFAULT_BLACKLIST,
+    })
+
+
 @app.route("/api/setup/suggest-config", methods=["POST"])
 def api_setup_suggest_config():
     profile_p = get_profile_path()
@@ -682,15 +709,15 @@ Profile:
 
         primary_title = titles[0]
         searches = [
-            {"name": f"{src.capitalize()} - {primary_title}", "source": src,
+            {"name": f"{src} - {primary_title}", "source": src,
              "query": primary_title, "location": location, "max_pages": mp, "remote": remote}
-            for src, mp in [("linkedin", 3), ("jobicy", 3), ("himalayas", 2), ("greenhouse", 3)]
+            for src, mp in SOURCES
         ]
 
         new_config = {
             "searches": searches,
             "title_filter": [t.lower() for t in titles],
-            "blacklist": existing.get("blacklist", ["internship", "junior", "unpaid", "staffing"]),
+            "blacklist": existing.get("blacklist", DEFAULT_BLACKLIST),
             "company_blacklist": existing.get("company_blacklist", []),
         }
 
