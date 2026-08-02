@@ -11,20 +11,19 @@ git clone https://github.com/anis2040/job-scraper.git
 cd job-scraper
 ```
 
-Then run the start script — it handles everything automatically (installs Python if missing, creates a virtual environment, installs dependencies, opens the browser):
+**First time only** — installs Python if missing, sets up the environment, then launches the app:
 
-**macOS / Linux:**
-```bash
-./start.sh
-```
+| macOS / Linux | Windows |
+|---|---|
+| `./setup.sh` | `setup.bat` |
 
-**Windows:**
-```
-start.bat
-```
+> **macOS/Linux:** if you get a permission error run `chmod +x setup.sh start.sh` first.
 
-> Run the same script every time you want to start the app.
-> **macOS/Linux:** if you get a permission error run `chmod +x start.sh` first.
+**Every time after that** — skips all setup, starts instantly:
+
+| macOS / Linux | Windows |
+|---|---|
+| `./start.sh` | `start.bat` |
 
 ---
 
