@@ -30,7 +30,7 @@ def _validate_profile() -> None:
     profile = get_profile_path()
     if not profile or not profile.exists():
         raise ValueError("profile.md not found. Complete the setup wizard at http://localhost:5050/setup")
-    text = profile.read_text().strip()
+    text = profile.read_text(encoding="utf-8").strip()
     if not text:
         raise ValueError("profile.md is empty. Complete the setup wizard at http://localhost:5050/setup")
     if "you@example.com" in text or "City, State" in text:
@@ -46,7 +46,7 @@ def _candidate_name_slug() -> str:
         if not profile:
             return "Candidate"
         from .profiles import name_from_markdown
-        name = name_from_markdown(profile.read_text())
+        name = name_from_markdown(profile.read_text(encoding="utf-8"))
         if name:
             return name.replace(" ", "_")
     except Exception:
@@ -62,7 +62,7 @@ def _append_profile(skill_text: str) -> str:
     """Append the active profile.md to skill_text if it exists. Returns updated text."""
     profile_path = get_profile_path()
     if profile_path and profile_path.exists():
-        skill_text += f"\n\n## profile.md (embedded)\n\n{profile_path.read_text()}"
+        skill_text += f"\n\n## profile.md (embedded)\n\n{profile_path.read_text(encoding='utf-8')}"
     return skill_text
 
 
@@ -82,10 +82,10 @@ def _prewarm_cache() -> None:
         if not profile or not profile.exists():
             return  # no profile yet — nothing to cache
 
-        skill_text = (_skill_path() / "SKILL.md").read_text()
+        skill_text = (_skill_path() / "SKILL.md").read_text(encoding="utf-8")
         latex = _skill_path() / "references" / "latex_template.md"
         if latex.exists():
-            skill_text += f"\n\n## latex_template.md (embedded)\n\n{latex.read_text()}"
+            skill_text += f"\n\n## latex_template.md (embedded)\n\n{latex.read_text(encoding='utf-8')}"
         skill_text = _append_profile(skill_text)
         slug = _candidate_name_slug()
         skill_text = _inject_name(skill_text, slug)
@@ -104,10 +104,10 @@ def _prewarm_cache() -> None:
 
 def _build_resume_prompt(row: dict, company: str, title: str, name_slug: str, skill_dir) -> tuple[str, str]:
     """Build system skill_text and user_prompt for a resume. Returns (skill_text, user_prompt)."""
-    skill_text = (skill_dir / "SKILL.md").read_text()
+    skill_text = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
     latex_template = skill_dir / "references" / "latex_template.md"
     if latex_template.exists():
-        skill_text += f"\n\n## latex_template.md (embedded)\n\n{latex_template.read_text()}"
+        skill_text += f"\n\n## latex_template.md (embedded)\n\n{latex_template.read_text(encoding='utf-8')}"
     skill_text = _append_profile(skill_text)
     skill_text = _inject_name(skill_text, name_slug)
 
@@ -130,7 +130,7 @@ def _build_resume_prompt(row: dict, company: str, title: str, name_slug: str, sk
 
 def _build_cover_letter_prompt(row: dict, company: str, title: str, name_slug: str, skill_dir) -> tuple[str, str]:
     """Build system skill_text and user_prompt for a cover letter. Returns (skill_text, user_prompt)."""
-    skill_text = (skill_dir / "SKILL.md").read_text()
+    skill_text = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
     skill_text = _append_profile(skill_text)
     skill_text = _inject_name(skill_text, name_slug)
     skill_text += "\n\n## Output format\nReturn ONLY the raw LaTeX content (starting with \\documentclass), no explanations. After \\end{document} include a JSON block: ```json {\"company\": \"<name>\"} ```"
@@ -142,7 +142,7 @@ def _build_cover_letter_prompt(row: dict, company: str, title: str, name_slug: s
         _resumes_path() / company.replace(" ", "").replace("/", "") / "resumes" / f"{name_slug}_Resume.tex",
     ]:
         if candidate.exists():
-            resume_tex_content = f"\n\nThe resume for this role (for consistency):\n```latex\n{candidate.read_text()[:3000]}\n```"
+            resume_tex_content = f"\n\nThe resume for this role (for consistency):\n```latex\n{candidate.read_text(encoding='utf-8')[:3000]}\n```"
             break
 
     user_prompt = (
@@ -213,9 +213,9 @@ def _build_document(job_id: str, doc_type: str) -> None:
         output_dir.mkdir(parents=True, exist_ok=True)
 
         tex_path = output_dir / f"{name_slug}_{tex_suffix}.tex"
-        tex_path.write_text(latex_content)
+        tex_path.write_text(latex_content, encoding="utf-8")
         if is_resume:
-            (output_dir / "job_description.txt").write_text(row.get("description", ""))
+            (output_dir / "job_description.txt").write_text(row.get("description", ""), encoding="utf-8")
 
         pdf_path = _compile_latex(tex_path)
 

@@ -61,7 +61,7 @@ def _read_name(profile_dir: Path) -> str:
     profile_md = profile_dir / "profile.md"
     if profile_md.exists():
         try:
-            name = name_from_markdown(profile_md.read_text())
+            name = name_from_markdown(profile_md.read_text(encoding="utf-8"))
             if name:
                 return name
         except Exception:
@@ -91,7 +91,7 @@ def has_any_profiles() -> bool:
 def get_active_slug() -> str | None:
     if not ACTIVE_FILE.exists():
         return None
-    slug = ACTIVE_FILE.read_text().strip()
+    slug = ACTIVE_FILE.read_text(encoding="utf-8").strip()
     if slug and (PROFILES_DIR / slug).is_dir():
         return slug
     return None
@@ -109,7 +109,7 @@ def set_active(slug: str) -> bool:
     if not profile_dir.is_dir():
         return False
     PROFILES_DIR.mkdir(parents=True, exist_ok=True)
-    ACTIVE_FILE.write_text(slug)
+    ACTIVE_FILE.write_text(slug, encoding="utf-8")
     _update_symlinks(profile_dir)
     return True
 

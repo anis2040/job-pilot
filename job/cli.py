@@ -1,6 +1,7 @@
 from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import time
@@ -327,16 +328,17 @@ def resume(
             f"{row['description']}"
         )
 
-        skill_instructions = (skill_dir / "SKILL.md").read_text()
+        skill_instructions = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
         latex_template = skill_dir / "references" / "latex_template.md"
         if latex_template.exists():
-            skill_instructions += f"\n\n## latex_template.md (embedded)\n\n{latex_template.read_text()}"
+            skill_instructions += f"\n\n## latex_template.md (embedded)\n\n{latex_template.read_text(encoding='utf-8')}"
         profile_path = get_profile_path()
         if profile_path and profile_path.exists():
-            skill_instructions += f"\n\n## profile.md (embedded)\n\n{profile_path.read_text()}"
+            skill_instructions += f"\n\n## profile.md (embedded)\n\n{profile_path.read_text(encoding='utf-8')}"
 
+        claude_exe = shutil.which("claude") or "claude"
         result = subprocess.run(
-            ["claude", "-p", prompt,
+            [claude_exe, "-p", prompt,
              "--append-system-prompt", skill_instructions,
              "--allowedTools", "Bash,Edit,Write,Read"],
             capture_output=False,

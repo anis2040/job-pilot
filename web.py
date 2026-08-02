@@ -81,9 +81,9 @@ def _source_label(search_name: str) -> str:
 
 def _write_env_var(env_path: Path, key: str, value: str) -> None:
     """Upsert a KEY=value line in the .env file, removing any prior occurrence."""
-    lines = [l for l in env_path.read_text().splitlines() if not l.startswith(f"{key}=")] if env_path.exists() else []
+    lines = [l for l in env_path.read_text(encoding="utf-8").splitlines() if not l.startswith(f"{key}=")] if env_path.exists() else []
     lines.append(f"{key}={value}")
-    env_path.write_text("\n".join(lines) + "\n")
+    env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def _run_install(cmd: list, timeout: int) -> dict:
@@ -362,7 +362,7 @@ def api_profile_md_get(slug):
     if err := _require_profile_dir(slug): return err
     profile_dir = PROFILES_DIR / slug
     profile_md = profile_dir / "profile.md"
-    return jsonify({"content": profile_md.read_text() if profile_md.exists() else ""})
+    return jsonify({"content": profile_md.read_text(encoding="utf-8") if profile_md.exists() else ""})
 
 
 @app.route("/api/profiles/<slug>/profile-md", methods=["POST"])
@@ -373,7 +373,7 @@ def api_profile_md_save(slug):
     content = (data.get("content") or "").strip()
     if not content:
         return jsonify({"error": "Profile content is empty"}), 400
-    (profile_dir / "profile.md").write_text(content)
+    (profile_dir / "profile.md").write_text(content, encoding="utf-8")
     # Update symlinks if this is the active profile
     if slug == get_active_slug():
         from job.profiles import _update_symlinks
@@ -552,8 +552,8 @@ def api_ai_settings_save():
             _write_env_var(env_path, "PREFERRED_PROVIDER", "")
             # _write_env_var writes KEY= which we then strip to a clean removal
             if env_path.exists():
-                lines = [l for l in env_path.read_text().splitlines() if l != "PREFERRED_PROVIDER="]
-                env_path.write_text("\n".join(lines) + "\n")
+                lines = [l for l in env_path.read_text(encoding="utf-8").splitlines() if l != "PREFERRED_PROVIDER="]
+                env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
             os.environ.pop("PREFERRED_PROVIDER", None)
         updated_keys.add("PREFERRED_PROVIDER")
 
@@ -645,7 +645,7 @@ def api_setup_suggest_config():
     if not profile_p or not profile_p.exists():
         return jsonify({"ok": False, "error": "Profile not found. Complete Step 4 first."})
 
-    profile_text = profile_p.read_text()
+    profile_text = profile_p.read_text(encoding="utf-8")
     prompt = """Analyze this professional profile and extract job search preferences. Return ONLY valid JSON with this exact structure (no markdown, no explanation):
 
 {
@@ -887,7 +887,7 @@ def api_setup_save_profile():
         set_active(slug)
 
     profile_dir.mkdir(parents=True, exist_ok=True)
-    (profile_dir / "profile.md").write_text(content)
+    (profile_dir / "profile.md").write_text(content, encoding="utf-8")
 
     # Rename the folder to the proper name-based slug if it's still a temp name
     current_slug = profile_dir.name

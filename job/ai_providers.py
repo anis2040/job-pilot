@@ -14,7 +14,7 @@ def _load_env() -> None:
     env_path = paths.BASE / ".env"
     if not env_path.exists():
         return
-    for line in env_path.read_text().splitlines():
+    for line in env_path.read_text(encoding="utf-8").splitlines():
         if "=" in line and not line.startswith("#"):
             k, v = line.split("=", 1)
             k, v = k.strip(), v.strip()
@@ -318,7 +318,7 @@ def _build_with_gemini_cli(system_text: str, user_prompt: str, cwd: str, backend
     if backend_out is not None:
         backend_out.append("cli")
     gemini_md = Path(cwd) / "GEMINI.md"
-    gemini_md.write_text(system_text)
+    gemini_md.write_text(system_text, encoding="utf-8")
     extra = {}
     if sys.platform == "win32":
         extra["creationflags"] = subprocess.CREATE_NO_WINDOW
