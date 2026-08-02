@@ -519,9 +519,39 @@ async function pollDoc(docType) {
   } else {
     job.cl_status = data.status; job.cl_stage = data.stage || "";
     job.cl_pdf_url = data.pdf_url; job.cl_error = data.error;
+    job.cl_preview = data.preview || "";
+    renderClPreview();
   }
   renderDocsCard(job);
-  if (data.status === "building") setTimeout(() => pollDoc(docType), 2000);
+  // Poll faster for cover letters so the streaming preview feels live.
+  if (data.status === "building") setTimeout(() => pollDoc(docType), isResume ? 2000 : 900);
+}
+
+// Live streaming preview of the cover letter, shown below the description.
+function renderClPreview() {
+  let panel = document.getElementById("cl-preview-card");
+  const building = job.cl_status === "building";
+  if (!building && !panel) return;
+  if (!building) { panel?.remove(); return; }
+
+  if (!panel) {
+    panel = document.createElement("div");
+    panel.id = "cl-preview-card";
+    panel.className = "ai-card";
+    panel.style.marginTop = "var(--space-5)";
+    document.querySelector(".detail-main").appendChild(panel);
+  }
+  const hasText = (job.cl_preview || "").trim().length > 0;
+  panel.innerHTML = `
+    <div class="ai-card-head">
+      <span class="ai-badge">${icon("zap", 12)} AI</span>
+      <h3>Cover letter${job.cl_stage ? ` — ${escapeHtml(job.cl_stage)}` : ""}</h3>
+    </div>
+    <div class="ai-card-body">
+      ${hasText
+        ? `<div class="ai-stream streaming">${escapeHtml(job.cl_preview)}</div>`
+        : `<div class="ai-skeleton"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>`}
+    </div>`;
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────

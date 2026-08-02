@@ -551,7 +551,7 @@ def api_build_cover_letter(job_id):
 @app.route("/api/cover-letter-status/<job_id>")
 def api_cover_letter_status(job_id):
     ts = get_cl_task_status(job_id)
-    return jsonify({"status": ts.get("status", "idle"), "stage": ts.get("stage", ""), "pdf_url": _pdf_url(ts.get("pdf_path")), "error": ts.get("error")})
+    return jsonify({"status": ts.get("status", "idle"), "stage": ts.get("stage", ""), "pdf_url": _pdf_url(ts.get("pdf_path")), "error": ts.get("error"), "preview": ts.get("preview", "")})
 
 
 @app.route("/api/job-status/<job_id>/<new_status>", methods=["POST"])

@@ -208,8 +208,12 @@ def _build_with_groq(system_text: str, user_prompt: str, stage_fn=None) -> str:
     return response.choices[0].message.content
 
 
-def _build_with_sdk(system_text: str, user_prompt: str, stage_fn=None) -> str:
-    """Call Claude via SDK with prompt caching. Returns response text."""
+def _build_with_sdk(system_text: str, user_prompt: str, stage_fn=None, on_delta=None) -> str:
+    """Call Claude via SDK with prompt caching. Returns response text.
+
+    If `on_delta` is provided, streams the response and calls on_delta(text_so_far)
+    as tokens arrive — used to drive a live preview. Falls back to a single
+    non-streamed call if streaming isn't possible."""
     import anthropic
     client = _get_anthropic_client()
     if client is None:
@@ -217,15 +221,31 @@ def _build_with_sdk(system_text: str, user_prompt: str, stage_fn=None) -> str:
     if stage_fn:
         stage_fn("Generating with Claude…")
     model = _get_model("anthropic")
+    system = [{
+        "type": "text",
+        "text": system_text,
+        "cache_control": {"type": "ephemeral", "ttl": "1h"},
+    }]
+    messages = [{"role": "user", "content": user_prompt}]
+
+    if on_delta is not None:
+        # Stream tokens; report cumulative text to on_delta.
+        acc = []
+        with client.messages.stream(model=model, max_tokens=4096,
+                                    system=system, messages=messages) as stream:
+            for text in stream.text_stream:
+                acc.append(text)
+                try:
+                    on_delta("".join(acc))
+                except Exception:
+                    pass  # preview is best-effort; never break generation
+        return "".join(acc)
+
     response = client.messages.create(
         model=model,
         max_tokens=4096,
-        system=[{
-            "type": "text",
-            "text": system_text,
-            "cache_control": {"type": "ephemeral", "ttl": "1h"},
-        }],
-        messages=[{"role": "user", "content": user_prompt}],
+        system=system,
+        messages=messages,
     )
     u = response.usage
     cache_read   = getattr(u, "cache_read_input_tokens",     0) or 0
@@ -365,8 +385,11 @@ def _build_with_gemini(system_text: str, user_prompt: str, cwd: str, stage_fn=No
     return _build_with_gemini_cli(system_text, user_prompt, cwd, backend_out)
 
 
-def _generate_content(system_text: str, user_prompt: str, cwd: str, stage_fn=None) -> str:
-    """Use PREFERRED_PROVIDER if set and available, otherwise Groq → Anthropic → Gemini."""
+def _generate_content(system_text: str, user_prompt: str, cwd: str, stage_fn=None, on_delta=None) -> str:
+    """Use PREFERRED_PROVIDER if set and available, otherwise Groq → Anthropic → Gemini.
+
+    `on_delta(text_so_far)` streams a live preview when the chosen provider
+    supports it (currently Claude); other providers ignore it."""
     preferred = os.environ.get("PREFERRED_PROVIDER", "").strip().lower()
 
     def _try_groq():
@@ -376,7 +399,7 @@ def _generate_content(system_text: str, user_prompt: str, cwd: str, stage_fn=Non
 
     def _try_anthropic():
         if _get_anthropic_client() is not None:
-            return _build_with_sdk(system_text, user_prompt, stage_fn=stage_fn)
+            return _build_with_sdk(system_text, user_prompt, stage_fn=stage_fn, on_delta=on_delta)
         return None
 
     def _try_gemini():

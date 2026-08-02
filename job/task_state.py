@@ -70,3 +70,10 @@ def _set_cl_stage(job_id: str, stage: str) -> None:
     with _lock:
         if job_id in _cl_task_status:
             _cl_task_status[job_id]["stage"] = stage
+
+
+def _set_cl_preview(job_id: str, preview: str) -> None:
+    """Store a live prose preview of the cover letter as it streams in."""
+    with _lock:
+        if job_id in _cl_task_status:
+            _cl_task_status[job_id]["preview"] = preview

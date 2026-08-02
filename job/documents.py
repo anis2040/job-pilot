@@ -156,6 +156,33 @@ def _build_cover_letter_prompt(row: dict, company: str, title: str, name_slug: s
     return skill_text, user_prompt
 
 
+def _latex_to_prose(text: str) -> str:
+    """Best-effort strip of LaTeX markup for a readable live preview of the
+    cover letter as it streams. Not exhaustive — just enough to read as prose."""
+    s = text
+    # Drop the preamble up to and including \begin{document} if present
+    m = re.search(r"\\begin\{document\}", s)
+    if m:
+        s = s[m.end():]
+    s = re.split(r"\\end\{document\}", s)[0]
+    s = re.sub(r"%.*", "", s)                                  # comments
+    s = re.sub(r"\\(documentclass|usepackage|geometry|pagestyle|[a-z]+font)\b[^\n]*", "", s)
+    s = re.sub(r"\\(begin|end)\{[^}]*\}", "", s)               # environments
+    s = re.sub(r"\\\\", "\n", s)                                # line breaks
+    s = re.sub(r"\\(textbf|textit|emph|underline|large|Large|small|section\*?|subsection\*?)\s*\{([^}]*)\}", r"\2", s)
+    s = re.sub(r"\\[a-zA-Z]+\*?\s*(\{[^}]*\})?", "", s)         # remaining commands
+    s = s.replace("{", "").replace("}", "").replace("~", " ")
+    s = re.sub(r"\n{3,}", "\n\n", s)
+    return s.strip()
+
+
+def _cl_preview_cb(job_id: str):
+    """Return an on_delta callback that stores a stripped live preview."""
+    def cb(text_so_far: str):
+        task_state._set_cl_preview(job_id, _latex_to_prose(text_so_far))
+    return cb
+
+
 def _build_document(job_id: str, doc_type: str) -> None:
     """Shared document builder for resumes and cover letters."""
     is_resume = doc_type == "resume"
@@ -202,7 +229,8 @@ def _build_document(job_id: str, doc_type: str) -> None:
             skill_text, user_prompt = _build_cover_letter_prompt(row, company, title, name_slug, skill_dir)
 
         response_text = _generate_content(skill_text, user_prompt, cwd=str(skill_dir),
-                                          stage_fn=lambda s: stage_fn(job_id, s))
+                                          stage_fn=lambda s: stage_fn(job_id, s),
+                                          on_delta=_cl_preview_cb(job_id) if not is_resume else None)
 
         stage_fn(job_id, "Compiling PDF…")
         latex_content, meta = _parse_latex_response(response_text)
