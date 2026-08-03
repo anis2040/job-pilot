@@ -370,6 +370,47 @@ def _get_gemini_client():
         return None
 
 
+_EMBED_MODEL = "models/gemini-embedding-001"
+
+
+def embed_texts(texts: list[str]) -> list[list[float] | None]:
+    """Embed a batch of texts via Gemini. Returns a list aligned to `texts`,
+    with None for any that couldn't be embedded. Best-effort: no key or any
+    error yields all-None (callers fall back to keyword matching). Never raises.
+    """
+    if not texts:
+        return []
+    client = _get_gemini_client()
+    if client is None:
+        return [None] * len(texts)
+    out: list[list[float] | None] = []
+    total_chars = 0
+    try:
+        # The SDK accepts a list of contents and returns aligned embeddings.
+        resp = client.models.embed_content(model=_EMBED_MODEL, contents=texts)
+        embs = getattr(resp, "embeddings", None) or []
+        for i in range(len(texts)):
+            vals = list(embs[i].values) if i < len(embs) and embs[i] is not None else None
+            out.append(vals)
+            total_chars += len(texts[i] or "")
+    except Exception:
+        return [None] * len(texts)
+    # Embeddings are billed per input token; approximate for the usage counter.
+    try:
+        _log_tokens("gemini", _EMBED_MODEL, input=total_chars // 4, total=total_chars // 4)
+    except Exception:
+        pass
+    return out
+
+
+def embed_text(text: str) -> list[float] | None:
+    """Embed a single text. None if unavailable. Never raises."""
+    if not (text or "").strip():
+        return None
+    return embed_texts([text])[0]
+
+
+
 def _clean_gemini_error(raw: str) -> str:
     """Extract a short human-readable message from the CLI's noisy error output."""
     if not raw:

@@ -39,7 +39,7 @@ def init_db() -> None:
             )
         """)
         # Migrate existing databases — add columns if not present
-        for col, default in [("employment_type", "''"), ("salary_range", "''")]:
+        for col, default in [("employment_type", "''"), ("salary_range", "''"), ("embedding", "NULL")]:
             try:
                 con.execute(f"ALTER TABLE jobs ADD COLUMN {col} TEXT DEFAULT {default}")
             except Exception:
@@ -320,6 +320,62 @@ def update_remote(job_id: str, remote: str) -> None:
             "UPDATE jobs SET remote = ? WHERE job_id = ?",
             (remote, job_id),
         )
+        con.commit()
+
+
+def set_job_embedding(job_id: str, vec: list[float] | None) -> None:
+    """Store a job's embedding vector as JSON (semantic-match cache)."""
+    if not vec:
+        return
+    import json as _json
+    with _connect() as con:
+        con.execute("UPDATE jobs SET embedding = ? WHERE job_id = ?",
+                    (_json.dumps(vec), job_id))
+        con.commit()
+
+
+def get_job_embedding(job_id: str) -> list[float] | None:
+    import json as _json
+    with _connect() as con:
+        row = con.execute("SELECT embedding FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
+    if not row or not row["embedding"]:
+        return None
+    try:
+        return _json.loads(row["embedding"])
+    except Exception:
+        return None
+
+
+def get_jobs_missing_embedding(limit: int = 100) -> list[sqlite3.Row]:
+    """Pending jobs that don't yet have a cached embedding — for the backfill."""
+    with _connect() as con:
+        return con.execute(
+            "SELECT job_id, title, description FROM jobs "
+            "WHERE status = 'pending' AND (embedding IS NULL OR embedding = '') "
+            "ORDER BY first_seen_at DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+
+
+def get_profile_embedding_meta() -> tuple[str, list[float]] | None:
+    """Return (profile_hash, vec) cached in db_meta, or None."""
+    import json as _json
+    with _connect() as con:
+        h = _get_meta(con, "profile_embedding_hash")
+        v = _get_meta(con, "profile_embedding")
+    if not h or not v:
+        return None
+    try:
+        return h, _json.loads(v)
+    except Exception:
+        return None
+
+
+def set_profile_embedding_meta(profile_hash: str, vec: list[float]) -> None:
+    import json as _json
+    with _connect() as con:
+        _set_meta(con, "profile_embedding_hash", profile_hash)
+        _set_meta(con, "profile_embedding", _json.dumps(vec))
         con.commit()
 
 

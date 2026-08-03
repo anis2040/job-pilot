@@ -112,6 +112,7 @@
   .skill-tag { display: inline-flex; align-items: center; padding: 5px 12px; background: var(--blue-dim); border: 1px solid var(--blue); border-radius: var(--radius-full); font-size: var(--text-xs); color: var(--blue-light); font-weight: 500; }
   .skill-tag-missing { display: inline-flex; align-items: center; padding: 5px 12px; background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--radius-full); font-size: var(--text-xs); color: var(--text-muted); font-weight: 500; }
   .skills-summary { font-size: var(--text-sm); color: var(--text-soft); font-weight: 600; margin-bottom: var(--space-3); }
+  .skills-fit { font-size: var(--text-lg); color: var(--blue-light); font-weight: 700; margin-bottom: 6px; }
   .skills-group-label { font-size: var(--text-xs); color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; margin: var(--space-3) 0 6px; }
   .skills-gap-hint { font-size: var(--text-xs); color: var(--text-faint); line-height: var(--leading-normal); margin-top: 8px; }
 
@@ -453,7 +454,7 @@ function renderDetailsCard(j) {
 function renderSkillsCard(j) {
   const card = document.getElementById("skills-card");
   const m = j.match;
-  if (!m || (!(m.matched || []).length && !(m.missing || []).length)) {
+  if (!m || (!(m.matched || []).length && !(m.missing || []).length && typeof m.semantic_score !== "number")) {
     card.style.display = "none";
     return;
   }
@@ -461,7 +462,11 @@ function renderSkillsCard(j) {
   const total = (m.matched || []).length + (m.missing || []).length;
   const matchedTags = (m.matched || []).map(s => `<span class="skill-tag">${escapeHtml(s)}</span>`).join("");
   const missingTags = (m.missing || []).map(s => `<span class="skill-tag-missing">${escapeHtml(s)}</span>`).join("");
-  let html = `<div class="skills-summary">${(m.matched || []).length} of ${total} required skills match your profile</div>`;
+  let html = "";
+  if (typeof m.semantic_score === "number") {
+    html += `<div class="skills-fit" title="Overall semantic similarity between this job and your profile">Overall fit: ${m.semantic_score}%</div>`;
+  }
+  html += `<div class="skills-summary">${(m.matched || []).length} of ${total} required skills match your profile</div>`;
   if (matchedTags) {
     html += `<div class="skills-group-label">✓ Your matching skills</div><div class="skills-wrap">${matchedTags}</div>`;
   }

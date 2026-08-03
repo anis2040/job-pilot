@@ -76,5 +76,65 @@ def compute_match(description: str, profile: dict | None) -> dict | None:
         "matched": matched,
         "missing": missing,
         "matched_count": len(matched),
-        "score": score,
+        "keyword_score": score,
     }
+
+
+# ── Semantic (embedding) score ────────────────────────────────────────────────
+
+def _cosine(a: list[float], b: list[float]) -> float:
+    import math
+    if not a or not b or len(a) != len(b):
+        return 0.0
+    dot = sum(x * y for x, y in zip(a, b))
+    na = math.sqrt(sum(x * x for x in a))
+    nb = math.sqrt(sum(y * y for y in b))
+    return dot / (na * nb) if na and nb else 0.0
+
+
+def semantic_score(job_vec, profile_vec) -> int | None:
+    """Cosine similarity of job vs profile embeddings → 0-100, or None if either
+    vector is missing. Cosine on typical text embeddings lands ~0.5-0.9, so we
+    rescale [0.4, 0.9] → [0, 100] to spread the usable range; clamped."""
+    if not job_vec or not profile_vec:
+        return None
+    cos = _cosine(job_vec, profile_vec)
+    pct = round((cos - 0.4) / 0.5 * 100)
+    return max(0, min(100, pct))
+
+
+def profile_embedding_text(profile: dict | None) -> str:
+    """Flatten the structured profile into a single string to embed."""
+    if not profile:
+        return ""
+    parts = [
+        profile.get("name", "") or "",
+        profile.get("summary", "") or "",
+        " ".join(profile.get("competencies") or []),
+    ]
+    for e in profile.get("experience") or []:
+        parts.append(e.get("title", "") or "")
+        parts.extend(e.get("bullets") or [])
+    return "\n".join(p for p in parts if p).strip()
+
+
+def get_profile_embedding(profile: dict | None):
+    """Return the profile's embedding vector, cached in db_meta and recomputed
+    only when the profile text changes (hash-guarded). None if unavailable."""
+    text = profile_embedding_text(profile)
+    if not text:
+        return None
+    import hashlib
+    h = hashlib.sha256(text.encode()).hexdigest()[:16]
+    try:
+        from . import db
+        cached = db.get_profile_embedding_meta()
+        if cached and cached[0] == h:
+            return cached[1]
+        from .ai_providers import embed_text
+        vec = embed_text(text)
+        if vec:
+            db.set_profile_embedding_meta(h, vec)
+        return vec
+    except Exception:
+        return None

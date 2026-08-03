@@ -28,7 +28,7 @@ def test_score_denominator_floored():
     # the floored denominator (min 5) prevents vague-JD inflation.
     m = compute_match("Angular and TypeScript.", _PROFILE)
     assert m["matched_count"] == 2
-    assert m["score"] == 40  # 2 / max(2,5) = 40%, not 100%
+    assert m["keyword_score"] == 40  # 2 / max(2,5) = 40%, not 100%
 
 
 def test_skills_from_bullets_and_summary_count():
@@ -104,3 +104,35 @@ def test_match_scores_from_title_when_no_description():
     m = compute_match(text, prof)
     assert m is not None
     assert "Angular" in m["matched"]
+
+
+# ── semantic_score + blend ────────────────────────────────────────────────────
+
+from job.match import semantic_score
+
+
+def test_semantic_score_range():
+    v = [1.0, 0.0, 0.0]
+    assert semantic_score(v, v) == 100          # cos 1 -> clamped 100
+    assert semantic_score(v, [0.0, 1.0, 0.0]) == 0   # cos 0 -> clamped 0
+    assert semantic_score(None, v) is None
+    assert semantic_score(v, None) is None
+
+
+def test_semantic_score_midrange():
+    # cos 0.65 -> (0.65-0.4)/0.5*100 = 50
+    import math
+    # build two unit vectors with cosine ~0.65
+    a = [1.0, 0.0]
+    import math as _m
+    theta = _m.acos(0.65)
+    b = [_m.cos(theta), _m.sin(theta)]
+    assert abs(semantic_score(a, b) - 50) <= 1
+
+
+def test_embed_text_no_key_returns_none(monkeypatch):
+    # No Gemini client -> embed helpers return None/None-list, never raise.
+    import job.ai_providers as ai
+    monkeypatch.setattr(ai, "_get_gemini_client", lambda: None)
+    assert ai.embed_text("Angular engineer") is None
+    assert ai.embed_texts(["a", "b"]) == [None, None]

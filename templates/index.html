@@ -523,10 +523,23 @@
     return `<button class="btn btn-sm btn-ghost" onclick="setStatus('${job.job_id}','pending')">↩ Restore</button>`;
   }
 
-  // Honest, deterministic badges built only from real data (no fabrication).
+  // Match badge. When a semantic "fit" score is available (embeddings), show it
+  // as the primary signal; otherwise fall back to the exact skill-match count.
+  // Both are real: fit = overall similarity, skills = provable keyword overlap.
   function matchBadge(job) {
     const m = job.match;
-    if (!m || typeof m.matched_count !== "number" || m.matched_count === 0) return "";
+    if (!m) return "";
+    if (typeof m.semantic_score === "number") {
+      const s = m.semantic_score;
+      const cls = s >= 70 ? "high" : s >= 45 ? "mid" : "low";
+      const skills = (m.matched && m.matched.length) ? ` · ${m.matched.length} skill${m.matched.length !== 1 ? "s" : ""} match` : "";
+      const tip = (m.matched && m.matched.length)
+        ? `Overall fit ${s}%. Your skills this job asks for: ${m.matched.join(", ")}`
+        : `Overall fit ${s}% (semantic). Open the job for detected skills.`;
+      return `<span class="match-badge ${cls}" title="${escapeHtml(tip)}">${s}% fit${escapeHtml(skills)}</span>`;
+    }
+    // Keyword-only fallback (no embedding yet).
+    if (typeof m.matched_count !== "number" || m.matched_count === 0) return "";
     const n = m.matched_count;
     const cls = n >= 5 ? "high" : n >= 3 ? "mid" : "low";
     const tip = `Your skills this job asks for: ${m.matched.join(", ")}`;
@@ -868,10 +881,10 @@
 
     filtered = [...filtered].sort((a, b) => {
       if (sort === "match") {
-        // Rank by how many of YOUR skills the job wants (absolute overlap —
-        // fairer than % which rewards vague postings). No-score jobs sink.
-        const sa = (a.match && typeof a.match.matched_count === "number") ? a.match.matched_count : -1;
-        const sb = (b.match && typeof b.match.matched_count === "number") ? b.match.matched_count : -1;
+        // Rank by the blended score (semantic 'fit' when available, else keyword
+        // skill overlap). Jobs with no signal sink to the bottom.
+        const sa = (a.match && typeof a.match.score === "number") ? a.match.score : -1;
+        const sb = (b.match && typeof b.match.score === "number") ? b.match.score : -1;
         if (sb !== sa) return sb - sa;
         return (b.posted_at || "").localeCompare(a.posted_at || "");  // tie-break: newer posting
       }

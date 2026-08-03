@@ -234,3 +234,31 @@ def test_usage_unknown_current_key_counts_nothing(temp_db):
     temp_db.log_token_usage("groq", "llama", total=500, key_id="somekey00001")
     # No active key (empty fingerprint) -> nothing attributed
     assert temp_db.usage_last_24h({"groq": ""}).get("groq", 0) == 0
+
+
+# ── job / profile embeddings ──────────────────────────────────────────────────
+
+def test_job_embedding_roundtrip(temp_db):
+    temp_db.insert_job(job_id="e1", url="http://x", title="Eng", company="Acme",
+                       location="", remote="Remote", experience="", description="d",
+                       posted_at=None, search_name="t")
+    assert temp_db.get_job_embedding("e1") is None
+    temp_db.set_job_embedding("e1", [0.1, 0.2, 0.3])
+    assert temp_db.get_job_embedding("e1") == [0.1, 0.2, 0.3]
+
+
+def test_jobs_missing_embedding(temp_db):
+    temp_db.insert_job(job_id="e1", url="http://x", title="A", company="C", location="",
+                       remote="", experience="", description="d", posted_at=None, search_name="t")
+    temp_db.insert_job(job_id="e2", url="http://x", title="B", company="C", location="",
+                       remote="", experience="", description="d", posted_at=None, search_name="t")
+    temp_db.set_job_embedding("e1", [1.0])
+    missing = {r["job_id"] for r in temp_db.get_jobs_missing_embedding()}
+    assert missing == {"e2"}
+
+
+def test_profile_embedding_meta_hash(temp_db):
+    assert temp_db.get_profile_embedding_meta() is None
+    temp_db.set_profile_embedding_meta("hash123", [0.5, 0.6])
+    got = temp_db.get_profile_embedding_meta()
+    assert got == ("hash123", [0.5, 0.6])

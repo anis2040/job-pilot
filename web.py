@@ -27,7 +27,7 @@ from job.profiles import (
 from job.paths import BASE
 from job.fetcher import SOURCES
 from job.models import RemoteType, DEFAULT_BLACKLIST, JOB_STATUSES
-from job.match import compute_match, match_text
+from job.match import compute_match, match_text, semantic_score, get_profile_embedding
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
@@ -205,7 +205,36 @@ def _find_pdf_path(profile_dir: Path, company: str, subdir: str, suffix: str) ->
     return None
 
 
-def _serialize_job(row, task_status: dict, cl_task_status: dict, profile: dict | None = None) -> dict:
+def _build_match(r: dict, profile: dict | None, profile_vec: list | None) -> dict | None:
+    """Assemble the match signal: keyword overlap (explainable chips) + a
+    semantic 'fit' score from cached embeddings (scalable ranking). `score` is
+    the semantic score when both embeddings exist, else the keyword score, so
+    ranking degrades gracefully. Reads the job's cached embedding from the row —
+    NO network call here (this runs per-job on the list render path)."""
+    km = compute_match(match_text(r), profile)  # {matched, missing, matched_count, keyword_score} or None
+    sem = None
+    emb_raw = r.get("embedding")
+    if emb_raw and profile_vec:
+        try:
+            sem = semantic_score(_json.loads(emb_raw), profile_vec)
+        except Exception:
+            sem = None
+    if km is None and sem is None:
+        return None
+    keyword_score = km["keyword_score"] if km else None
+    return {
+        "matched": km["matched"] if km else [],
+        "missing": km["missing"] if km else [],
+        "matched_count": km["matched_count"] if km else 0,
+        "keyword_score": keyword_score,
+        "semantic_score": sem,
+        "score": sem if sem is not None else (keyword_score or 0),
+        "score_kind": "fit" if sem is not None else "skills",
+    }
+
+
+def _serialize_job(row, task_status: dict, cl_task_status: dict, profile: dict | None = None,
+                   profile_vec: list | None = None) -> dict:
     r = dict(row)
     job_id = r["job_id"]
     company = r.get("company") or ""
@@ -245,7 +274,7 @@ def _serialize_job(row, task_status: dict, cl_task_status: dict, profile: dict |
         "first_seen_at": r.get("first_seen_at") or "",
         "status": r.get("status") or "pending",
         "source": _source_label(r.get("search_name") or ""),
-        "match": compute_match(match_text(r), profile),
+        "match": _build_match(r, profile, profile_vec),
         "resume_status": resume_status,
         "resume_stage": ts.get("stage", ""),
         "pdf_url": _pdf_url(pdf_path),
@@ -501,10 +530,20 @@ def api_job_description(job_id):
                     update_remote(job_id, inferred)
                     remote = inferred
 
-    # Compute match against title + the (possibly just-fetched) description so the
-    # detail page's skills card reflects on-demand descriptions too.
-    match = compute_match(match_text({"title": r.get("title") or "", "description": description}),
-                          get_profile_json())
+    # Lazily compute + cache this job's embedding (off the list render path) so
+    # the detail card and future list loads get the semantic score.
+    from job.db import get_job_embedding, set_job_embedding
+    from job.ai_providers import embed_text
+    emb = get_job_embedding(job_id)
+    if emb is None and description:
+        emb = embed_text(match_text({"title": r.get("title") or "", "description": description}))
+        if emb:
+            set_job_embedding(job_id, emb)
+
+    _prof = get_profile_json()
+    row_for_match = {"title": r.get("title") or "", "description": description,
+                     "embedding": _json.dumps(emb) if emb else None}
+    match = _build_match(row_for_match, _prof, get_profile_embedding(_prof))
     return jsonify({"description": description, "remote": remote, "match": match})
 
 
@@ -515,7 +554,8 @@ def api_job_detail(job_id):
         return jsonify({"error": "Job not found"}), 404
     ts = get_task_status(job_id)
     cl_ts = get_cl_task_status(job_id)
-    data = _serialize_job(row, {job_id: ts}, {job_id: cl_ts}, get_profile_json())
+    _prof = get_profile_json()
+    data = _serialize_job(row, {job_id: ts}, {job_id: cl_ts}, _prof, get_profile_embedding(_prof))
     r = dict(row)
     data["description"]     = r.get("description") or ""
     data["posted_at"]       = r.get("posted_at") or ""
@@ -543,7 +583,8 @@ def api_jobs():
     task_statuses = {row["job_id"]: get_task_status(row["job_id"]) for row in rows}
     cl_task_statuses = {row["job_id"]: get_cl_task_status(row["job_id"]) for row in rows}
     profile = get_profile_json()  # loaded once; reused for every job's match signal
-    return jsonify([_serialize_job(row, task_statuses, cl_task_statuses, profile) for row in rows])
+    profile_vec = get_profile_embedding(profile)  # cached (hash-guarded); no call if unchanged
+    return jsonify([_serialize_job(row, task_statuses, cl_task_statuses, profile, profile_vec) for row in rows])
 
 
 @app.route("/api/resume/<job_id>", methods=["POST"])

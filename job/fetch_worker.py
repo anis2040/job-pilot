@@ -63,6 +63,14 @@ def _run_fetch() -> None:
             log_fetch(search.source, new_count)
             total_new += new_count
 
+        # Backfill semantic embeddings for the newly-fetched jobs (best-effort,
+        # off the render path). Batched; a failure here must never fail the fetch.
+        if total_new:
+            try:
+                _backfill_embeddings()
+            except Exception:
+                pass
+
         with task_state._lock:
             task_state._fetch_status["status"] = "done"
             task_state._fetch_status["message"] = f"Done — {total_new} new job(s) found"
@@ -71,3 +79,22 @@ def _run_fetch() -> None:
         with task_state._lock:
             task_state._fetch_status["status"] = "error"
             task_state._fetch_status["message"] = str(e)
+
+
+def _backfill_embeddings(batch: int = 100) -> None:
+    """Embed pending jobs that lack an embedding, in batches, and cache them.
+    Only runs when a Gemini key is available (embed_texts returns None-list
+    otherwise). Uses match_text (title + description) for consistency with the
+    keyword signal."""
+    from .db import get_jobs_missing_embedding, set_job_embedding
+    from .ai_providers import embed_texts
+    from .match import match_text
+
+    rows = get_jobs_missing_embedding(limit=batch)
+    if not rows:
+        return
+    texts = [match_text(r) for r in rows]
+    vecs = embed_texts(texts)
+    for r, vec in zip(rows, vecs):
+        if vec:
+            set_job_embedding(r["job_id"], vec)
