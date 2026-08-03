@@ -63,3 +63,18 @@ def test_german_aliases_and_english_tokens_in_german():
     # English skill names inside German compounds still match via boundary regex
     found = detect_keywords("React-Entwickler mit Kubernetes-Erfahrung")
     assert "React" in found and "Kubernetes" in found
+
+
+def test_product_management_terms_and_aliases():
+    jd = ("Own the product roadmap and backlog, lead PI planning in a SAFe "
+          "environment, define user stories, stakeholder management, Jira + Confluence.")
+    found = detect_keywords(jd)
+    for term in ["Roadmapping", "Backlog Management", "PI Planning", "SAFe",
+                 "User Stories", "Stakeholder Management", "Jira", "Confluence"]:
+        assert term in found, f"{term} not detected"
+
+
+def test_bare_discovery_not_matched():
+    # 'discovery' alone is too generic (service discovery) — only 'product discovery'.
+    assert "Product Discovery" not in detect_keywords("Kubernetes service discovery")
+    assert "Product Discovery" in detect_keywords("lead product discovery workshops")

@@ -36,6 +36,11 @@ SKILLS_VOCAB: list[str] = [
     "REST", "API", "Microservices", "Git", "Agile", "Scrum", "Kanban",
     "Jira", "Figma", "OAuth", "WebSockets", "Kubernetes",
     "Accessibility", "Test Automation", "Cloud",
+    # Product / Program management (for PO/PM roles & profiles)
+    "SAFe", "Confluence", "Miro", "Roadmapping", "Backlog Management",
+    "Stakeholder Management", "PI Planning", "User Stories", "OKRs",
+    "Product Strategy", "Product Discovery", "A/B Testing", "Analytics",
+    "SDLC", "UAT", "Requirements Gathering", "Wireframing", "Product Vision",
 ]
 # (dedupe while preserving order — a couple of terms fit >1 category above)
 SKILLS_VOCAB = list(dict.fromkeys(SKILLS_VOCAB))
@@ -66,6 +71,25 @@ _ALIASES: dict[str, str] = {
     "scikit learn": "scikit-learn", "sklearn": "scikit-learn",
     "microfrontends": "Micro-frontends", "micro frontends": "Micro-frontends",
     "web sockets": "WebSockets", "websocket": "WebSockets",
+    # Product / program management aliases (profile phrasings + common JD variants)
+    "safe": "SAFe", "scaled agile": "SAFe", "scaled agile framework": "SAFe",
+    "roadmap": "Roadmapping", "road map": "Roadmapping", "product roadmap": "Roadmapping",
+    "backlog": "Backlog Management", "backlog management": "Backlog Management",
+    "program backlog": "Backlog Management", "product backlog": "Backlog Management",
+    "stakeholder": "Stakeholder Management", "stakeholders": "Stakeholder Management",
+    "stakeholder management": "Stakeholder Management",
+    "stakeholder communication": "Stakeholder Management",
+    "pi planning": "PI Planning", "program increment": "PI Planning",
+    "user story": "User Stories", "user stories": "User Stories",
+    "acceptance criteria": "User Stories",
+    "okr": "OKRs", "okrs": "OKRs",
+    "product vision": "Product Vision", "product strategy": "Product Strategy",
+    "product discovery": "Product Discovery",
+    "a/b testing": "A/B Testing", "ab testing": "A/B Testing", "split testing": "A/B Testing",
+    "uat": "UAT", "user acceptance testing": "UAT",
+    "sdlc": "SDLC", "requirements gathering": "Requirements Gathering",
+    "wireframe": "Wireframing", "wireframes": "Wireframing", "wireframing": "Wireframing",
+    "confluence": "Confluence", "miro": "Miro",
     # German — only high-confidence, unambiguous terms where the German word is
     # the common phrasing. (Skill *names* like React/Kubernetes stay English in
     # German JDs and already match via the boundary regex, so this set is small.)
