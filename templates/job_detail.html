@@ -126,17 +126,6 @@
   /* Salary highlight */
   .salary-value { font-size: var(--text-lg); font-weight: 700; color: var(--green); }
 
-  /* Similar jobs card */
-  /* ── Meta row (Details + Timeline, full-width below description) ── */
-  .meta-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-4);
-    margin-top: var(--space-5);
-  }
-  .meta-row .sidebar-card-body { flex-direction: row; flex-wrap: wrap; gap: var(--space-4); }
-  .meta-row .detail-row { flex: 1 1 140px; }
-
   /* ── Similar jobs (horizontal slider under the description) ── */
   .similar-section { margin-top: var(--space-6); }
   .similar-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-4); }
@@ -152,7 +141,13 @@
   .similar-job-title { font-size: var(--text-base); font-weight: 600; color: var(--text); line-height: var(--leading-tight); }
   .similar-job-company { font-size: var(--text-sm); color: var(--text-soft); }
   .similar-job-meta  { font-size: var(--text-xs); color: var(--text-muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: auto; }
-  /* Staggered entrance for the slider cards */
+  .similar-job-footer { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: var(--space-2); }
+  .similar-age { font-size: var(--text-xs); color: var(--text-faint); }
+  .similar-source { font-size: var(--text-xs); color: var(--text-faint); background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1px 6px; font-family: "SF Mono", monospace; }
+  .similar-match { font-size: var(--text-xs); font-weight: 700; border-radius: var(--radius-full); padding: 1px 7px; margin-left: auto; }
+  .similar-match.high { background: var(--green-bg, #0d2e1a); color: var(--green); }
+  .similar-match.mid  { background: var(--blue-dim); color: var(--blue-light); }
+  .similar-match.low  { background: var(--bg-raised); color: var(--text-faint); border: 1px solid var(--border); }
   @keyframes similar-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   .similar-card-item { animation: similar-in var(--dur-base) var(--ease-out) both; }
   .similar-arrow { transition: border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard); }
@@ -163,7 +158,6 @@
     .detail-layout { grid-template-columns: 1fr; }
     .detail-sidebar { order: -1; }
     .job-hero-title { font-size: var(--text-2xl); }
-    .meta-row { grid-template-columns: 1fr; }
   }
 </style>
 {% endblock %}
@@ -207,24 +201,6 @@
       </div>
     </div>
 
-    <!-- Details + Timeline row -->
-    <div class="meta-row">
-      <div class="sidebar-card">
-        <div class="sidebar-card-header"><h3>Details</h3></div>
-        <div class="sidebar-card-body" id="details-card-body">
-          <div class="skel-line skeleton" style="height:40px;border-radius:6px"></div>
-          <div class="skel-line skeleton" style="height:40px;border-radius:6px"></div>
-          <div class="skel-line skeleton" style="height:40px;border-radius:6px"></div>
-        </div>
-      </div>
-      <div class="sidebar-card">
-        <div class="sidebar-card-header"><h3>Timeline</h3></div>
-        <div class="sidebar-card-body" id="timeline-card-body">
-          <div class="skel-line skeleton" style="height:48px;border-radius:6px"></div>
-        </div>
-      </div>
-    </div>
-
     <!-- Similar jobs (horizontal slider) -->
     <div class="similar-section" id="similar-card" style="display:none">
       <div class="similar-head">
@@ -236,6 +212,7 @@
       </div>
       <div class="similar-slider" id="similar-card-body"></div>
     </div>
+
   </div>
 
   <!-- Sidebar -->
@@ -265,6 +242,24 @@
       <div class="sidebar-card-body" id="skills-card-body"></div>
     </div>
 
+    <!-- Job details -->
+    <div class="sidebar-card">
+      <div class="sidebar-card-header"><h3>Details</h3></div>
+      <div class="sidebar-card-body" id="details-card-body">
+        <div class="skel-line skeleton" style="height:40px;border-radius:6px"></div>
+        <div class="skel-line skeleton" style="height:40px;border-radius:6px"></div>
+        <div class="skel-line skeleton" style="height:40px;border-radius:6px"></div>
+      </div>
+    </div>
+
+    <!-- Timeline -->
+    <div class="sidebar-card">
+      <div class="sidebar-card-header"><h3>Timeline</h3></div>
+      <div class="sidebar-card-body" id="timeline-card-body">
+        <div class="skel-line skeleton" style="height:48px;border-radius:6px"></div>
+      </div>
+    </div>
+
   </aside>
 </div>
 {% endblock %}
@@ -284,7 +279,7 @@ function remoteItemClass(r) {
 function renderHero(j) {
   const headerTitle = document.getElementById("header-title");
   headerTitle.textContent = `${j.title} — ${j.company}`;
-  headerTitle.title = `${j.title} — ${j.company}`;   // tooltip when truncated
+  headerTitle.title = `${j.title} — ${j.company}`;
   document.title = `${j.title} at ${j.company} — JobPilot AI`;
 
   const knownRemote = j.remote && j.remote !== "Unknown";
@@ -312,14 +307,11 @@ function renderHero(j) {
 async function renderDescription(j) {
   const el = document.getElementById("description-content");
 
-  // If description already in job data, render immediately
   if (j.description) {
     _setDescription(el, j.description);
     return;
   }
 
-  // No stored description — try fetching on demand. The backend scrapes only
-  // for sources that support it (see SOURCE_REGISTRY) and returns "" otherwise.
   el.innerHTML = `<div style="display:flex;align-items:center;gap:10px;color:var(--text-muted);font-size:var(--text-base);">
     <span class="spinner" style="color:var(--blue-light)"></span> Fetching full description…
   </div>`;
@@ -327,8 +319,8 @@ async function renderDescription(j) {
     const data = await fetch(`/api/job/${j.job_id}/description`).then(r => r.json());
     if (data.remote && data.remote !== j.remote) {
       j.remote = data.remote;
-      renderHero(j);          // refresh the remote pill in the hero
-      renderDetailsCard(j);   // and in the sidebar details
+      renderHero(j);
+      renderDetailsCard(j);
     }
     if (data.description) {
       j.description = data.description;
@@ -338,12 +330,10 @@ async function renderDescription(j) {
     }
   } catch {}
 
-  // Fallback — no description available
   el.innerHTML = `<p class="description-empty">No description available — <a href="${safeUrl(j.url)}" target="_blank" style="color:var(--blue-light)">view on source site ↗</a></p>`;
 }
 
 function _setDescription(el, text) {
-  // Shared renderer (static/ui.js) — headings, bullets, entity decode, show-more.
   renderJobDescription(el, text);
 }
 
@@ -386,9 +376,6 @@ function fmtRetry(secs) {
   return `~${Math.round(secs / 3600)} h`;
 }
 
-// Rich rate-limit block (real usage + reset) when the provider gave us detail.
-// Returns "" when there's no structured rate_limit, so callers fall back to the
-// plain error message.
 function rateLimitBanner(rl) {
   if (!rl) return "";
   const prov = (rl.provider || "provider").replace(/^\w/, c => c.toUpperCase());
@@ -434,14 +421,14 @@ function clContent(j) {
 // ── Render details sidebar ────────────────────────────────────────────────
 function renderDetailsCard(j) {
   const rows = [
-    j.salary_range    ? { label: "Salary",        value: `<span class="salary-value">${escapeHtml(j.salary_range)}</span>` } : null,
-    j.employment_type ? { label: "Employment",     value: escapeHtml(j.employment_type) } : null,
-    j.company         ? { label: "Company",        value: escapeHtml(j.company) } : null,
-    j.location        ? { label: "Location",       value: escapeHtml(j.location) } : null,
+    j.salary_range    ? { label: "Salary",      value: `<span class="salary-value">${escapeHtml(j.salary_range)}</span>` } : null,
+    j.employment_type ? { label: "Employment",   value: escapeHtml(j.employment_type) } : null,
+    j.company         ? { label: "Company",      value: escapeHtml(j.company) } : null,
+    j.location        ? { label: "Location",     value: escapeHtml(j.location) } : null,
     (j.remote && j.remote !== "Unknown") ? { label: "Work type", value: escapeHtml(j.remote) } : null,
-    j.experience      ? { label: "Experience",     value: escapeHtml(j.experience) } : null,
-    j.source          ? { label: "Source",         value: escapeHtml(j.source) } : null,
-    j.url             ? { label: "Original",       value: `<a href="${safeUrl(j.url)}" target="_blank">View posting ↗</a>` } : null,
+    j.experience      ? { label: "Experience",   value: escapeHtml(j.experience) } : null,
+    j.source          ? { label: "Source",       value: escapeHtml(j.source) } : null,
+    j.url             ? { label: "Original",     value: `<a href="${safeUrl(j.url)}" target="_blank">View posting ↗</a>` } : null,
   ].filter(Boolean);
 
   document.getElementById("details-card-body").innerHTML = rows.map(r => `
@@ -451,11 +438,7 @@ function renderDetailsCard(j) {
     </div>`).join("");
 }
 
-// ── Skills extraction ─────────────────────────────────────────────────────
-// Skills match card — driven by the server's match data (canonical vocab).
-// Shows which of the candidate's skills the job wants, and which it asks for
-// that aren't in the profile. No client-side skill list (single source of truth
-// lives in job/skills_vocab.py).
+// ── Skills card ───────────────────────────────────────────────────────────
 function renderSkillsCard(j) {
   const card = document.getElementById("skills-card");
   const m = j.match;
@@ -488,8 +471,8 @@ function renderTimeline(j) {
   const statusLabels = { applied: "✓ Applied", skipped: "✗ Skipped", pending: "Pending review" };
 
   const items = [
-    j.posted_at     ? { dot: "", label: "Posted by employer",  date: fmtDate(j.posted_at) } : null,
-    j.first_seen_at ? { dot: "active", label: "Found by scraper",    date: fmtDate(j.first_seen_at) } : null,
+    j.posted_at     ? { dot: "", label: "Posted by employer", date: fmtDate(j.posted_at) } : null,
+    j.first_seen_at ? { dot: "active", label: "Found by scraper", date: fmtDate(j.first_seen_at) } : null,
     j.status !== "pending" && j.status_updated_at
       ? { dot: statusColors[j.status] || "active", label: statusLabels[j.status] || j.status, date: fmtDate(j.status_updated_at) }
       : null,
@@ -513,29 +496,49 @@ async function loadSimilarJobs() {
   const card = document.getElementById("similar-card");
   if (!data.length) { card.style.display = "none"; return; }
   card.style.display = "";
-  document.getElementById("similar-card-body").innerHTML = data.map((j, i) => `
-    <a class="similar-card-item" href="/job/${j.job_id}" style="animation-delay:${i * 60}ms">
+  document.getElementById("similar-card-body").innerHTML = data.map((j, i) => {
+    const remotePart = (j.remote && j.remote !== "Unknown") ? escapeHtml(j.remote) : "";
+    const locationPart = j.location ? escapeHtml(j.location) : "";
+    const sourcePart = j.source ? `<span class="similar-source">${escapeHtml(j.source)}</span>` : "";
+    const agePart = j.age ? escapeHtml(j.age) : (j.posted ? escapeHtml(j.posted) : "");
+    const matchPart = (() => {
+      const m = j.match;
+      if (!m) return "";
+      if (typeof m.semantic_score === "number") {
+        const cls = m.semantic_score >= 70 ? "high" : m.semantic_score >= 45 ? "mid" : "low";
+        return `<span class="similar-match ${cls}">${m.semantic_score}% fit</span>`;
+      }
+      if (m.matched_count >= 1) {
+        const cls = m.matched_count >= 5 ? "high" : m.matched_count >= 3 ? "mid" : "low";
+        return `<span class="similar-match ${cls}">${m.matched_count} skill${m.matched_count !== 1 ? "s" : ""}</span>`;
+      }
+      return "";
+    })();
+    return `<a class="similar-card-item" href="/job/${j.job_id}" style="animation-delay:${i * 60}ms">
       <div class="similar-job-title">${escapeHtml(j.title)}</div>
       <div class="similar-job-company">${escapeHtml(j.company)}</div>
       <div class="similar-job-meta">
-        ${(j.remote && j.remote !== "Unknown") ? `<span>${escapeHtml(j.remote)}</span>` : ""}
-        ${j.age ? `<span>${escapeHtml(j.age)}</span>` : ""}
+        ${remotePart ? `<span>${remotePart}</span>` : ""}
+        ${locationPart ? `<span>📍 ${locationPart}</span>` : ""}
       </div>
-    </a>`).join("");
+      <div class="similar-job-footer">
+        ${agePart ? `<span class="similar-age">${agePart}</span>` : ""}
+        ${sourcePart}
+        ${matchPart}
+      </div>
+    </a>`;
+  }).join("");
   const slider = document.getElementById("similar-card-body");
   slider.addEventListener("scroll", updateSimilarArrows, { passive: true });
   updateSimilarArrows();
 }
 
-// Scroll the slider by roughly one card-width * direction (-1 prev, +1 next).
 function scrollSimilar(dir) {
   const slider = document.getElementById("similar-card-body");
   if (!slider) return;
   slider.scrollBy({ left: dir * 260, behavior: "smooth" });
 }
 
-// Grey out an arrow when there's nothing further to scroll that way; hide the
-// whole nav when everything already fits (no overflow).
 function updateSimilarArrows() {
   const slider = document.getElementById("similar-card-body");
   const nav = document.querySelector(".similar-nav");
@@ -554,7 +557,6 @@ async function setStatus(newStatus) {
   await fetch(`/api/job-status/${JOB_ID}/${newStatus}`, { method: "POST" });
   job.status = newStatus;
   renderActionCard(job);
-  // Also update the hero actions
   const heroActions = document.querySelector(".job-hero-actions");
   if (heroActions) {
     const viewBtn = heroActions.querySelector("a");
@@ -593,11 +595,9 @@ async function pollDoc(docType) {
     renderClPreview();
   }
   renderDocsCard(job);
-  // Poll faster for cover letters so the streaming preview feels live.
   if (data.status === "building") setTimeout(() => pollDoc(docType), isResume ? 2000 : 900);
 }
 
-// Live streaming preview of the cover letter, shown below the description.
 function renderClPreview() {
   let panel = document.getElementById("cl-preview-card");
   const building = job.cl_status === "building";
@@ -637,12 +637,10 @@ async function init() {
   renderDocsCard(job);
   renderDetailsCard(job);
   renderTimeline(job);
-  // Run description fetch and skills extraction in parallel with similar jobs
   const [,] = await Promise.all([
     renderDescription(job),
     loadSimilarJobs(),
   ]);
-  // Skills depend on description being loaded
   renderSkillsCard(job);
 
   if (job.resume_status === "building") pollDoc("resume");
