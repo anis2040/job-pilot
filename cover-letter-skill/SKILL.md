@@ -91,40 +91,5 @@ Express genuine interest in this specific company/role — reference something r
 \end{document}
 ```
 
-**Output directory:** same profile folder as the resume, under `cover-letters/`. Save as:
-- `../<CompanyName>/cover-letters/{{NAME_SLUG}}_Cover_Letter.tex`
+**Return only the raw LaTeX** — start with `\documentclass` and end with `\end{document}`. No explanation, no markdown fences. The application handles saving and compiling the file.
 
----
-
-## Compile to PDF
-
-Detect the platform and use the appropriate commands:
-
-**macOS/Linux:**
-```bash
-export PATH="/usr/local/texlive/2026basic/bin/universal-darwin:$PATH"
-cd ../<CompanyName>/cover-letters
-pdflatex -interaction=nonstopmode {{NAME_SLUG}}_Cover_Letter.tex
-find . -maxdepth 1 -name "{{NAME_SLUG}}_Cover_Letter.*" ! -name "*.pdf" ! -name "*.tex" -delete
-```
-
-**Windows:**
-```powershell
-cd ..\<CompanyName>\cover-letters
-pdflatex -interaction=nonstopmode {{NAME_SLUG}}_Cover_Letter.tex
-del {{NAME_SLUG}}_Cover_Letter.aux, {{NAME_SLUG}}_Cover_Letter.log, {{NAME_SLUG}}_Cover_Letter.out 2>$null
-```
-
-If pdflatex is not found, it should already be installed from the resume build. If not, install MiKTeX (Windows) or BasicTeX (macOS).
-
-If compilation fails, fix LaTeX errors (unescaped `&`, `%`, `_`, `#`; unclosed environments) and retry.
-
----
-
-## Deliver
-
-1. Confirm the PDF exists at `../<CompanyName>/cover-letters/{{NAME_SLUG}}_Cover_Letter.pdf`
-2. Report the output paths:
-   - `../<CompanyName>/cover-letters/{{NAME_SLUG}}_Cover_Letter.pdf`
-   - `../<CompanyName>/cover-letters/{{NAME_SLUG}}_Cover_Letter.tex`
-3. Print the plain-text body of the letter (the three paragraphs only, no LaTeX) so it can be pasted into an online application form.

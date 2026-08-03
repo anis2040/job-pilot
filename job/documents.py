@@ -8,11 +8,52 @@ from .fetcher import fetch_description as fetch_job_description
 from .profiles import get_profile_path, get_resumes_path
 from .ai_providers import _get_anthropic_client, _get_model, _generate_content
 from .latex import _compile_latex, _parse_latex_response
+from .latex_render import _parse_content_json, render_resume_latex, ResumeParseError
 from . import task_state
 
 
 def _skill_path() -> Path:
     return paths.BASE / "resume-skill"
+
+
+# Output contract for the resume library path. Kept out of SKILL.md so the CLI
+# agentic path (which produces LaTeX directly) is unaffected — SKILL.md holds
+# only writing/ATS rules; each caller appends its own output format.
+_JSON_OUTPUT_FORMAT = r"""
+
+## Output Format (CRITICAL)
+
+Return ONLY a JSON object with this exact structure — no explanation, no markdown fences, nothing but the JSON:
+
+{
+  "company": "Company name inferred from the job description",
+  "summary": "3-5 sentence professional summary as a single plain-text string",
+  "core_competencies": ["Competency 1", "Competency 2"],
+  "experiences": [
+    {
+      "title": "Job Title",
+      "employer": "Employer name",
+      "location": "City, Country",
+      "dates": "Mon YYYY - Mon YYYY",
+      "bullets": ["Achievement 1", "Achievement 2"],
+      "projects": [{"name": "Project", "description": "Scope and outcome in 1-2 sentences"}]
+    }
+  ],
+  "education": [{"degree": "Full Degree Name", "institution": "School", "year": "2020"}],
+  "certifications": [{"name": "Certification", "issuer": "Issuer"}],
+  "margin": "0.75in",
+  "itemsep": "1pt"
+}
+
+Rules:
+- All values are PLAIN TEXT. No LaTeX, no markdown. Write special characters (& % # $ _) literally — the application escapes them.
+- Use straight quotes, not curly quotes.
+- "dates": use "Mon YYYY - Mon YYYY" or "Mon YYYY - Present".
+- "projects" and "certifications" are optional (omit or use []). "company", "summary", "core_competencies", "experiences", "education" are required.
+- "margin": "1in" for light content, "0.75in" normally, "0.5in" only if needed to fit one page. "itemsep": "2pt" normally, "1pt" for dense content.
+- Contact details and the candidate's name are added by the application from the profile — do NOT include them.
+- Output ONLY the JSON object.
+"""
 
 
 def _cl_skill_path() -> Path:
@@ -83,9 +124,6 @@ def _prewarm_cache() -> None:
             return  # no profile yet — nothing to cache
 
         skill_text = (_skill_path() / "SKILL.md").read_text(encoding="utf-8")
-        latex = _skill_path() / "references" / "latex_template.md"
-        if latex.exists():
-            skill_text += f"\n\n## latex_template.md (embedded)\n\n{latex.read_text(encoding='utf-8')}"
         skill_text = _append_profile(skill_text)
         slug = _candidate_name_slug()
         skill_text = _inject_name(skill_text, slug)
@@ -103,13 +141,15 @@ def _prewarm_cache() -> None:
 
 
 def _build_resume_prompt(row: dict, company: str, title: str, name_slug: str, skill_dir) -> tuple[str, str]:
-    """Build system skill_text and user_prompt for a resume. Returns (skill_text, user_prompt)."""
+    """Build system skill_text and user_prompt for a resume. Returns (skill_text, user_prompt).
+
+    The model returns structured JSON content (see _JSON_OUTPUT_FORMAT); Python
+    renders the .tex. The LaTeX template is NOT embedded — layout is code's job.
+    """
     skill_text = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
-    latex_template = skill_dir / "references" / "latex_template.md"
-    if latex_template.exists():
-        skill_text += f"\n\n## latex_template.md (embedded)\n\n{latex_template.read_text(encoding='utf-8')}"
     skill_text = _append_profile(skill_text)
     skill_text = _inject_name(skill_text, name_slug)
+    skill_text += _JSON_OUTPUT_FORMAT
 
     desc = row.get("description") or ""
     job_context = desc if len(desc) > 50 else (
@@ -269,11 +309,31 @@ def _build_document(job_id: str, doc_type: str) -> None:
                                           stage_fn=lambda s: stage_fn(job_id, s),
                                           on_delta=_cl_preview_cb(job_id) if not is_resume else None)
 
+        if is_resume:
+            # Model returns JSON content; code renders and compiles the .tex.
+            # A malformed-JSON response gets one repair retry before failing.
+            try:
+                content = _parse_content_json(response_text)
+            except ResumeParseError as e:
+                stage_fn(job_id, "Fixing response format…")
+                repair = (
+                    f"Your previous response was not valid resume JSON: {e}\n\n"
+                    "Output ONLY the JSON object matching the required schema. "
+                    "No explanation, no markdown fences."
+                )
+                response_text = _generate_content(skill_text, repair, cwd=str(skill_dir),
+                                                  stage_fn=lambda s: stage_fn(job_id, s))
+                content = _parse_content_json(response_text)
+
+            stage_fn(job_id, "Rendering document…")
+            profile_text = get_profile_path().read_text(encoding="utf-8")
+            latex_content = render_resume_latex(content, profile_text)
+            company_folder = _sanitize_folder_name(content.get("company", company), folder_fallback)
+        else:
+            latex_content, meta = _parse_latex_response(response_text)
+            company_folder = _sanitize_folder_name(meta.get("company", company), folder_fallback)
+
         stage_fn(job_id, "Compiling PDF…")
-        latex_content, meta = _parse_latex_response(response_text)
-
-        company_folder = _sanitize_folder_name(meta.get("company", company), folder_fallback)
-
         output_dir = _resumes_path() / company_folder / ("resumes" if is_resume else "cover-letters")
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -281,8 +341,11 @@ def _build_document(job_id: str, doc_type: str) -> None:
         tex_path.write_text(latex_content, encoding="utf-8")
         if is_resume:
             (output_dir / "job_description.txt").write_text(row.get("description", ""), encoding="utf-8")
-
-        pdf_path = _compile_and_repair(tex_path, latex_content, skill_dir, stage_fn, job_id)
+            # Rendered from a fixed template — always valid, no repair loop needed.
+            pdf_path = _compile_latex(tex_path)
+        else:
+            # Model-authored LaTeX — keep the error-feedback repair loop.
+            pdf_path = _compile_and_repair(tex_path, latex_content, skill_dir, stage_fn, job_id)
 
         with task_state._lock:
             status_dict[job_id] = {"status": "done", "pdf_path": str(pdf_path), "error": None}

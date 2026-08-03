@@ -30,34 +30,19 @@ When present:
 
 ---
 
-## Layout Lock (CRITICAL)
+## Content Structure (CRITICAL)
 
-Mirror `latex_template.md` exactly:
+- **No invented sections.** Produce only: summary, core competencies, experience (with optional key projects per role), education, certifications. Do not invent new sections or fields.
 
-- **No additions:** do not add sections, columns, tables, icons, or layout elements not in the template
+**Key projects:** treat these as mini case studies, not labels. For each project, write a description covering what the platform/product was, the candidate's specific role, the key delivery challenge or scope, and the measurable outcome. Do not compress to a bare label.
 
-**Key projects:** treat these as mini case studies, not labels. For each project, write 3–4 bullets covering: what the platform/product was, what the candidate's specific role was, the key delivery challenge or scope, and the measurable outcome. Do not compress to one sentence.
+**Page length:** Prefer one page, but readability wins over the page count. One page is the target *when the content fits comfortably* — never at the cost of a cramped, hard-to-scan resume. If fitting one page would force cutting genuinely relevant experience, let it flow to two pages — a clean, readable two-page resume beats a crammed one-page one.
 
-**Page length:** Prefer one page, but readability wins over the page count. One page is the target *when the content fits comfortably* — never at the cost of a cramped, hard-to-scan resume. Apply the techniques below in order and stop as soon as it fits; do not stack all of them if a subset already works. If, after reasonable tightening, one page would force tiny text, near-zero spacing, or cutting genuinely relevant experience, let it flow to two pages — a clean, readable two-page resume beats a crammed one-page one.
-
-Readability floor (never cross these to hit one page):
-- Body font no smaller than `10pt` (never go to `9pt` just to fit)
-- Margins no tighter than `0.5in`
-- Keep at least `itemsep=2pt` between bullets — never `0pt` to the point lines visually collide
-- Never drop a bullet that maps to a Tier 1 JD requirement purely for space
-
-Vertical fill (the page should look intentionally full, not padded or sparse):
-- If content ends well short of one page, the resume is too thin — expand Key Projects to 3–4 bullets each and restore trimmed detail rather than leaving a block of whitespace at the bottom.
-- Never let content spill just 2–3 lines onto a second page. Either tighten to fit one page (using the techniques below), or add enough real content that the second page fills past its halfway point. A near-empty page 2 looks worse than either.
-- Never strand a section heading alone at the bottom of a page with its content on the next. Reorder sections or adjust content length so the heading moves with its content (do not add packages to the locked preamble).
-
-Tightening techniques (apply progressively, only as needed):
-- Reduce margins toward `0.75in` (from `1in`), and only toward `0.5in` if still needed
-- Tighten list spacing: `itemsep=2pt, topsep=2pt`
-- Tighten section spacing: `\titlespacing{\section}{0pt}{8pt}{3pt}`
-- Move tools (Jira, Confluence, etc.) into the header contact line, not a separate competency item
-- Cap Core Competencies at 6 items (drop the weakest for this JD)
-- Cut filler words from bullets: "enterprise", "scalable", "high-availability", "digital", "robust", "seamless", "end-to-end" (unless end-to-end is the actual point), "throughout the product lifecycle", "ensuring X" trailing clauses that just restate the verb
+You control density mainly by how much content you write. Guidance:
+- **Never drop a bullet that maps to a Tier 1 JD requirement purely for space.**
+- If content is light and would leave a sparse half-empty page, expand Key Projects and restore trimmed detail rather than padding.
+- To tighten a slightly-too-long resume, first trim filler and weak bullets. Cap Core Competencies at 6 items (drop the weakest for this JD). Move tools (Jira, Confluence, etc.) into competencies rather than separate lines.
+- Cut filler words from bullets: "enterprise", "scalable", "high-availability", "digital", "robust", "seamless", "end-to-end" (unless end-to-end is the actual point), "throughout the product lifecycle", "ensuring X" trailing clauses that just restate the verb.
 
 **Buzzword / filler audit (apply before generating LaTeX):** Every adjective and trailing clause must earn its place. Ask: does removing this word change the meaning? If no, cut it.
 
@@ -185,19 +170,3 @@ Every bullet must start with a Tier 1 or Tier 2 verb. If the only honest verb is
 - **No verbose openers.** Cut "Leveraging expert knowledge of...", "In collaboration with...", "By working closely with...". Start with the verb.
 - **Summary: plain voice.** Not "Seasoned professional with a proven track record of..." — write like a human.
 - **Read each bullet aloud.** If it sounds like a template, rewrite it.
-
----
-
-## Step 4 — Generate LaTeX
-
-Use `latex_template.md` as the base. Produce a complete `.tex` file:
-
-- **pdflatex-safe syntax** — escape `&` → `\&`, `%` → `\%`, `#` → `\#`, `_` → `\_`
-- Standard TeX Live packages only: `geometry`, `enumitem`, `titlesec`, `xcolor`, `hyperref`, `microtype`
-
-**Return the complete LaTeX as your response** — output nothing except the LaTeX, starting with `\documentclass` and ending with `\end{document}`. Do not include any explanation, cover note, or markdown — just the raw `.tex` content. The caller will handle file writing and compilation.
-
-Also include a JSON block at the very end (after `\end{document}`) with this exact format:
-```json
-{"company": "<CompanyName inferred from JD>", "gaps": ["gap1", "gap2"], "emphasis": "one sentence on what was emphasized"}
-```
