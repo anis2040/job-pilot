@@ -6,7 +6,7 @@ from . import paths
 from .db import get_job, update_description, init_db
 from .fetcher import fetch_description as fetch_job_description
 from .profiles import get_profile_path, get_resumes_path
-from .ai_providers import _get_anthropic_client, _get_model, _generate_content
+from .ai_providers import _get_anthropic_client, _get_model, _generate_content, call_ai
 from .latex import _compile_latex, _parse_latex_response
 from .latex_render import _parse_content_json, render_resume_latex, ResumeParseError
 from . import task_state
@@ -270,6 +270,88 @@ def _compile_and_repair(tex_path, latex_content: str, skill_dir, stage_fn, job_i
             raise first_err
 
 
+def _strong_verify_provider() -> tuple[str, str] | None:
+    """Pick the strongest available provider+model for the verification step,
+    independent of the user's generation preference. A capable verifier is what
+    makes the fabrication guard reliable — a weak model can't reliably judge
+    fabrication (weak verify == weak generation). Returns (provider, model) or
+    None if nothing is available."""
+    import shutil
+    # Order: Claude > Gemini > Groq's largest open model.
+    if _get_anthropic_client() is not None:
+        return ("anthropic", _get_model("anthropic"))
+    if _get_gemini_client() is not None or shutil.which("gemini"):
+        return ("gemini", _get_model("gemini"))
+    if _get_groq_client() is not None:
+        return ("groq", "openai/gpt-oss-120b")
+    return None
+
+
+def _verify_summary(summary: str, profile_text: str) -> str | None:
+    """Semantic guard against prose fabrication in the summary.
+
+    Weak models, when told to rewrite the summary, sometimes invent a
+    background that fits the JD but not the candidate (e.g. a "data engineering"
+    summary for a frontend profile). Deterministic checks can't catch this, so
+    ask a *strong* model (see _strong_verify_provider) to judge the summary
+    against the profile and, if it invents anything, return a corrected summary
+    grounded only in the profile.
+
+    Returns a corrected summary string if a fix is needed, else None. Best
+    effort — any error returns None (keep the original) rather than blocking.
+    """
+    if not summary.strip():
+        return None
+    verifier = _strong_verify_provider()
+    if verifier is None:
+        return None
+    provider, model = verifier
+
+    system = (
+        "You are a strict fact-checker for resume summaries. Compare the SUMMARY "
+        "against the PROFILE. FLAG it if the summary mentions ANY domain, industry, "
+        "technology, or skill that does not clearly appear in the profile — even if "
+        "it sounds plausible. Examples of fabrication: claiming 'distributed systems' "
+        "or 'data engineering' for a frontend profile, or naming a language the "
+        "profile never lists. Be strict: when in doubt, flag it. "
+        "Reply with a JSON object only: "
+        '{"ok": true} only if EVERY claim is directly supported by the profile, or '
+        '{"ok": false, "summary": "<corrected summary of similar length, grounded '
+        "ONLY in the profile's actual experience and skills, no filler like 'proven "
+        "track record' or 'passionate'>\"} otherwise."
+    )
+    prompt = f"PROFILE:\n{profile_text}\n\nSUMMARY TO CHECK:\n{summary}"
+
+    # Pin the verify call to the strong model, then restore env.
+    import os
+    saved_pref = os.environ.get("PREFERRED_PROVIDER")
+    saved_model = os.environ.get(f"{provider.upper()}_MODEL")
+    try:
+        os.environ["PREFERRED_PROVIDER"] = provider
+        os.environ[f"{provider.upper()}_MODEL"] = model
+        import json as _json
+        raw = call_ai(prompt, system=system)
+        if raw.strip().startswith("```"):
+            raw = "\n".join(raw.split("\n")[1:]).rsplit("```", 1)[0]
+        verdict = _json.loads(raw[raw.find("{"):raw.rfind("}") + 1])
+        if verdict.get("ok") is False and verdict.get("summary", "").strip():
+            return verdict["summary"].strip()
+    except Exception:
+        pass
+    finally:
+        _restore_env("PREFERRED_PROVIDER", saved_pref)
+        _restore_env(f"{provider.upper()}_MODEL", saved_model)
+    return None
+
+
+def _restore_env(key: str, value: str | None) -> None:
+    import os
+    if value is None:
+        os.environ.pop(key, None)
+    else:
+        os.environ[key] = value
+
+
 def _build_document(job_id: str, doc_type: str) -> None:
     """Shared document builder for resumes and cover letters."""
     is_resume = doc_type == "resume"
@@ -337,6 +419,15 @@ def _build_document(job_id: str, doc_type: str) -> None:
 
             stage_fn(job_id, "Rendering document…")
             profile_text = get_profile_path().read_text(encoding="utf-8")
+
+            # Semantic guard: catch summary prose that invents a background the
+            # profile doesn't support (weak models do this when rewriting).
+            stage_fn(job_id, "Checking accuracy…")
+            fixed_summary = _verify_summary(content.get("summary", ""), profile_text)
+            if fixed_summary:
+                print(f"[resume-check] {job_id}: summary rewritten (fabrication guard)")
+                content["summary"] = fixed_summary
+
             latex_content = render_resume_latex(content, profile_text)
             company_folder = _sanitize_folder_name(content.get("company", company), folder_fallback)
 

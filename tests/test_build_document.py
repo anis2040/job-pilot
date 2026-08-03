@@ -62,6 +62,9 @@ def wired(tmp_path, monkeypatch):
     # Stub the LLM: return the JSON content the model would produce
     monkeypatch.setattr(documents, "_generate_content",
                         lambda *a, **k: json.dumps(_CONTENT))
+    # Stub the summary-verification call so the build stays fully offline.
+    monkeypatch.setattr(documents, "call_ai", lambda *a, **k: '{"ok": true}')
+    monkeypatch.setattr(documents, "_strong_verify_provider", lambda: ("gemini", "gemini-x"))
 
     task_state.clear_task_state()
     return resumes
@@ -90,3 +93,65 @@ def test_build_resume_compiles_pdf_if_pdflatex(wired):
     status = task_state._task_status.get("li_1", {})
     assert status.get("status") == "done", f"build failed: {status.get('error')}"
     assert status.get("pdf_path") and status["pdf_path"].endswith(".pdf")
+
+
+# ── _verify_summary (semantic fabrication guard) ──────────────────────────────
+
+import job.documents as _docs
+
+
+@pytest.fixture(autouse=True)
+def _stub_verify_provider(monkeypatch):
+    # Pretend a strong verifier is available so _verify_summary proceeds offline.
+    monkeypatch.setattr(_docs, "_strong_verify_provider", lambda: ("gemini", "gemini-x"))
+
+
+def test_verify_summary_returns_none_when_ok(monkeypatch):
+    monkeypatch.setattr(_docs, "call_ai", lambda p, system="": '{"ok": true}')
+    assert _docs._verify_summary("Frontend engineer.", "# Me\nFrontend engineer.") is None
+
+
+def test_verify_summary_returns_fix_when_fabricated(monkeypatch):
+    monkeypatch.setattr(_docs, "call_ai", lambda p, system="":
+                        '{"ok": false, "summary": "Frontend engineer with Angular expertise."}')
+    fixed = _docs._verify_summary("Data engineer with Spark.", "# Me\nFrontend Angular dev.")
+    assert fixed == "Frontend engineer with Angular expertise."
+
+
+def test_verify_summary_tolerates_fences_and_prose(monkeypatch):
+    monkeypatch.setattr(_docs, "call_ai", lambda p, system="":
+                        'Here:\n```json\n{"ok": false, "summary": "Corrected."}\n```')
+    assert _docs._verify_summary("x", "prof") == "Corrected."
+
+
+def test_verify_summary_swallows_errors(monkeypatch):
+    def boom(p, system=""): raise RuntimeError("no provider")
+    monkeypatch.setattr(_docs, "call_ai", boom)
+    assert _docs._verify_summary("x", "prof") is None  # never blocks the build
+
+
+def test_verify_summary_empty_is_noop(monkeypatch):
+    called = []
+    monkeypatch.setattr(_docs, "call_ai", lambda *a, **k: called.append(1) or "{}")
+    assert _docs._verify_summary("   ", "prof") is None
+    assert not called  # doesn't waste a call on empty input
+
+
+def test_verify_summary_none_when_no_verifier(monkeypatch):
+    monkeypatch.setattr(_docs, "_strong_verify_provider", lambda: None)
+    called = []
+    monkeypatch.setattr(_docs, "call_ai", lambda *a, **k: called.append(1) or "{}")
+    assert _docs._verify_summary("x", "prof") is None
+    assert not called  # no verifier available -> no call
+
+
+def test_verify_restores_env(monkeypatch):
+    import os
+    monkeypatch.setattr(_docs, "call_ai", lambda p, system="": '{"ok": true}')
+    monkeypatch.setattr(_docs, "_strong_verify_provider", lambda: ("groq", "openai/gpt-oss-120b"))
+    monkeypatch.setenv("PREFERRED_PROVIDER", "gemini")
+    monkeypatch.delenv("GROQ_MODEL", raising=False)
+    _docs._verify_summary("some summary", "some profile")
+    # env restored to pre-call state
+    assert os.environ.get("PREFERRED_PROVIDER") == "gemini"
+    assert os.environ.get("GROQ_MODEL") is None
