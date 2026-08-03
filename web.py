@@ -426,6 +426,8 @@ def api_profile_md_save(slug):
     if not content:
         return jsonify({"error": "Profile content is empty"}), 400
     (profile_dir / "profile.md").write_text(content, encoding="utf-8")
+    from job.profiles import write_profile_json
+    write_profile_json(profile_dir)
     # Update symlinks if this is the active profile
     if slug == get_active_slug():
         from job.profiles import _update_symlinks
@@ -1103,7 +1105,8 @@ def api_setup_save_profile():
         profile_dir = target
         set_active(target.name)
 
-    from job.profiles import _update_symlinks
+    from job.profiles import _update_symlinks, write_profile_json
+    write_profile_json(profile_dir)
     _update_symlinks(profile_dir)
     init_db()
     return jsonify({"ok": True})

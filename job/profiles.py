@@ -87,6 +87,100 @@ def name_from_markdown(text: str) -> str | None:
     return None
 
 
+def _split_sections(text: str) -> dict[str, str]:
+    """Split profile.md into a {section-title: body} map by '## ' headings."""
+    sections: dict[str, str] = {}
+    current = None
+    buf: list[str] = []
+    for line in text.splitlines():
+        m = re.match(r"^##\s+(.+?)\s*$", line)
+        if m and not line.startswith("###"):
+            if current is not None:
+                sections[current] = "\n".join(buf).strip()
+            current = m.group(1).strip().lower()
+            buf = []
+        elif current is not None:
+            buf.append(line)
+    if current is not None:
+        sections[current] = "\n".join(buf).strip()
+    return sections
+
+
+def parse_profile_md(text: str) -> dict:
+    """Parse profile.md into structured JSON, deterministically (no LLM).
+
+    Matches the format the setup wizard writes. Missing sections yield empty
+    values. This is a derived cache of profile.md (the source of truth) — used
+    for cheaper prompts and structural fabrication checks.
+    """
+    secs = _split_sections(text)
+
+    def _bullets(body: str) -> list[str]:
+        out = []
+        for ln in body.splitlines():
+            s = ln.strip()
+            # Real list markers only: "- x" or "* x" — NOT "**bold**" (starts with **).
+            if re.match(r"^[-*]\s+", s) and not s.startswith("**"):
+                out.append(re.sub(r"^[-*]\s+", "", s).strip())
+        return out
+
+    contact = {"location": "", "phone": "", "email": "", "linkedin": "", "auth": ""}
+    for ln in secs.get("contact", "").splitlines():
+        m = re.match(r"^-\s*([\w ]+?):\s*(.+)$", ln.strip())
+        if not m:
+            continue
+        key, val = m.group(1).strip().lower(), m.group(2).strip()
+        if key == "location": contact["location"] = val
+        elif key == "phone": contact["phone"] = val
+        elif key == "email": contact["email"] = val
+        elif key == "linkedin": contact["linkedin"] = val
+        elif key.startswith("work auth"): contact["auth"] = val
+
+    # Experience: '### Title — Employer' blocks with Location/Dates/Bullets.
+    experience = []
+    exp_body = secs.get("professional experience", "")
+    for block in re.split(r"(?=^###\s)", exp_body, flags=re.MULTILINE):
+        block = block.strip()
+        if not block.startswith("###"):
+            continue
+        head = block.splitlines()[0].lstrip("#").strip()
+        title, employer = (head.split("—", 1) + [""])[:2] if "—" in head else (head, "")
+        loc = re.search(r"\*\*Location:\*\*\s*(.+)", block)
+        dates = re.search(r"\*\*Dates:\*\*\s*(.+)", block)
+        experience.append({
+            "title": title.strip(),
+            "employer": employer.strip(),
+            "location": loc.group(1).strip() if loc else "",
+            "dates": dates.group(1).strip() if dates else "",
+            "bullets": _bullets(block),
+        })
+
+    # Education: '### Degree' blocks with Institution/Location/Year.
+    education = []
+    for block in re.split(r"(?=^###\s)", secs.get("education", ""), flags=re.MULTILINE):
+        block = block.strip()
+        if not block.startswith("###"):
+            continue
+        degree = block.splitlines()[0].lstrip("#").strip()
+        inst = re.search(r"\*\*Institution:\*\*\s*(.+)", block)
+        year = re.search(r"\*\*Year conferred:\*\*\s*(.+)", block)
+        education.append({
+            "degree": degree,
+            "institution": inst.group(1).strip() if inst else "",
+            "year": year.group(1).strip() if year else "",
+        })
+
+    return {
+        "name": name_from_markdown(text) or "",
+        "contact": contact,
+        "summary": secs.get("professional summary", ""),
+        "competencies": _bullets(secs.get("core competencies", "")),
+        "experience": experience,
+        "education": education,
+        "certifications": _bullets(secs.get("certifications", "")),
+    }
+
+
 def _initials(name: str) -> str:
     parts = name.split()
     if len(parts) >= 2:
@@ -214,8 +308,43 @@ def _active_profile_subpath(filename: str) -> Path | None:
 
 
 def get_profile_path() -> Path | None:  return _active_profile_subpath("profile.md")
+def get_profile_json_path() -> Path | None:  return _active_profile_subpath("profile.json")
 def get_config_path()  -> Path | None:  return _active_profile_subpath("config.yaml")
 def get_db_path()      -> str  | None:  return str(_active_profile_subpath("state.db")) if active_profile_dir() else None
+
+
+def write_profile_json(profile_dir: Path) -> None:
+    """Parse profile.md in profile_dir and write the derived profile.json beside
+    it. Best-effort — a parse failure must never block saving the profile."""
+    import json as _json
+    md = profile_dir / "profile.md"
+    if not md.exists():
+        return
+    try:
+        data = parse_profile_md(md.read_text(encoding="utf-8"))
+        (profile_dir / "profile.json").write_text(
+            _json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def get_profile_json() -> dict | None:
+    """Return the active profile's structured JSON, or None if unavailable.
+    Regenerates from profile.md if profile.json is missing/stale-safe fallback."""
+    import json as _json
+    p = get_profile_json_path()
+    if p and p.exists():
+        try:
+            return _json.loads(p.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    md = get_profile_path()
+    if md and md.exists():
+        try:
+            return parse_profile_md(md.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return None
 
 def get_resumes_path() -> Path | None:
     d = active_profile_dir()
