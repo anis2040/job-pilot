@@ -245,6 +245,43 @@ def _render_experience(exp: dict) -> str:
     return "\n".join(parts)
 
 
+def _norm(s: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", (s or "").lower()).strip()
+
+
+def validate_resume_content(content: dict, profile_text: str, jd_keywords: list | None = None) -> list[str]:
+    """Deterministic post-generation checks. Returns a list of human-readable
+    warnings (empty = clean). Non-fatal: the resume is already rendered — these
+    surface likely fabrication and thin ATS coverage for logging/UI.
+
+    Two high-signal checks (chosen to avoid false positives):
+    - Every experience employer must appear in profile.md (catches invented jobs).
+    - Report which detected JD keywords the resume did NOT cover.
+    """
+    warnings: list[str] = []
+    prof = _norm(profile_text)
+
+    for exp in content.get("experiences", []):
+        employer = (exp.get("employer") or "").strip()
+        if employer and _norm(employer) not in prof:
+            warnings.append(f"Employer not found in profile (possible fabrication): {employer!r}")
+
+    if jd_keywords:
+        blob = _norm(" ".join([
+            content.get("summary", ""),
+            " ".join(content.get("core_competencies", [])),
+            " ".join(b for e in content.get("experiences", []) for b in e.get("bullets", [])),
+        ]))
+        missed = [k for k in jd_keywords if _norm(k) not in blob]
+        if missed:
+            covered = len(jd_keywords) - len(missed)
+            warnings.append(
+                f"ATS: covered {covered}/{len(jd_keywords)} detected JD keywords; "
+                f"missing: {', '.join(missed)}"
+            )
+    return warnings
+
+
 def render_resume_latex(content: dict, profile_text: str) -> str:
     """Assemble a complete, compilable .tex document from validated content."""
     contact = _parse_contact_from_profile(profile_text)

@@ -188,3 +188,39 @@ def test_render_work_auth_line():
     prof = _PROFILE + "- Work authorization: US citizen\n"
     latex = render_resume_latex(_VALID, prof)
     assert "US citizen" in latex
+
+
+# ── validate_resume_content ───────────────────────────────────────────────────
+
+from job.latex_render import validate_resume_content
+
+
+def test_validate_flags_fabricated_employer():
+    content = dict(_VALID, experiences=[{
+        "title": "Dev", "employer": "Totally Made Up Inc", "location": "X",
+        "dates": "2020", "bullets": ["did things"],
+    }])
+    warnings = validate_resume_content(content, "# Me\nWorked at Acme and Globex.")
+    assert any("fabrication" in w.lower() for w in warnings)
+
+
+def test_validate_passes_real_employer():
+    content = dict(_VALID, experiences=[{
+        "title": "Dev", "employer": "SAP LeanIX", "location": "Bonn",
+        "dates": "2020", "bullets": ["did things"],
+    }])
+    profile = "# Me\n\nSoftware Engineer at SAP LeanIX in Bonn."
+    warnings = validate_resume_content(content, profile)
+    assert not any("fabrication" in w.lower() for w in warnings)
+
+
+def test_validate_reports_keyword_coverage():
+    content = dict(_VALID, summary="I use Angular daily.",
+                   core_competencies=["Angular"],
+                   experiences=[{"title": "Dev", "employer": "X", "location": "Y",
+                                 "dates": "2020", "bullets": ["Built Angular apps"]}])
+    profile = "# Me\nWorked at X."
+    warnings = validate_resume_content(content, profile, jd_keywords=["Angular", "Kubernetes", "Go"])
+    ats = [w for w in warnings if w.startswith("ATS")]
+    assert ats and "1/3" in ats[0]
+    assert "Kubernetes" in ats[0] and "Go" in ats[0]

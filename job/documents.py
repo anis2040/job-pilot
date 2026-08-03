@@ -157,6 +157,15 @@ def _build_resume_prompt(row: dict, company: str, title: str, name_slug: str, sk
         f"Tailor the resume for a {title} role at {company} "
         f"based on typical responsibilities for this position."
     )
+    # Deterministic ATS hint: skills from our vocabulary that this JD mentions.
+    # Zero extra tokens vs an LLM pass; steers Tier-1 keyword coverage.
+    from .skills_vocab import detect_keywords
+    detected = detect_keywords(desc)
+    kw_hint = (
+        f"\n\nKey skills detected in this job description (prioritize covering "
+        f"these where profile.md supports them): {', '.join(detected)}"
+        if detected else ""
+    )
     user_prompt = (
         f"Apply to this job for me. Here is the job description:\n\n"
         f"Company: {company}\n"
@@ -164,6 +173,7 @@ def _build_resume_prompt(row: dict, company: str, title: str, name_slug: str, sk
         f"Location: {row.get('location') or ''}\n"
         f"URL: {row.get('url') or ''}\n\n"
         f"{job_context}"
+        f"{kw_hint}"
     )
     return skill_text, user_prompt
 
@@ -329,6 +339,15 @@ def _build_document(job_id: str, doc_type: str) -> None:
             profile_text = get_profile_path().read_text(encoding="utf-8")
             latex_content = render_resume_latex(content, profile_text)
             company_folder = _sanitize_folder_name(content.get("company", company), folder_fallback)
+
+            # Deterministic quality check (non-fatal): flag likely fabrication +
+            # ATS keyword coverage. Logged for visibility; doesn't block the build.
+            from .skills_vocab import detect_keywords
+            from .latex_render import validate_resume_content
+            issues = validate_resume_content(content, profile_text,
+                                              detect_keywords(row.get("description") or ""))
+            for w in issues:
+                print(f"[resume-check] {job_id}: {w}")
         else:
             latex_content, meta = _parse_latex_response(response_text)
             company_folder = _sanitize_folder_name(meta.get("company", company), folder_fallback)
