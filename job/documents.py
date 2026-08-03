@@ -6,7 +6,8 @@ from . import paths
 from .db import get_job, update_description, init_db
 from .fetcher import fetch_description as fetch_job_description
 from .profiles import get_profile_path, get_resumes_path
-from .ai_providers import _get_anthropic_client, _get_model, _generate_content, call_ai
+from .ai_providers import (_get_anthropic_client, _get_gemini_client, _get_groq_client,
+                           _get_model, _generate_content, call_ai)
 from .latex import _compile_latex, _parse_latex_response
 from .latex_render import _parse_content_json, render_resume_latex, ResumeParseError
 from . import task_state
@@ -270,21 +271,40 @@ def _compile_and_repair(tex_path, latex_content: str, skill_dir, stage_fn, job_i
             raise first_err
 
 
-def _strong_verify_provider() -> tuple[str, str] | None:
-    """Pick the strongest available provider+model for the verification step,
-    independent of the user's generation preference. A capable verifier is what
-    makes the fabrication guard reliable — a weak model can't reliably judge
-    fabrication (weak verify == weak generation). Returns (provider, model) or
-    None if nothing is available."""
-    import shutil
-    # Order: Claude > Gemini > Groq's largest open model.
+def _verify_providers() -> list[tuple[str, str]]:
+    """Ordered list of (provider, model) to try for the verification step,
+    strongest-and-most-reachable first. A capable verifier is what makes the
+    fabrication guard reliable — a weak model can't reliably judge fabrication.
+
+    We prefer the provider the user is actively using for generation (it's
+    proven reachable), then other configured strong providers. _verify_summary
+    falls through this list on failure, so a configured-but-unfunded provider
+    (e.g. Anthropic with no credits) no longer silently disables the guard.
+    """
+    import os, shutil
+    pref = os.environ.get("PREFERRED_PROVIDER", "").strip().lower()
+    cands: list[tuple[str, str]] = []
+
+    def add(provider, model):
+        if (provider, model) not in cands:
+            cands.append((provider, model))
+
+    # Strong model on the user's active provider first (proven reachable).
+    if pref == "groq" and _get_groq_client() is not None:
+        add("groq", "openai/gpt-oss-120b")
+    if pref == "gemini" and (_get_gemini_client() is not None or shutil.which("gemini")):
+        add("gemini", _get_model("gemini"))
+    if pref == "anthropic" and _get_anthropic_client() is not None:
+        add("anthropic", _get_model("anthropic"))
+
+    # Then any other configured strong provider, best-first.
     if _get_anthropic_client() is not None:
-        return ("anthropic", _get_model("anthropic"))
+        add("anthropic", _get_model("anthropic"))
     if _get_gemini_client() is not None or shutil.which("gemini"):
-        return ("gemini", _get_model("gemini"))
+        add("gemini", _get_model("gemini"))
     if _get_groq_client() is not None:
-        return ("groq", "openai/gpt-oss-120b")
-    return None
+        add("groq", "openai/gpt-oss-120b")
+    return cands
 
 
 def _verify_summary(summary: str, profile_text: str) -> str | None:
@@ -293,19 +313,16 @@ def _verify_summary(summary: str, profile_text: str) -> str | None:
     Weak models, when told to rewrite the summary, sometimes invent a
     background that fits the JD but not the candidate (e.g. a "data engineering"
     summary for a frontend profile). Deterministic checks can't catch this, so
-    ask a *strong* model (see _strong_verify_provider) to judge the summary
-    against the profile and, if it invents anything, return a corrected summary
-    grounded only in the profile.
+    a *strong* model judges the summary against the profile and, if it invents
+    anything, returns a corrected summary grounded only in the profile.
 
-    Returns a corrected summary string if a fix is needed, else None. Best
-    effort — any error returns None (keep the original) rather than blocking.
+    Tries each verifier in _verify_providers() until one returns a usable
+    verdict, so a configured-but-unreachable provider doesn't disable the guard.
+    Returns a corrected summary if a fix is needed, else None. Best effort —
+    never blocks the build.
     """
     if not summary.strip():
         return None
-    verifier = _strong_verify_provider()
-    if verifier is None:
-        return None
-    provider, model = verifier
 
     system = (
         "You are a strict fact-checker for resume summaries. Compare the SUMMARY "
@@ -322,25 +339,30 @@ def _verify_summary(summary: str, profile_text: str) -> str | None:
     )
     prompt = f"PROFILE:\n{profile_text}\n\nSUMMARY TO CHECK:\n{summary}"
 
-    # Pin the verify call to the strong model, then restore env.
-    import os
-    saved_pref = os.environ.get("PREFERRED_PROVIDER")
-    saved_model = os.environ.get(f"{provider.upper()}_MODEL")
-    try:
-        os.environ["PREFERRED_PROVIDER"] = provider
-        os.environ[f"{provider.upper()}_MODEL"] = model
-        import json as _json
-        raw = call_ai(prompt, system=system)
-        if raw.strip().startswith("```"):
-            raw = "\n".join(raw.split("\n")[1:]).rsplit("```", 1)[0]
-        verdict = _json.loads(raw[raw.find("{"):raw.rfind("}") + 1])
+    import os, json as _json
+    for provider, model in _verify_providers():
+        saved_pref = os.environ.get("PREFERRED_PROVIDER")
+        saved_model = os.environ.get(f"{provider.upper()}_MODEL")
+        try:
+            os.environ["PREFERRED_PROVIDER"] = provider
+            os.environ[f"{provider.upper()}_MODEL"] = model
+            raw = call_ai(prompt, system=system)
+        except Exception:
+            continue  # this verifier failed — fall through to the next
+        finally:
+            _restore_env("PREFERRED_PROVIDER", saved_pref)
+            _restore_env(f"{provider.upper()}_MODEL", saved_model)
+        try:
+            if raw.strip().startswith("```"):
+                raw = "\n".join(raw.split("\n")[1:]).rsplit("```", 1)[0]
+            verdict = _json.loads(raw[raw.find("{"):raw.rfind("}") + 1])
+        except Exception:
+            continue  # unparseable verdict — try the next verifier
+        if verdict.get("ok") is True:
+            return None
         if verdict.get("ok") is False and verdict.get("summary", "").strip():
             return verdict["summary"].strip()
-    except Exception:
-        pass
-    finally:
-        _restore_env("PREFERRED_PROVIDER", saved_pref)
-        _restore_env(f"{provider.upper()}_MODEL", saved_model)
+        # ambiguous verdict — try the next verifier
     return None
 
 

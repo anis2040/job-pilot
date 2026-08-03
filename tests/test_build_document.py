@@ -64,7 +64,7 @@ def wired(tmp_path, monkeypatch):
                         lambda *a, **k: json.dumps(_CONTENT))
     # Stub the summary-verification call so the build stays fully offline.
     monkeypatch.setattr(documents, "call_ai", lambda *a, **k: '{"ok": true}')
-    monkeypatch.setattr(documents, "_strong_verify_provider", lambda: ("gemini", "gemini-x"))
+    monkeypatch.setattr(documents, "_verify_providers", lambda: [("gemini", "gemini-x")])
 
     task_state.clear_task_state()
     return resumes
@@ -103,7 +103,7 @@ import job.documents as _docs
 @pytest.fixture(autouse=True)
 def _stub_verify_provider(monkeypatch):
     # Pretend a strong verifier is available so _verify_summary proceeds offline.
-    monkeypatch.setattr(_docs, "_strong_verify_provider", lambda: ("gemini", "gemini-x"))
+    monkeypatch.setattr(_docs, "_verify_providers", lambda: [("gemini", "gemini-x")])
 
 
 def test_verify_summary_returns_none_when_ok(monkeypatch):
@@ -138,17 +138,32 @@ def test_verify_summary_empty_is_noop(monkeypatch):
 
 
 def test_verify_summary_none_when_no_verifier(monkeypatch):
-    monkeypatch.setattr(_docs, "_strong_verify_provider", lambda: None)
+    monkeypatch.setattr(_docs, "_verify_providers", lambda: [])
     called = []
     monkeypatch.setattr(_docs, "call_ai", lambda *a, **k: called.append(1) or "{}")
     assert _docs._verify_summary("x", "prof") is None
     assert not called  # no verifier available -> no call
 
 
+def test_verify_summary_falls_through_on_failure(monkeypatch):
+    # First verifier raises; second returns a valid verdict -> guard recovers.
+    monkeypatch.setattr(_docs, "_verify_providers",
+                        lambda: [("anthropic", "claude"), ("groq", "openai/gpt-oss-120b")])
+    calls = []
+    def flaky(p, system=""):
+        calls.append(1)
+        if len(calls) == 1:
+            raise RuntimeError("no credits")
+        return '{"ok": false, "summary": "Grounded rewrite."}'
+    monkeypatch.setattr(_docs, "call_ai", flaky)
+    assert _docs._verify_summary("bad summary", "prof") == "Grounded rewrite."
+    assert len(calls) == 2  # fell through from the dead provider to the working one
+
+
 def test_verify_restores_env(monkeypatch):
     import os
     monkeypatch.setattr(_docs, "call_ai", lambda p, system="": '{"ok": true}')
-    monkeypatch.setattr(_docs, "_strong_verify_provider", lambda: ("groq", "openai/gpt-oss-120b"))
+    monkeypatch.setattr(_docs, "_verify_providers", lambda: [("groq", "openai/gpt-oss-120b")])
     monkeypatch.setenv("PREFERRED_PROVIDER", "gemini")
     monkeypatch.delenv("GROQ_MODEL", raising=False)
     _docs._verify_summary("some summary", "some profile")
