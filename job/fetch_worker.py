@@ -88,8 +88,10 @@ def _backfill_embeddings(batch: int = 100) -> None:
     keyword signal."""
     from .db import get_jobs_missing_embedding, set_job_embedding
     from .ai_providers import embed_texts
-    from .match import match_text
+    from .match import match_text, semantic_enabled
 
+    if not semantic_enabled():
+        return  # user turned semantic matching off (or no embedding provider)
     rows = get_jobs_missing_embedding(limit=batch)
     if not rows:
         return

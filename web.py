@@ -534,8 +534,9 @@ def api_job_description(job_id):
     # the detail card and future list loads get the semantic score.
     from job.db import get_job_embedding, set_job_embedding
     from job.ai_providers import embed_text
+    from job.match import semantic_enabled
     emb = get_job_embedding(job_id)
-    if emb is None and description:
+    if emb is None and description and semantic_enabled():
         emb = embed_text(match_text({"title": r.get("title") or "", "description": description}))
         if emb:
             set_job_embedding(job_id, emb)
@@ -705,9 +706,15 @@ def api_ai_settings_get():
             "resets":          ref["resets"],
         }
 
+    from job.ai_providers import embedding_provider
+    emb_available = embedding_provider() is not None
+    semantic_on = os.environ.get("SEMANTIC_MATCH", "on").strip().lower() != "off"
+
     return jsonify({
         "active_provider":    active,
         "preferred_provider": preferred or None,
+        "semantic_match":     semantic_on,
+        "embeddings_available": emb_available,
         "providers": {
             "groq": {
                 "configured": groq_ok,
@@ -763,6 +770,12 @@ def api_ai_settings_save():
                 env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
             os.environ.pop("PREFERRED_PROVIDER", None)
         updated_keys.add("PREFERRED_PROVIDER")
+
+    if "semantic_match" in data:
+        val = "on" if data.get("semantic_match") else "off"
+        _write_env_var(env_path, "SEMANTIC_MATCH", val)
+        os.environ["SEMANTIC_MATCH"] = val
+        updated_keys.add("SEMANTIC_MATCH")
 
     return jsonify({"ok": True, "updated": list(updated_keys)})
 

@@ -136,3 +136,34 @@ def test_embed_text_no_key_returns_none(monkeypatch):
     monkeypatch.setattr(ai, "_get_gemini_client", lambda: None)
     assert ai.embed_text("Angular engineer") is None
     assert ai.embed_texts(["a", "b"]) == [None, None]
+
+
+# ── semantic_enabled gate ─────────────────────────────────────────────────────
+
+def test_semantic_enabled_off_skips_embedding(monkeypatch):
+    import job.match as m, job.ai_providers as ai
+    monkeypatch.setenv("SEMANTIC_MATCH", "off")
+    monkeypatch.setattr(ai, "_load_env", lambda: None)
+    monkeypatch.setattr(ai, "embedding_provider", lambda: "gemini")  # provider present
+    assert m.semantic_enabled() is False
+    # get_profile_embedding must NOT call embed when disabled
+    called = []
+    monkeypatch.setattr(ai, "embed_text", lambda t: called.append(1) or [0.1])
+    assert m.get_profile_embedding({"name": "X", "summary": "eng", "competencies": ["Angular"]}) is None
+    assert not called
+
+
+def test_semantic_enabled_on_but_no_provider(monkeypatch):
+    import job.match as m, job.ai_providers as ai
+    monkeypatch.setenv("SEMANTIC_MATCH", "on")
+    monkeypatch.setattr(ai, "_load_env", lambda: None)
+    monkeypatch.setattr(ai, "embedding_provider", lambda: None)  # no gemini
+    assert m.semantic_enabled() is False
+
+
+def test_semantic_enabled_on_with_provider(monkeypatch):
+    import job.match as m, job.ai_providers as ai
+    monkeypatch.setenv("SEMANTIC_MATCH", "on")
+    monkeypatch.setattr(ai, "_load_env", lambda: None)
+    monkeypatch.setattr(ai, "embedding_provider", lambda: "gemini")
+    assert m.semantic_enabled() is True

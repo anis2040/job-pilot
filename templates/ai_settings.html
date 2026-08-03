@@ -66,6 +66,15 @@
   .usage-fill.full { background: var(--red); }
   .usage-foot { margin-top: 5px; color: var(--text-faint); }
   .usage-foot .approx { cursor: help; border-bottom: 1px dotted var(--text-faint); }
+  /* Toggle switch (smart matching) */
+  .switch { position: relative; display: inline-block; width: 42px; height: 24px; flex-shrink: 0; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch-slider { position: absolute; cursor: pointer; inset: 0; background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--radius-full); transition: background var(--dur-fast) var(--ease-standard); }
+  .switch-slider::before { content: ""; position: absolute; height: 16px; width: 16px; left: 3px; top: 3px; background: var(--text-muted); border-radius: 50%; transition: transform var(--dur-fast) var(--ease-standard), background var(--dur-fast) var(--ease-standard); }
+  .switch input:checked + .switch-slider { background: var(--blue-dim); border-color: var(--blue); }
+  .switch input:checked + .switch-slider::before { transform: translateX(18px); background: var(--blue-light); }
+  .switch input:disabled + .switch-slider { opacity: var(--opacity-disabled, 0.5); cursor: not-allowed; }
+  .semantic-note { font-size: var(--text-sm); color: var(--text-muted); line-height: var(--leading-normal); margin: 0; }
 </style>
 {% endblock %}
 
@@ -124,6 +133,23 @@
     </div>
   </div>
   {% endfor %}
+
+  <!-- Smart (semantic) matching -->
+  <div class="provider-card" id="semantic-card">
+    <div class="card-header" style="cursor:default">
+      <div class="card-header-text">
+        <h3>Smart job matching</h3>
+        <div class="sub">Ranks jobs by overall fit using embeddings</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="semantic-toggle" onchange="saveSemantic()">
+        <span class="switch-slider"></span>
+      </label>
+    </div>
+    <div class="card-body" style="display:block">
+      <p class="semantic-note" id="semantic-note"></p>
+    </div>
+  </div>
 </div>
 {% endblock %}
 
@@ -246,6 +272,31 @@ async function load() {  const res  = await fetch("/api/ai-settings");
   }
 
   renderSelection();
+  renderSemantic(data);
+}
+
+function renderSemantic(data) {
+  const toggle = document.getElementById("semantic-toggle");
+  const note = document.getElementById("semantic-note");
+  if (!toggle || !note) return;
+  const available = !!data.embeddings_available;
+  toggle.checked = !!data.semantic_match && available;
+  toggle.disabled = !available;
+  if (!available) {
+    note.innerHTML = "Requires a Gemini API key (the only provider here that offers embeddings). "
+      + "Without it, jobs are still matched by skill keywords.";
+  } else {
+    note.innerHTML = "Ranks jobs by overall fit (semantic similarity between the job and your profile), "
+      + "on top of the skill-match chips. <strong>Cost:</strong> a fraction of a cent per job on a paid "
+      + "Gemini key, or free (rate-limited) on a free-tier key — computed once per job and cached. "
+      + "It never affects your resume or cover-letter model.";
+  }
+}
+
+async function saveSemantic() {
+  const toggle = document.getElementById("semantic-toggle");
+  await apiPost("/api/ai-settings", { semantic_match: toggle.checked });
+  showToast(toggle.checked ? "Smart matching on" : "Smart matching off");
 }
 
 function renderSelection() {

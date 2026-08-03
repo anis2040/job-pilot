@@ -373,20 +373,23 @@ def _get_gemini_client():
 _EMBED_MODEL = "models/gemini-embedding-001"
 
 
-def embed_texts(texts: list[str]) -> list[list[float] | None]:
-    """Embed a batch of texts via Gemini. Returns a list aligned to `texts`,
-    with None for any that couldn't be embedded. Best-effort: no key or any
-    error yields all-None (callers fall back to keyword matching). Never raises.
-    """
-    if not texts:
-        return []
+def embedding_provider() -> str | None:
+    """Which provider will serve embeddings, or None if none is available.
+    Only Gemini is wired today (Anthropic uses 3rd-party Voyage, Groq has none).
+    This is the seam: adding OpenAI/Voyage later is a branch here + in
+    _embed_batch, with no change to callers."""
+    if _get_gemini_client() is not None:
+        return "gemini"
+    return None
+
+
+def _embed_batch_gemini(texts: list[str]) -> list[list[float] | None]:
     client = _get_gemini_client()
     if client is None:
         return [None] * len(texts)
     out: list[list[float] | None] = []
     total_chars = 0
     try:
-        # The SDK accepts a list of contents and returns aligned embeddings.
         resp = client.models.embed_content(model=_EMBED_MODEL, contents=texts)
         embs = getattr(resp, "embeddings", None) or []
         for i in range(len(texts)):
@@ -395,12 +398,24 @@ def embed_texts(texts: list[str]) -> list[list[float] | None]:
             total_chars += len(texts[i] or "")
     except Exception:
         return [None] * len(texts)
-    # Embeddings are billed per input token; approximate for the usage counter.
     try:
         _log_tokens("gemini", _EMBED_MODEL, input=total_chars // 4, total=total_chars // 4)
     except Exception:
         pass
     return out
+
+
+def embed_texts(texts: list[str]) -> list[list[float] | None]:
+    """Embed a batch of texts. Returns a list aligned to `texts`, with None for
+    any that couldn't be embedded. Best-effort: no provider or any error yields
+    all-None (callers fall back to keyword matching). Never raises. Provider is
+    chosen via embedding_provider() — the extension seam."""
+    if not texts:
+        return []
+    provider = embedding_provider()
+    if provider == "gemini":
+        return _embed_batch_gemini(texts)
+    return [None] * len(texts)
 
 
 def embed_text(text: str) -> list[float] | None:

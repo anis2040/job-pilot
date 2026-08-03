@@ -10,6 +10,19 @@ from __future__ import annotations
 from .skills_vocab import detect_keywords
 
 
+def semantic_enabled() -> bool:
+    """True if semantic (embedding) matching should run: the user toggle is on
+    (SEMANTIC_MATCH env, default on) AND an embedding provider is available.
+    When False, all embedding calls are skipped and match falls back to the
+    (free, deterministic) keyword score."""
+    import os
+    from .ai_providers import _load_env, embedding_provider
+    _load_env()
+    if os.environ.get("SEMANTIC_MATCH", "on").strip().lower() == "off":
+        return False
+    return embedding_provider() is not None
+
+
 def match_text(job) -> str:
     """The text that represents a job for matching: title + description.
 
@@ -120,7 +133,10 @@ def profile_embedding_text(profile: dict | None) -> str:
 
 def get_profile_embedding(profile: dict | None):
     """Return the profile's embedding vector, cached in db_meta and recomputed
-    only when the profile text changes (hash-guarded). None if unavailable."""
+    only when the profile text changes (hash-guarded). None if unavailable or
+    semantic matching is disabled."""
+    if not semantic_enabled():
+        return None
     text = profile_embedding_text(profile)
     if not text:
         return None

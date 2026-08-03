@@ -74,6 +74,12 @@ class TestAiSettingsGet:
         data = client.get("/api/ai-settings").get_json()
         assert "gemini-custom-not-listed" in data["providers"]["gemini"]["models"]
 
+    def test_semantic_match_fields_present(self, client):
+        data = client.get("/api/ai-settings").get_json()
+        assert "semantic_match" in data
+        assert "embeddings_available" in data
+        assert isinstance(data["semantic_match"], bool)
+
 
 class TestAiSettingsSave:
     def test_saves_models_and_preferred(self, client, tmp_path):
@@ -92,6 +98,13 @@ class TestAiSettingsSave:
         assert "PREFERRED_PROVIDER=gemini" in (tmp_path / ".env").read_text()
         client.post("/api/ai-settings", json={"preferred_provider": ""})
         assert "PREFERRED_PROVIDER=" not in (tmp_path / ".env").read_text()
+
+    def test_semantic_match_persists(self, client, tmp_path):
+        client.post("/api/ai-settings", json={"semantic_match": False})
+        assert "SEMANTIC_MATCH=off" in (tmp_path / ".env").read_text()
+        assert client.get("/api/ai-settings").get_json()["semantic_match"] is False
+        client.post("/api/ai-settings", json={"semantic_match": True})
+        assert "SEMANTIC_MATCH=on" in (tmp_path / ".env").read_text()
 
     def test_invalid_preferred_ignored(self, client, tmp_path):
         r = client.post("/api/ai-settings", json={"preferred_provider": "bogus"})
