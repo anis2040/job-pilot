@@ -166,3 +166,63 @@ function promptDialog({ title, message, value = "", placeholder = "", confirmLab
   });
 }
 
+
+
+// ── Job description renderer (shared by the list quick-panel + full detail) ──
+// Turns cleaned plain text into semantic HTML (section headings, bullet lists,
+// paragraphs), decoding any leftover HTML entities, with an optional Show-more
+// clamp. Self-contained: the toggle walks from the button to its sibling body,
+// so multiple instances on a page never collide on IDs.
+function _decodeEntities(text) {
+  const ta = document.createElement("textarea");
+  ta.innerHTML = String(text || "");
+  return ta.value;
+}
+
+function _looksLikeHeading(line) {
+  const t = line.trim();
+  if (t.length === 0 || t.length > 60) return false;
+  if (t.endsWith(":")) return true;
+  if (/[.!?,]$/.test(t)) return false;
+  const words = t.split(/\s+/);
+  return words.length <= 6 && /^[A-Z0-9]/.test(t);
+}
+
+function _formatDescription(text) {
+  const cleaned = _decodeEntities(text)
+    .split("\n")
+    .map(l => l.replace(/\s+$/, ""))
+    .filter(ln => !/^\s*(show more|show less)\s*$/i.test(ln));
+  const parts = [];
+  let para = [], bullets = [];
+  const flushPara = () => { if (para.length) { parts.push(`<p>${para.map(escapeHtml).join("<br>")}</p>`); para = []; } };
+  const flushBullets = () => { if (bullets.length) { parts.push(`<ul>${bullets.map(b => `<li>${escapeHtml(b)}</li>`).join("")}</ul>`); bullets = []; } };
+  for (const raw of cleaned) {
+    const line = raw.trim();
+    if (!line) { flushPara(); flushBullets(); continue; }
+    const bulletMatch = line.match(/^([•\-*–])\s+(.*)$/);
+    if (bulletMatch) { flushPara(); bullets.push(bulletMatch[2]); }
+    else if (_looksLikeHeading(line)) { flushPara(); flushBullets(); parts.push(`<h4 class="desc-heading">${escapeHtml(line.replace(/:$/, ""))}</h4>`); }
+    else { flushBullets(); para.push(line); }
+  }
+  flushPara(); flushBullets();
+  return parts.join("");
+}
+
+// Render a job description into `el`. `clamp` (default true) adds a Show-more
+// toggle when the text is long.
+function renderJobDescription(el, text, { clamp = true } = {}) {
+  if (!el) return;
+  const html = _formatDescription(text);
+  const long = clamp && _decodeEntities(text).length > 1200;
+  el.innerHTML = `<div class="description-body${long ? " desc-clamped" : ""}">${html}</div>`
+    + (long ? `<button class="desc-toggle" type="button">Show more ▾</button>` : "");
+  if (long) {
+    const btn = el.querySelector(".desc-toggle");
+    const body = el.querySelector(".description-body");
+    btn.addEventListener("click", () => {
+      const clamped = body.classList.toggle("desc-clamped");
+      btn.textContent = clamped ? "Show more ▾" : "Show less ▴";
+    });
+  }
+}

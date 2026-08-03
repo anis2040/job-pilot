@@ -153,7 +153,6 @@
   .dp-meta .job-meta-pill { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-xs); color: var(--text-muted); background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--radius-full); padding: 3px 10px; }
   .dp-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-5); }
   .dp-section-label { font-size: var(--text-xs); font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--space-2); }
-  .dp-desc { font-size: var(--text-base); color: var(--text-soft); line-height: var(--leading-relaxed); white-space: pre-wrap; }
   .job-row.selected { background: var(--bg-active); box-shadow: inset 3px 0 0 var(--blue); }
 
   /* ── Job row ── */
@@ -695,8 +694,9 @@
       ? `<button class="btn btn-sm btn-success" onclick="setStatus('${j.job_id}','applied')">${icon("check")} Applied</button>
          <button class="btn btn-sm btn-ghost" onclick="setStatus('${j.job_id}','skipped')">${icon("x")} Skip</button>`
       : `<button class="btn btn-sm btn-ghost" onclick="setStatus('${j.job_id}','pending')">↩ Restore</button>`;
-    const desc = j.description
-      ? `<div class="dp-desc">${escapeHtml(j.description)}</div>`
+    const hasDesc = !!j.description;
+    const desc = hasDesc
+      ? `<div id="dp-desc-body"></div>`
       : `<p class="text-faint" style="font-style:italic">No description — <a href="${safeUrl(j.url)}" target="_blank" style="color:var(--blue-light)">view on source ↗</a></p>`;
 
     document.getElementById("detail-panel").innerHTML = `
@@ -714,6 +714,12 @@
         <div class="dp-section-label">Description</div>
         ${desc}
       </div>`;
+
+    // Render the description with the shared component (headings, bullets,
+    // entity decode, show-more) — same as the full detail page.
+    if (hasDesc) {
+      renderJobDescription(document.getElementById("dp-desc-body"), j.description);
+    }
 
     // Lazy-fetch full description for any source that supports it (backend decides)
     if (!j.description) {

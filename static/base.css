@@ -140,6 +140,20 @@ body {
 ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
 ::-webkit-scrollbar-corner { background: transparent; }
 
+/* ── Job description renderer (shared: list quick-panel + full detail) ─────── */
+.description-body { font-size: var(--text-base); color: var(--text-soft); line-height: 1.7; max-width: 70ch; }
+.description-body p  { margin-bottom: var(--space-3); }
+.description-body p:last-child { margin-bottom: 0; }
+.description-body ul { padding-left: var(--space-5); margin-bottom: var(--space-3); }
+.description-body li { margin-bottom: var(--space-1); }
+.description-body li::marker { color: var(--text-faint); }
+.description-body strong, .description-body b { color: var(--text); font-weight: 600; }
+.desc-heading { font-size: var(--text-md); font-weight: 700; color: var(--text); margin: var(--space-4) 0 var(--space-2); }
+.desc-heading:first-child { margin-top: 0; }
+.description-body.desc-clamped { max-height: 560px; overflow: hidden; -webkit-mask-image: linear-gradient(to bottom, #000 85%, transparent); mask-image: linear-gradient(to bottom, #000 85%, transparent); }
+.desc-toggle { margin-top: var(--space-3); background: none; border: none; color: var(--blue-light); font-size: var(--text-sm); font-weight: 600; cursor: pointer; padding: 0; }
+.desc-toggle:hover { text-decoration: underline; }
+
 /* ── Focus ring — keyboard accessibility ──────────────────────────────────── */
 :focus-visible {
   outline: 2px solid var(--blue);
