@@ -59,6 +59,12 @@ def init_db() -> None:
             else:
                 con.execute("UPDATE jobs SET job_id = ? WHERE job_id = ?", (new, old))
         con.execute("""
+            CREATE TABLE IF NOT EXISTS db_meta (
+                key   TEXT PRIMARY KEY,
+                value TEXT
+            )
+        """)
+        con.execute("""
             CREATE TABLE IF NOT EXISTS filter_log (
                 job_id          TEXT PRIMARY KEY,
                 title           TEXT,
@@ -75,6 +81,44 @@ def init_db() -> None:
             )
         """)
         con.commit()
+
+    # One-time backfill: repair workplace-type labels written under the old
+    # "default to On-site" bug. Runs once (guarded by db_meta), re-inferring
+    # remote per the corrected per-source logic. Kept out of the schema block so
+    # its fetcher import stays lazy (avoids an import cycle).
+    _backfill_remote()
+
+
+def _get_meta(con, key: str) -> str | None:
+    row = con.execute("SELECT value FROM db_meta WHERE key = ?", (key,)).fetchone()
+    return row["value"] if row else None
+
+
+def _set_meta(con, key: str, value: str) -> None:
+    con.execute("INSERT OR REPLACE INTO db_meta (key, value) VALUES (?, ?)", (key, value))
+
+
+def _backfill_remote() -> None:
+    """Re-infer `remote` for existing rows using the corrected per-source logic.
+    Idempotent and one-shot (guarded by a db_meta flag)."""
+    from .fetcher import reinfer_remote
+    with _connect() as con:
+        if _get_meta(con, "remote_backfill_v1") == "done":
+            return
+        rows = con.execute(
+            "SELECT job_id, title, location, description, remote FROM jobs"
+        ).fetchall()
+        fixed = 0
+        for r in rows:
+            new = reinfer_remote(r["job_id"], r["title"] or "", r["location"] or "",
+                                 r["description"] or "", r["remote"] or "")
+            if new is not None:
+                con.execute("UPDATE jobs SET remote = ? WHERE job_id = ?", (new, r["job_id"]))
+                fixed += 1
+        _set_meta(con, "remote_backfill_v1", "done")
+        con.commit()
+        if fixed:
+            print(f"[migration] remote-backfill: corrected {fixed} job(s)")
 
 
 def already_seen(job_id: str) -> bool:

@@ -132,3 +132,58 @@ def test_get_pending_deduped_keeps_distinct(temp_db):
     _insert(temp_db, job_id="j3", title="Designer", company="Acme")
     rows = temp_db.get_pending_deduped()
     assert len(rows) == 3
+
+
+# ── remote-backfill migration ───────────────────────────────────────────────
+
+def _run_backfill(db):
+    """Reset the one-shot flag and re-run the remote backfill migration."""
+    with db._connect() as con:
+        con.execute("DELETE FROM db_meta WHERE key = 'remote_backfill_v1'")
+        con.commit()
+    db._backfill_remote()
+
+
+def test_remote_backfill_fixes_stale_labels(temp_db):
+    # Jobicy is remote-only: an On-site row with no keyword is a stale false default.
+    temp_db.insert_job(job_id="jc_1", url="http://x/1", title="Backend Engineer",
+                       company="X", location="", remote="On-site", experience="",
+                       description="Build things", posted_at=None, search_name="t")
+    # LinkedIn card with no workplace signal was falsely defaulted On-site → Unknown.
+    temp_db.insert_job(job_id="li_1", url="http://x/2", title="Software Engineer",
+                       company="Y", location="Berlin", remote="On-site", experience="",
+                       description="Write code", posted_at=None, search_name="t")
+
+    _run_backfill(temp_db)
+
+    assert temp_db.get_job("jc_1")["remote"] == "Remote"
+    assert temp_db.get_job("li_1")["remote"] == "Unknown"
+
+
+def test_remote_backfill_keeps_keyword_signals(temp_db):
+    # A row whose text carries a real remote keyword must be preserved/derived,
+    # not clobbered — even for a location-signal source.
+    temp_db.insert_job(job_id="gh_acme_1", url="http://x/3", title="Product Manager",
+                       company="Acme", location="Remote - US", remote="Remote", experience="",
+                       description="", posted_at=None, search_name="t")
+    # Greenhouse row with a named office location and no keyword stays On-site.
+    temp_db.insert_job(job_id="gh_acme_2", url="http://x/4", title="Designer",
+                       company="Acme", location="Berlin, Germany", remote="On-site", experience="",
+                       description="", posted_at=None, search_name="t")
+
+    _run_backfill(temp_db)
+
+    assert temp_db.get_job("gh_acme_1")["remote"] == "Remote"
+    assert temp_db.get_job("gh_acme_2")["remote"] == "On-site"
+
+
+def test_remote_backfill_is_idempotent(temp_db):
+    temp_db.insert_job(job_id="jc_9", url="http://x/9", title="Engineer",
+                       company="X", location="", remote="On-site", experience="",
+                       description="Build", posted_at=None, search_name="t")
+    _run_backfill(temp_db)
+    assert temp_db.get_job("jc_9")["remote"] == "Remote"
+    # A second run (without resetting the flag) changes nothing and doesn't error.
+    temp_db._backfill_remote()
+    assert temp_db.get_job("jc_9")["remote"] == "Remote"
+

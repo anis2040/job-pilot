@@ -1,10 +1,11 @@
 from __future__ import annotations
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable
 
 from .config import SearchConfig
-from .models import RawJob
+from .models import RawJob, RemoteType
+from .fetcher_utils import infer_remote
 from . import linkedin_fetcher
 from . import jobicy_fetcher
 from . import himalayas_fetcher
@@ -40,13 +41,18 @@ class Source:
     # Optional: scrape a single job's full description on demand from its URL.
     # None means the source already stores full descriptions at fetch time.
     describe: Callable[[str], str] | None = None
+    # Fallback workplace type when no remote/hybrid keyword is found. Remote-only
+    # boards default Remote; general boards default Unknown (don't guess On-site);
+    # location-signal boards default On-site only when a location is present
+    # (handled in the fetcher itself, so Unknown here).
+    remote_default: str = RemoteType.UNKNOWN
 
 
 # ── Single source of truth for every supported job source ──────────────────────
 SOURCE_REGISTRY: list[Source] = [
     Source("linkedin",          "li_",  "fetch_linkedin",          3, describe=linkedin_fetcher.fetch_description),
-    Source("jobicy",            "jc_",  "fetch_jobicy",            3),
-    Source("himalayas",         "hi_",  "fetch_himalayas",         2),
+    Source("jobicy",            "jc_",  "fetch_jobicy",            3, remote_default=RemoteType.REMOTE),
+    Source("himalayas",         "hi_",  "fetch_himalayas",         2, remote_default=RemoteType.REMOTE),
     Source("greenhouse",        "gh_",  "fetch_greenhouse",        3),
     Source("germantechjobs",    "gtj_", "fetch_germantechjobs",    3),
     Source("berlinstartupjobs", "bsj_", "fetch_berlinstartupjobs", 3),
@@ -84,6 +90,36 @@ def source_can_describe(job_id: str) -> bool:
     """True if this job's source supports on-demand full-description scraping."""
     s = _source_for_job_id(job_id)
     return bool(s and s.describe)
+
+
+def reinfer_remote(job_id: str, title: str, location: str, description: str,
+                   current: str) -> str | None:
+    """Re-derive the workplace type for a stored job using the corrected,
+    per-source logic. Returns the new value if it should change, else None.
+
+    Used by the one-time DB backfill (job.db.init_db) to repair rows that were
+    labelled with the old 'default to On-site' bug. Only touches rows whose
+    current value looks like that stale default; never overrides a value that a
+    real Remote/Hybrid keyword produced.
+    """
+    s = _source_for_job_id(job_id)
+    if s is None:
+        return None
+    # Keyword evidence in the stored text always wins (this is what the fetchers do).
+    kw = infer_remote(title or "", location or "", description or "",
+                      default=RemoteType.UNKNOWN)
+    if kw != RemoteType.UNKNOWN:
+        new = kw
+    else:
+        # No keyword: apply the source's corrected default. Location-signal
+        # boards (greenhouse/stepstone) treat a named location as On-site.
+        if s.remote_default == RemoteType.REMOTE:
+            new = RemoteType.REMOTE
+        elif s.id in ("greenhouse", "stepstone") and (location or "").strip():
+            new = RemoteType.ONSITE
+        else:
+            new = RemoteType.UNKNOWN
+    return new if new != current else None
 
 
 def fetch_description(job_id: str, job_url: str) -> str:
