@@ -844,7 +844,8 @@
     btn.textContent = isSaved ? "★ Saved" : "☆ Save";
     btn.title = empty ? "Set a filter to save this search"
               : isSaved ? "This search is saved — click to remove" : "Save this search";
-    btn.style.visibility = empty ? "hidden" : "";
+    btn.style.opacity = empty ? "0.35" : "";
+    btn.style.pointerEvents = empty ? "none" : "";
   }
 
   function _removeChip(kind, idx) {

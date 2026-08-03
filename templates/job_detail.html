@@ -74,7 +74,7 @@
   .description-body strong, .description-body b { color: var(--text); font-weight: 600; }
   .desc-heading { font-size: var(--text-md); font-weight: 700; color: var(--text); margin: var(--space-4) 0 var(--space-2); }
   .desc-heading:first-child { margin-top: 0; }
-  .description-body.desc-clamped { max-height: 340px; overflow: hidden; -webkit-mask-image: linear-gradient(to bottom, #000 78%, transparent); mask-image: linear-gradient(to bottom, #000 78%, transparent); }
+  .description-body.desc-clamped { max-height: 560px; overflow: hidden; -webkit-mask-image: linear-gradient(to bottom, #000 85%, transparent); mask-image: linear-gradient(to bottom, #000 85%, transparent); }
   .desc-toggle { margin-top: var(--space-3); background: none; border: none; color: var(--blue-light); font-size: var(--text-sm); font-weight: 600; cursor: pointer; padding: 0; }
   .desc-toggle:hover { text-decoration: underline; }
   .description-empty { color: var(--text-faint); font-style: italic; font-size: var(--text-base); padding: var(--space-5) 0; }
@@ -139,12 +139,18 @@
   .salary-value { font-size: var(--text-lg); font-weight: 700; color: var(--green); }
 
   /* Similar jobs card */
-  .similar-job { display: flex; flex-direction: column; gap: 3px; padding: var(--space-3) var(--space-2); margin: 0 calc(-1 * var(--space-2)); border-bottom: 1px solid var(--border-faint); border-radius: var(--radius-sm); cursor: pointer; transition: background var(--dur-fast) var(--ease-standard); text-decoration: none; }
-  .similar-job:last-child { border-bottom: none; }
-  .similar-job:hover { background: var(--bg-raised); }
-  .similar-job:hover .similar-job-title { color: var(--blue-light); }
+  /* ── Similar jobs (horizontal slider under the description) ── */
+  .similar-section { margin-top: var(--space-6); }
+  .similar-heading { font-size: var(--text-lg); font-weight: 700; color: var(--text-white); margin-bottom: var(--space-4); }
+  .similar-slider { display: flex; gap: var(--space-3); overflow-x: auto; padding-bottom: var(--space-2); scroll-snap-type: x proximity; scrollbar-width: thin; }
+  .similar-slider::-webkit-scrollbar { height: 8px; }
+  .similar-slider::-webkit-scrollbar-thumb { background: var(--border); border-radius: var(--radius-full); }
+  .similar-card-item { flex: 0 0 240px; scroll-snap-align: start; display: flex; flex-direction: column; gap: 5px; padding: var(--space-4); background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-lg); text-decoration: none; transition: border-color var(--dur-fast) var(--ease-standard), background var(--dur-fast) var(--ease-standard); }
+  .similar-card-item:hover { border-color: var(--blue-light); background: var(--bg-raised); }
+  .similar-card-item:hover .similar-job-title { color: var(--blue-light); }
   .similar-job-title { font-size: var(--text-base); font-weight: 600; color: var(--text); line-height: var(--leading-tight); }
-  .similar-job-meta  { font-size: var(--text-xs); color: var(--text-muted); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .similar-job-company { font-size: var(--text-sm); color: var(--text-soft); }
+  .similar-job-meta  { font-size: var(--text-xs); color: var(--text-muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: auto; }
 
   /* ── Responsive ── */
   @media (max-width: 768px) {
@@ -193,6 +199,12 @@
         <div class="skel-line skeleton" style="width:60%;height:13px"></div>
       </div>
     </div>
+
+    <!-- Similar jobs (horizontal slider) -->
+    <div class="similar-section" id="similar-card" style="display:none">
+      <h2 class="similar-heading">Similar Jobs</h2>
+      <div class="similar-slider" id="similar-card-body"></div>
+    </div>
   </div>
 
   <!-- Sidebar -->
@@ -238,12 +250,6 @@
       <div class="sidebar-card-body" id="timeline-card-body">
         <div class="skel-line skeleton" style="height:48px;border-radius:6px"></div>
       </div>
-    </div>
-
-    <!-- Similar jobs -->
-    <div class="sidebar-card" id="similar-card" style="display:none">
-      <div class="sidebar-card-header"><h3>Similar Jobs</h3></div>
-      <div class="sidebar-card-body" id="similar-card-body" style="gap:0;padding-top:var(--space-3);padding-bottom:var(--space-3)"></div>
     </div>
 
   </aside>
@@ -381,7 +387,7 @@ function _formatDescription(text) {
 
 function _setDescription(el, text) {
   const html = _formatDescription(text);
-  const long = _decodeEntities(text).length > 700;
+  const long = _decodeEntities(text).length > 1200;
   el.innerHTML = `<div class="description-body${long ? " desc-clamped" : ""}" id="desc-body">${html}</div>`
     + (long ? `<button class="desc-toggle" id="desc-toggle" onclick="toggleDescription()">Show more ▾</button>` : "");
 }
@@ -574,12 +580,12 @@ async function loadSimilarJobs() {
   if (!data.length) { card.style.display = "none"; return; }
   card.style.display = "";
   document.getElementById("similar-card-body").innerHTML = data.map(j => `
-    <a class="similar-job" href="/job/${j.job_id}">
+    <a class="similar-card-item" href="/job/${j.job_id}">
       <div class="similar-job-title">${escapeHtml(j.title)}</div>
+      <div class="similar-job-company">${escapeHtml(j.company)}</div>
       <div class="similar-job-meta">
-        <span>${escapeHtml(j.company)}</span>
-        ${(j.remote && j.remote !== "Unknown") ? `<span>·</span><span>${escapeHtml(j.remote)}</span>` : ""}
-        ${j.age    ? `<span>·</span><span>${escapeHtml(j.age)}</span>` : ""}
+        ${(j.remote && j.remote !== "Unknown") ? `<span>${escapeHtml(j.remote)}</span>` : ""}
+        ${j.age ? `<span>${escapeHtml(j.age)}</span>` : ""}
       </div>
     </a>`).join("");
 }
