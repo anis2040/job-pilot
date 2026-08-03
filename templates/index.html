@@ -129,10 +129,11 @@
 
   /* ── Master-detail split (desktop >=1200px) ── */
   .split-wrap { margin-top: var(--space-4); }
+  .jobs-col { display: flex; flex-direction: column; }
   .detail-panel { display: none; }
   @media (min-width: 1200px) {
     .split-wrap.split-active { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: var(--space-4); align-items: start; }
-    .split-wrap.split-active .jobs-list { margin-top: 0; }
+    .split-wrap.split-active .jobs-col { margin-top: 0; }
     /* Panel visual style — only shown (display:flex) when the wrap is active */
     .detail-panel {
       position: sticky; top: 72px;
@@ -207,6 +208,31 @@
   .match-badge.low  { background: var(--bg-raised); color: var(--text-faint); border: 1px solid var(--border); }
   .chip-missing { font-size: var(--text-xs); color: var(--yellow); cursor: default; }
   .chip-ready { display: inline-flex; align-items: center; gap: 3px; font-size: var(--text-xs); color: var(--green); }
+
+  /* ── Pagination ── */
+  .pagination-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .page-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 34px; height: 34px; padding: 0 8px;
+    border-radius: var(--radius);
+    font-size: var(--text-sm); font-weight: 600;
+    border: 1px solid var(--border);
+    background: none;
+    color: var(--text-soft);
+    cursor: pointer;
+    transition: all var(--dur-fast) var(--ease-standard);
+  }
+  .page-btn:hover { border-color: var(--blue-light); color: var(--text); background: var(--bg-raised); }
+  .page-btn.active { background: var(--blue-dim); border-color: var(--blue); color: var(--blue-light); }
+  .page-btn:disabled { opacity: 0.35; cursor: default; pointer-events: none; }
+  .page-ellipsis { font-size: var(--text-sm); color: var(--text-faint); padding: 0 4px; user-select: none; }
 
   /* ── Skeleton rows ── */
   .jobs-skeleton { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; margin-top: var(--space-4); }
@@ -367,7 +393,10 @@
 
 <!-- Job list + detail split -->
 <div class="split-wrap" id="split-wrap">
-  <div id="jobs-list" class="jobs-list" style="display:none"></div>
+  <div class="jobs-col">
+    <div id="jobs-list" class="jobs-list" style="display:none"></div>
+    <div id="pagination-bar" class="pagination-bar" style="display:none"></div>
+  </div>
   <aside class="detail-panel" id="detail-panel" aria-live="polite"></aside>
 </div>
 
@@ -441,6 +470,9 @@
 <script>
   let currentStatus = "pending";
   let jobs = [];
+  let filteredJobs = [];
+  let currentPage = 1;
+  const PAGE_SIZE = 25;
   let REMOTE_CSS = {};
   let COUNTS = { pending: 0, applied: 0, skipped: 0 };
   const SPLIT_MIN = 1200;
@@ -450,11 +482,6 @@
   async function loadConstants() {
     const data = await fetch("/api/constants").then(r => r.json());
     REMOTE_CSS = data.remote_css || {};
-  }
-
-  function safeUrl(u) {
-    const s = String(u ?? "");
-    return /^https?:\/\//i.test(s) || s.startsWith("/") ? escapeHtml(s) : "#";
   }
 
   // ── Tab switching ─────────────────────────────────────────────────────────
@@ -593,14 +620,16 @@
 
   // ── Render list ───────────────────────────────────────────────────────────
   function renderJobs(data) {
-    const list    = document.getElementById("jobs-list");
-    const skeleton = document.getElementById("skeleton-grid");
+    filteredJobs = data;
+    const list      = document.getElementById("jobs-list");
+    const skeleton  = document.getElementById("skeleton-grid");
     const emptyState = document.getElementById("empty-state");
 
     skeleton.style.display = "none";
 
     if (!data.length) {
       list.style.display = "none";
+      document.getElementById("pagination-bar").style.display = "none";
       emptyState.style.display = "block";
       if (selectedJobId) closePanel();
       const msgs = {
@@ -618,16 +647,82 @@
 
     emptyState.style.display = "none";
     list.style.display = "flex";
-    list.innerHTML = data.map(renderRow).join("");
-    // Re-apply selection highlight after re-render; close panel if job vanished
+    renderPage();
+  }
+
+  function renderPage() {
+    const list = document.getElementById("jobs-list");
+    if (!list) return;
+    const totalPages = Math.ceil(filteredJobs.length / PAGE_SIZE);
+    currentPage = Math.max(1, Math.min(currentPage, totalPages));
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const pageJobs = filteredJobs.slice(start, start + PAGE_SIZE);
+
+    list.innerHTML = pageJobs.map(renderRow).join("");
+
+    // Re-apply selection highlight; close panel if job not on this page
     if (selectedJobId) {
-      const stillHere = data.some(j => j.job_id === selectedJobId);
-      if (stillHere) {
+      const onPage = pageJobs.some(j => j.job_id === selectedJobId);
+      if (onPage) {
         document.getElementById(`card-${selectedJobId}`)?.classList.add("selected");
       } else {
         closePanel();
       }
     }
+
+    renderPagination(totalPages);
+  }
+
+  function renderPagination(totalPages) {
+    const bar = document.getElementById("pagination-bar");
+    if (!bar) return;
+    if (totalPages <= 1) { bar.style.display = "none"; bar.innerHTML = ""; return; }
+
+    const p = currentPage;
+    let html = "";
+
+    html += `<button class="page-btn" onclick="goPage(${p - 1})" ${p === 1 ? "disabled" : ""} aria-label="Previous page">‹</button>`;
+
+    const pages = paginationWindows(p, totalPages);
+    let prevWasEllipsis = false;
+    for (const pg of pages) {
+      if (pg === "…") {
+        if (!prevWasEllipsis) html += `<span class="page-ellipsis">…</span>`;
+        prevWasEllipsis = true;
+      } else {
+        prevWasEllipsis = false;
+        html += `<button class="page-btn${pg === p ? " active" : ""}" onclick="goPage(${pg})" aria-label="Page ${pg}" ${pg === p ? 'aria-current="page"' : ""}>${pg}</button>`;
+      }
+    }
+
+    html += `<button class="page-btn" onclick="goPage(${p + 1})" ${p === totalPages ? "disabled" : ""} aria-label="Next page">›</button>`;
+
+    bar.innerHTML = html;
+    bar.style.display = "flex";
+  }
+
+  function paginationWindows(current, total) {
+    if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+    const pages = new Set([1, total, current]);
+    for (let d = 1; d <= 2; d++) {
+      if (current - d >= 1) pages.add(current - d);
+      if (current + d <= total) pages.add(current + d);
+    }
+    const sorted = [...pages].sort((a, b) => a - b);
+    const result = [];
+    let prev = 0;
+    for (const pg of sorted) {
+      if (pg - prev > 1) result.push("…");
+      result.push(pg);
+      prev = pg;
+    }
+    return result;
+  }
+
+  function goPage(n) {
+    currentPage = n;
+    renderPage();
+    document.getElementById("jobs-list")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   function rowClick(e, job_id) {
@@ -963,6 +1058,7 @@
     try { _lsSet(_LS_LAST, getSearchState()); } catch {}
     updateSaveButton();
 
+    currentPage = 1;
     renderJobs(filtered);
   }
 
@@ -1074,6 +1170,7 @@
     list.style.display = "none";
     empty.style.display = "none";
     skeleton.style.display = "flex";
+    document.getElementById("pagination-bar").style.display = "none";
   }
 
   async function pollFetch() {
