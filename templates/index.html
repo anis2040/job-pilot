@@ -105,6 +105,7 @@
   .filter-clear:hover { color: var(--text); }
   .filter-save { font-size: var(--text-sm); color: var(--text-muted); background: none; border: none; cursor: pointer; padding: 0 var(--space-2); white-space: nowrap; }
   .filter-save:hover { color: var(--blue-light); }
+  .filter-save.is-saved { color: var(--blue-light); font-weight: 600; }
   /* Saved + recent search chips */
   .search-chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-8); }
   .search-chips-label { font-size: var(--text-xs); color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; margin-right: 2px; }
@@ -810,15 +811,40 @@
     renderSearchChips();
   }
 
+  // The Save button is a toggle: save the current filter state, or un-save it
+  // if it's already saved. The button reflects saved/unsaved state.
   function saveCurrentSearch() {
     const s = getSearchState();
     if (_isEmptyState(s)) { showToast("Set a filter or search term first.", "err"); return; }
     const key = JSON.stringify(s);
-    let saved = _lsGet(_LS_SAVED).filter(r => JSON.stringify(r) !== key);
-    saved.unshift(s);
-    _lsSet(_LS_SAVED, saved.slice(0, 12));
+    let saved = _lsGet(_LS_SAVED);
+    const already = saved.some(r => JSON.stringify(r) === key);
+    if (already) {
+      saved = saved.filter(r => JSON.stringify(r) !== key);
+      _lsSet(_LS_SAVED, saved);
+      showToast("Removed from saved searches.");
+    } else {
+      saved = [s, ...saved.filter(r => JSON.stringify(r) !== key)].slice(0, 12);
+      _lsSet(_LS_SAVED, saved);
+      showToast("Search saved.");
+    }
     renderSearchChips();
-    showToast("Search saved.");
+    updateSaveButton();
+  }
+
+  // Reflect whether the current filter state is already a saved search.
+  function updateSaveButton() {
+    const btn = document.getElementById("filter-save");
+    if (!btn) return;
+    const s = getSearchState();
+    const empty = _isEmptyState(s);
+    const key = JSON.stringify(s);
+    const isSaved = _lsGet(_LS_SAVED).some(r => JSON.stringify(r) === key);
+    btn.classList.toggle("is-saved", isSaved);
+    btn.textContent = isSaved ? "★ Saved" : "☆ Save";
+    btn.title = empty ? "Set a filter to save this search"
+              : isSaved ? "This search is saved — click to remove" : "Save this search";
+    btn.style.visibility = empty ? "hidden" : "";
   }
 
   function _removeChip(kind, idx) {
@@ -827,6 +853,7 @@
     arr.splice(idx, 1);
     _lsSet(lsKey, arr);
     renderSearchChips();
+    updateSaveButton();
   }
 
   function renderSearchChips() {
@@ -927,6 +954,7 @@
 
     // Remember the active filter state so a reload restores it (not defaults).
     try { _lsSet(_LS_LAST, getSearchState()); } catch {}
+    updateSaveButton();
 
     renderJobs(filtered);
   }
