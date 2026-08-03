@@ -282,11 +282,18 @@ function selectProvider(p) {
       </p>
       <div class="input-group" style="margin-top:0">
         <label>Groq API Key</label>
-        <input type="password" id="groq-key-input" placeholder="gsk_..." value="${keySet ? '••••••••••••••••' : ''}">
+        <div class="input-row" style="display:flex;gap:6px;align-items:center">
+          <input type="password" id="groq-key-input" placeholder="gsk_..." value="${keySet ? (status.groq_key || '••••••••••••••••') : ''}" style="flex:1">
+          <button class="btn btn-ghost btn-sm" type="button" id="eye-groq" title="Show/hide key" style="padding:5px 8px" onclick="toggleSetupKey('groq')">👁</button>
+        </div>
         <div class="hint">Your key is saved locally in .env and never shared.</div>
       </div>
       <div id="groq-key-alert"></div>
-      <button class="btn btn-primary btn-sm" onclick="saveGroqKey()">Save API Key</button>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+        <button class="btn btn-primary btn-sm" onclick="saveGroqKey()">Save API Key</button>
+        <button class="btn btn-ghost btn-sm" onclick="testSetupProvider('groq')" id="test-groq">Test connection</button>
+        <span id="test-groq-result" style="font-size:0.8rem"></span>
+      </div>
     </div>`;
     if (keySet) markProviderReady();
 
@@ -305,6 +312,10 @@ function selectProvider(p) {
          <p style="font-size:0.76rem;color:#94a3b8;margin:6px 0 10px">Claude uses account-based authentication — no API key needed. Clicking the button below opens your browser to sign in to <a href="https://claude.ai" target="_blank" style="color:#60a5fa">claude.ai</a>. Claude Code will store your login securely and use it automatically from then on.</p>
          <button class="btn btn-primary btn-sm" id="btn-claude-login" onclick="claudeLogin()">Open login in browser</button>
          <div id="claude-login-status" style="margin-top:8px"></div>
+         <div style="display:flex;gap:8px;align-items:center;margin-top:10px">
+           <button class="btn btn-ghost btn-sm" onclick="testSetupProvider('claude')" id="test-claude">Test connection</button>
+           <span id="test-claude-result" style="font-size:0.8rem"></span>
+         </div>
        </div>
        <div id="claude-login-confirm" style="display:none;margin-top:10px">
          <div class="alert alert-ok" style="margin-bottom:8px">✓ Browser opened — complete the login there, then click below.</div>
@@ -326,11 +337,18 @@ function selectProvider(p) {
        </div>`) +
       `<div class="input-group" style="margin-top:0">
          <label>Gemini API Key <a href="https://aistudio.google.com/apikey" target="_blank" style="color:#60a5fa;font-size:0.72rem;margin-left:6px">Get a free key at Google AI Studio ↗</a></label>
-         <input type="password" id="gemini-key-input" placeholder="AIza…" value="${keySet ? '••••••••••••••••' : ''}">
+         <div class="input-row" style="display:flex;gap:6px;align-items:center">
+           <input type="password" id="gemini-key-input" placeholder="AIza…" value="${keySet ? (status.gemini_key || '••••••••••••••••') : ''}" style="flex:1">
+           <button class="btn btn-ghost btn-sm" type="button" id="eye-gemini" title="Show/hide key" style="padding:5px 8px" onclick="toggleSetupKey('gemini')">👁</button>
+         </div>
          <div class="hint">Free tier — no credit card required. Your key is saved locally and never shared.</div>
        </div>
        <div id="key-alert"></div>
-       <button class="btn btn-primary btn-sm" onclick="saveGeminiKey()">Save API Key</button>`;
+       <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+         <button class="btn btn-primary btn-sm" onclick="saveGeminiKey()">Save API Key</button>
+         <button class="btn btn-ghost btn-sm" onclick="testSetupProvider('gemini')" id="test-gemini">Test connection</button>
+         <span id="test-gemini-result" style="font-size:0.8rem"></span>
+       </div>`;
     if (installed && keySet) markProviderReady();
   }
 }
@@ -378,6 +396,43 @@ async function installCLI(provider) {
   } else {
     btn.disabled = false;
     btn.innerHTML = "Retry";
+  }
+}
+
+function toggleSetupKey(provider) {
+  const inp = document.getElementById(`${provider}-key-input`);
+  if (!inp) return;
+  const showing = inp.type === "password";
+  inp.type = showing ? "text" : "password";
+  const eye = document.getElementById(`eye-${provider}`);
+  if (eye) eye.textContent = showing ? "🙈" : "👁";
+}
+
+async function testSetupProvider(provider) {
+  const btn = document.getElementById(`test-${provider}`);
+  const out = document.getElementById(`test-${provider}-result`);
+  // API keys use "anthropic"/"groq"/"gemini"; wizard uses "claude" for Anthropic.
+  const apiProvider = provider === "claude" ? "anthropic" : provider;
+  if (btn) { btn.disabled = true; }
+  if (out) { out.style.color = "#94a3b8"; out.innerHTML = `<span class="spinner"></span> Testing…`; }
+  try {
+    const res = await fetch("/api/ai-settings/test", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ provider: apiProvider }),
+    });
+    const data = await res.json();
+    if (out) {
+      out.style.color = data.ok ? "#4ade80" : "#f87171";
+      out.textContent = data.ok
+        ? `✓ Connected${data.latency_ms ? ` (${data.latency_ms}ms)` : ""}`
+        : `✗ ${data.error || "Connection failed."}`;
+    }
+    // A successful test proves the provider works — let the user proceed.
+    if (data.ok) markProviderReady();
+  } catch (e) {
+    if (out) { out.style.color = "#f87171"; out.textContent = "✗ Request failed."; }
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }
 

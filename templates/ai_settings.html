@@ -142,7 +142,10 @@ function toggleCard(pid) {
 function toggleKeyVisibility(pid) {
   const inp = document.getElementById(`${pid}-key-input`);
   if (!inp) return;
-  inp.type = inp.type === "password" ? "text" : "password";
+  const showing = inp.type === "password";
+  inp.type = showing ? "text" : "password";
+  const eye = document.getElementById(`eye-${pid}`);
+  if (eye) eye.textContent = showing ? "🙈" : "👁";
 }
 
 async function load() {
@@ -171,7 +174,14 @@ async function load() {
 
   for (const [provider, info] of Object.entries(data.providers)) {
     const inp = document.getElementById(`${provider}-key-input`);
-    if (inp) inp.value = info.key_set ? "••••••••••••••••" : "";
+    if (inp) {
+      // Hold the real key (so the eye toggle can reveal it) but keep it masked
+      // as a password field. If only CLI-detected (no key string), show bullets.
+      inp.value = info.key || (info.key_set ? "••••••••••••••••" : "");
+      inp.type = "password";
+      const eye = document.getElementById(`eye-${provider}`);
+      if (eye) eye.textContent = "👁";
+    }
 
     const sel = document.getElementById(`${provider}-model`);
     if (sel) {

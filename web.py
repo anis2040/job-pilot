@@ -624,6 +624,14 @@ def api_ai_settings_get():
             models = [current] + models
         return models
 
+    # Actual stored keys, so the UI's show/hide (eye) toggle can reveal them.
+    # Local single-user app — keys already live in plaintext .env. Only real
+    # env keys are returned; CLI-detected availability (claude/gemini) has no
+    # key to show.
+    groq_key      = os.environ.get("GROQ_API_KEY", "")
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN") or ""
+    gemini_key    = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or ""
+
     return jsonify({
         "active_provider":    active,
         "preferred_provider": preferred or None,
@@ -632,18 +640,21 @@ def api_ai_settings_get():
                 "configured": groq_ok,
                 "model":   _get_model("groq"),
                 "key_set": bool(os.environ.get("GROQ_API_KEY")),
+                "key":     groq_key,
                 "models":  _models_for("groq"),
             },
             "anthropic": {
                 "configured": anthropic_ok,
                 "model":   _get_model("anthropic"),
                 "key_set": bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN") or shutil.which("claude")),
+                "key":     anthropic_key,
                 "models":  _models_for("anthropic"),
             },
             "gemini": {
                 "configured": gemini_ok,
                 "model":   _get_model("gemini"),
                 "key_set": bool(os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or shutil.which("gemini")),
+                "key":     gemini_key,
                 "models":  _models_for("gemini"),
             },
         }
@@ -777,6 +788,9 @@ def api_setup_status():
         "has_profile": bool(profile_p and profile_p.exists()),
         "gemini_key_set": bool(os.environ.get("GEMINI_API_KEY")),
         "groq_key_set": bool(os.environ.get("GROQ_API_KEY")),
+        # Actual keys so the wizard's show/hide (eye) toggle can reveal them.
+        "gemini_key": os.environ.get("GEMINI_API_KEY", ""),
+        "groq_key": os.environ.get("GROQ_API_KEY", ""),
     })
 
 
