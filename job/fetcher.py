@@ -102,3 +102,45 @@ def fetch_description(job_id: str, job_url: str) -> str:
         return s.describe(job_url) or ""
     except Exception:
         return ""
+
+
+# ── Provider registry (Phase 1) ────────────────────────────────────────────────
+# Populate the object-based ProviderRegistry from SOURCE_REGISTRY so new code can
+# use the JobProvider interface (registry.by_prefix, .with_capability, enable/
+# disable) while the legacy exports above keep working unchanged. Each source is
+# wrapped in a FunctionProvider that delegates to this module's namespace, so
+# test monkeypatching of `fetch_<x>` still flows through.
+from .providers import registry, FunctionProvider, ProviderMeta, Capability  # noqa: E402
+
+# Declared capabilities per source. FULL_DESCRIPTION is derived from `describe`;
+# the rest reflect what each fetcher actually populates (see docs/PROVIDER_ARCHITECTURE.md).
+_CAPS: dict[str, set] = {
+    "linkedin":          {Capability.SEARCH_REMOTE_FILTER, Capability.FULL_DESCRIPTION, Capability.POSTED_DATE},
+    "jobicy":            {Capability.SALARY_DATA, Capability.POSTED_DATE},
+    "himalayas":         {Capability.SALARY_DATA, Capability.POSTED_DATE},
+    "greenhouse":        {Capability.POSTED_DATE},
+    "germantechjobs":    {Capability.POSTED_DATE},
+    "berlinstartupjobs": {Capability.POSTED_DATE},
+    "stepstone":         {Capability.FULL_DESCRIPTION},
+    "heyjobs":           set(),
+}
+
+
+def _register_sources() -> None:
+    for s in SOURCE_REGISTRY:
+        if registry.get(s.id):        # idempotent — tolerate module reload
+            continue
+        caps = set(_CAPS.get(s.id, set()))
+        if s.describe:
+            caps.add(Capability.FULL_DESCRIPTION)
+        meta = ProviderMeta(id=s.id, prefix=s.prefix,
+                            default_pages=s.default_pages,
+                            capabilities=frozenset(caps))
+        # search_fn resolves through this module's namespace at call time, so a
+        # test that monkeypatches ft.fetch_linkedin is still honored.
+        fn_name = s.fetch_fn
+        search_fn = (lambda name: (lambda search: getattr(sys.modules[__name__], name)(search)))(fn_name)
+        registry.register(FunctionProvider(meta, search_fn, describe_fn=s.describe))
+
+
+_register_sources()

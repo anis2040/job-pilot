@@ -471,13 +471,16 @@ green tests.
 
 - **Phase 0 — Canonical model (adapter).** Introduce `CanonicalJob` (Pydantic)
   alongside `RawJob`; write `RawJob ↔ CanonicalJob` + `CanonicalJob ↔ DB row`
-  adapters. No behavior change. Tests: round-trip adapters.
-- **Phase 1 — Provider ABC, keep functions.** Add `JobProvider` base +
-  `Capability` enum. Wrap each existing `fetch_<x>` in a thin
-  `class XProvider(JobProvider)` whose `search()` calls the current function and
-  `normalize()` reuses today's mapping. `SOURCE_REGISTRY` becomes
-  `ProviderRegistry.discover()`. `source_can_describe` → capability query.
-  Zero user-facing change; 196 tests stay green.
+  adapters. No behavior change. Tests: round-trip adapters. *(Deferred — nothing
+  consumes a canonical model yet; do this when the orchestrator lands in Phase 2.)*
+- **✅ Phase 1 — Provider ABC, keep functions. DONE.** Added `JobProvider` +
+  `FunctionProvider` + `Capability` in `job/providers/`, and a `ProviderRegistry`
+  populated from `SOURCE_REGISTRY`. Existing `fetch_<x>` functions are wrapped
+  (not rewritten); the registry's `search_fn` resolves through the module
+  namespace so test monkeypatching still works. All legacy exports (`SOURCES`,
+  `_SOURCE_TO_FN`, `fetch_search`, `fetch_description`, `source_can_describe`)
+  unchanged. Capabilities declared per source; `by_prefix` / `with_capability` /
+  enable-disable available. Zero user-facing change; 210 tests green.
 - **Phase 2 — Orchestrator (sequential first).** Extract selection → normalize
   → dedup → rank → filter → paginate into `SearchOrchestrator`, initially
   **sequential** (matches today) but with per-provider try/except → partial
