@@ -80,6 +80,8 @@ def test_smoke_job_lifecycle(client):
     # appears in pending
     pending = client.get("/api/jobs?status=pending").get_json()
     assert any(j["job_id"] == "li_smoke" for j in pending)
+    # every serialized job carries a `match` key (None when unscoreable — never a fake 0%)
+    assert all("match" in j for j in pending)
 
     # detail page + detail API both work
     assert client.get("/job/li_smoke").status_code == 200

@@ -103,6 +103,16 @@
   .filter-results { font-size: var(--text-sm); color: var(--text-muted); white-space: nowrap; }
   .filter-clear { font-size: var(--text-sm); color: var(--blue-light); background: none; border: none; cursor: pointer; padding: 0; text-decoration: underline; display: none; }
   .filter-clear:hover { color: var(--text); }
+  .filter-save { font-size: var(--text-sm); color: var(--text-muted); background: none; border: none; cursor: pointer; padding: 0 var(--space-2); white-space: nowrap; }
+  .filter-save:hover { color: var(--blue-light); }
+  /* Saved + recent search chips */
+  .search-chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-8); }
+  .search-chips-label { font-size: var(--text-xs); color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; margin-right: 2px; }
+  .search-chip { display: inline-flex; align-items: center; gap: 5px; font-size: var(--text-xs); color: var(--text-soft); background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--radius-full); padding: 3px 10px; cursor: pointer; transition: border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard); }
+  .search-chip:hover { border-color: var(--blue-light); color: var(--text); }
+  .search-chip.saved { color: var(--blue-light); }
+  .search-chip .chip-x { color: var(--text-faint); font-weight: 700; padding-left: 2px; }
+  .search-chip .chip-x:hover { color: var(--red); }
 
   /* ── Job list ── */
   .page-body { padding: 0 var(--space-8) var(--space-8); }
@@ -190,6 +200,13 @@
   .job-row-posted { font-size: var(--text-xs); color: var(--text-muted); white-space: nowrap; }
   .source-badge { font-size: var(--text-xs); color: var(--text-faint); background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1px 7px; font-family: "SF Mono", monospace; }
   .job-row-actions { display: flex; gap: var(--space-2); align-items: center; }
+  /* Honest match/status badges */
+  .match-badge { font-size: var(--text-xs); font-weight: 700; border-radius: var(--radius-full); padding: 1px 9px; white-space: nowrap; cursor: default; }
+  .match-badge.high { background: var(--green-bg, #0d2e1a); color: var(--green); border: 1px solid var(--green-border, transparent); }
+  .match-badge.mid  { background: var(--blue-dim); color: var(--blue-light); }
+  .match-badge.low  { background: var(--bg-raised); color: var(--text-faint); border: 1px solid var(--border); }
+  .chip-missing { font-size: var(--text-xs); color: var(--yellow); cursor: default; }
+  .chip-ready { display: inline-flex; align-items: center; gap: 3px; font-size: var(--text-xs); color: var(--green); }
 
   /* ── Skeleton rows ── */
   .jobs-skeleton { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; margin-top: var(--space-4); }
@@ -221,6 +238,7 @@
   .profile-menu-divider { height: 1px; background: var(--border-faint); margin: 4px 0; }
 
   /* ── Settings modal ── */
+  .settings-intro { font-size: var(--text-sm); color: var(--text-muted); line-height: var(--leading-normal); margin-bottom: var(--space-4); }
   .settings-section h3 { font-size: var(--text-sm); font-weight: 700; color: var(--blue-light); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
   .settings-section h3 small { font-size: var(--text-xs); color: var(--text-faint); font-weight: 400; text-transform: none; letter-spacing: 0; }
 
@@ -296,9 +314,9 @@
   <span id="fetch-progress" class="fetch-msg" style="display:none"></span>
   <span class="save-notice hidden" id="header-save-notice">✓ Saved</span>
   <div class="search-input-wrap">
-    <input type="text" id="search-input" placeholder="Search jobs…" oninput="applyFiltersAndSort()" aria-label="Search jobs">
+    <input type="text" id="search-input" placeholder="Search jobs…" oninput="applyFiltersAndSort()" onchange="captureRecent()" aria-label="Search jobs">
   </div>
-  <button class="btn btn-ghost btn-sm" onclick="openSettings()">⚙ Search settings</button>
+  <button class="btn btn-ghost btn-sm" onclick="openSettings()">⚙ Fetch settings</button>
 </div>
 
 <!-- Filter bar -->
@@ -312,14 +330,14 @@
   <div class="filter-divider"></div>
   <div class="filter-group">
     <span class="filter-label">Source</span>
-    <select class="filter-select" id="filter-source" aria-label="Filter by source" onchange="applyFiltersAndSort()">
+    <select class="filter-select" id="filter-source" aria-label="Filter by source" onchange="applyFiltersAndSort();captureRecent()">
       <option value="">All sources</option>
     </select>
   </div>
   <div class="filter-divider"></div>
   <div class="filter-group">
     <span class="filter-label">Posted</span>
-    <select class="filter-select" id="filter-posted" aria-label="Filter by posting date" onchange="applyFiltersAndSort()">
+    <select class="filter-select" id="filter-posted" aria-label="Filter by posting date" onchange="applyFiltersAndSort();captureRecent()">
       <option value="">Any time</option>
       <option value="1">Past 24 hours</option>
       <option value="7">Past week</option>
@@ -329,7 +347,7 @@
   <div class="filter-divider"></div>
   <div class="filter-group">
     <span class="filter-label">Sort</span>
-    <select class="filter-select" id="filter-sort" aria-label="Sort jobs" onchange="applyFiltersAndSort()">
+    <select class="filter-select" id="filter-sort" aria-label="Sort jobs" onchange="applyFiltersAndSort();captureRecent()">
       <option value="posted">Posted date</option>
       <option value="newest">Recently fetched</option>
       <option value="oldest">Oldest fetched</option>
@@ -339,8 +357,12 @@
   </div>
   <div class="filter-spacer"></div>
   <span class="filter-results" id="filter-results"></span>
+  <button class="filter-save" id="filter-save" onclick="saveCurrentSearch()" title="Save this search">☆ Save</button>
   <button class="filter-clear" id="filter-clear" onclick="clearFilters()">Clear filters</button>
 </div>
+
+<!-- Saved & recent searches -->
+<div class="search-chips" id="search-chips" style="display:none"></div>
 
 <!-- Job list + detail split -->
 <div class="split-wrap" id="split-wrap">
@@ -373,10 +395,11 @@
 <div class="modal-backdrop" id="settings-modal" onclick="closeSettingsOnBackdrop(event)">
   <div class="modal">
     <div class="modal-header">
-      <h2>⚙ Search Settings</h2>
+      <h2>⚙ Fetch Settings</h2>
       <button class="modal-close" onclick="closeSettings()" aria-label="Close">✕</button>
     </div>
     <div class="modal-body">
+      <p class="settings-intro">Controls what gets scraped from job boards. Filtering the jobs you already have is done from the toolbar above.</p>
       <div class="settings-section">
         <h3>Search Sources</h3>
         <div id="searches-list"></div>
@@ -499,20 +522,41 @@
     return `<button class="btn btn-sm btn-ghost" onclick="setStatus('${job.job_id}','pending')">↩ Restore</button>`;
   }
 
+  // Honest, deterministic badges built only from real data (no fabrication).
+  function matchBadge(job) {
+    const m = job.match;
+    if (!m || typeof m.score !== "number") return "";  // no description -> no badge (not a fake 0%)
+    const cls = m.score >= 75 ? "high" : m.score >= 40 ? "mid" : "low";
+    const tip = m.matched && m.matched.length ? `Matches your skills: ${m.matched.join(", ")}` : "No matching skills in your profile";
+    return `<span class="match-badge ${cls}" title="${escapeHtml(tip)}">${m.score}% match</span>`;
+  }
+  function metaBadges(job) {
+    const out = [];
+    const m = job.match;
+    if (m && m.missing && m.missing.length) {
+      out.push(`<span class="chip-missing" title="In the job, not in your profile: ${escapeHtml(m.missing.join(", "))}">${m.missing.length} to learn</span>`);
+    }
+    if (job.resume_status === "done") out.push(`<span class="chip-ready">📄 CV ready</span>`);
+    if (job.cl_status === "done") out.push(`<span class="chip-ready">✉ Letter ready</span>`);
+    return out.join("");
+  }
+
   function renderRow(job) {
     const metaParts = [
       remoteTag(job.remote),
       job.location ? `<span class="job-meta-sep">·</span><span class="job-meta-tag">📍 ${escapeHtml(job.location)}</span>` : "",
       job.experience ? `<span class="job-meta-sep">·</span><span class="job-meta-tag">${escapeHtml(job.experience)}</span>` : "",
     ].filter(Boolean).join("");
+    const extraBadges = metaBadges(job);
 
     return `<div class="job-row" id="card-${job.job_id}" tabindex="0" role="link" aria-label="${escapeHtml(job.title)} at ${escapeHtml(job.company)}" onclick="rowClick(event,'${job.job_id}')" onkeydown="rowKeydown(event,'${job.job_id}')" style="cursor:pointer">
       <div class="job-row-left">
         <div class="job-row-title-line">
           <span class="job-row-title"><a href="${safeUrl(job.url)}" target="_blank" rel="noopener">${escapeHtml(job.title)}</a></span>
           <span class="job-row-company">${escapeHtml(job.company)}</span>
+          ${matchBadge(job)}
         </div>
-        <div class="job-row-meta">${metaParts}</div>
+        <div class="job-row-meta">${metaParts}${extraBadges ? `<span class="job-meta-sep">·</span>${extraBadges}` : ""}</div>
         <div class="job-row-docs" id="docs-${job.job_id}">
           ${resumeSlot(job)}
           ${clSlot(job)}
@@ -668,6 +712,7 @@
     const active = el.classList.toggle("active");
     el.setAttribute("aria-pressed", active ? "true" : "false");
     applyFiltersAndSort();
+    captureRecent();
   }
 
   function clearFilters() {
@@ -678,6 +723,104 @@
     document.getElementById("search-input").value = "";
     applyFiltersAndSort();
   }
+
+  // ── Saved & recent searches (localStorage-backed) ─────────────────────────
+  const _LS_SAVED = "jobpilot.savedSearches";
+  const _LS_RECENT = "jobpilot.recentSearches";
+
+  function _lsGet(key) {
+    try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; }
+  }
+  function _lsSet(key, val) {
+    try { localStorage.setItem(key, JSON.stringify(val)); } catch { /* private mode: ignore */ }
+  }
+
+  // Snapshot the current filter/search state.
+  function getSearchState() {
+    return {
+      q: document.getElementById("search-input")?.value || "",
+      remote: [...document.querySelectorAll(".filter-chip.active[data-filter='remote']")].map(c => c.dataset.value),
+      source: document.getElementById("filter-source")?.value || "",
+      posted: document.getElementById("filter-posted")?.value || "",
+      sort: document.getElementById("filter-sort")?.value || "posted",
+    };
+  }
+
+  function applySearchState(s) {
+    document.getElementById("search-input").value = s.q || "";
+    document.querySelectorAll(".filter-chip[data-filter='remote']").forEach(c => {
+      const on = (s.remote || []).includes(c.dataset.value);
+      c.classList.toggle("active", on);
+      c.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    document.getElementById("filter-source").value = s.source || "";
+    document.getElementById("filter-posted").value = s.posted || "";
+    document.getElementById("filter-sort").value = s.sort || "posted";
+    applyFiltersAndSort();
+  }
+
+  // Human-readable label for a state (for chips).
+  function searchStateLabel(s) {
+    const parts = [];
+    if (s.q) parts.push(`"${s.q}"`);
+    if (s.remote && s.remote.length) parts.push(s.remote.join("/"));
+    if (s.source) parts.push(s.source);
+    if (s.posted) parts.push({ "1": "24h", "7": "1w", "30": "1mo" }[s.posted] || s.posted);
+    return parts.join(" · ") || "All jobs";
+  }
+
+  function _isEmptyState(s) {
+    return !s.q && !(s.remote && s.remote.length) && !s.source && !s.posted && (s.sort === "posted");
+  }
+
+  // Record a non-empty state into the recent ring buffer (deduped, last 6).
+  function captureRecent() {
+    const s = getSearchState();
+    if (_isEmptyState(s)) return;
+    const key = JSON.stringify(s);
+    let recent = _lsGet(_LS_RECENT).filter(r => JSON.stringify(r) !== key);
+    recent.unshift(s);
+    recent = recent.slice(0, 6);
+    _lsSet(_LS_RECENT, recent);
+    renderSearchChips();
+  }
+
+  function saveCurrentSearch() {
+    const s = getSearchState();
+    if (_isEmptyState(s)) { showToast("Set a filter or search term first.", "err"); return; }
+    const key = JSON.stringify(s);
+    let saved = _lsGet(_LS_SAVED).filter(r => JSON.stringify(r) !== key);
+    saved.unshift(s);
+    _lsSet(_LS_SAVED, saved.slice(0, 12));
+    renderSearchChips();
+    showToast("Search saved.");
+  }
+
+  function _removeChip(kind, idx) {
+    const lsKey = kind === "saved" ? _LS_SAVED : _LS_RECENT;
+    const arr = _lsGet(lsKey);
+    arr.splice(idx, 1);
+    _lsSet(lsKey, arr);
+    renderSearchChips();
+  }
+
+  function renderSearchChips() {
+    const wrap = document.getElementById("search-chips");
+    if (!wrap) return;
+    const saved = _lsGet(_LS_SAVED);
+    const recent = _lsGet(_LS_RECENT);
+    if (!saved.length && !recent.length) { wrap.style.display = "none"; wrap.innerHTML = ""; return; }
+    const chip = (s, kind, idx) =>
+      `<span class="search-chip ${kind === "saved" ? "saved" : ""}" onclick='applySearchState(${JSON.stringify(s)})'>`
+      + `${kind === "saved" ? "★ " : "↻ "}${escapeHtml(searchStateLabel(s))}`
+      + `<span class="chip-x" title="Remove" onclick='event.stopPropagation();_removeChip("${kind}",${idx})'>✕</span></span>`;
+    let html = "";
+    if (saved.length) html += `<span class="search-chips-label">Saved</span>` + saved.map((s, i) => chip(s, "saved", i)).join("");
+    if (recent.length) html += `<span class="search-chips-label">Recent</span>` + recent.map((s, i) => chip(s, "recent", i)).join("");
+    wrap.innerHTML = html;
+    wrap.style.display = "flex";
+  }
+
 
   function populateSourceFilter() {
     const sources = [...new Set(jobs.map(j => j.source).filter(Boolean))].sort();
@@ -758,6 +901,7 @@
     jobs = await res.json();
     populateSourceFilter();
     applyFiltersAndSort();
+    renderSearchChips();
     updateCounts();
     scheduleResumePolls();
     scheduleCLPolls();

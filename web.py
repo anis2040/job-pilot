@@ -20,12 +20,14 @@ from job.profiles import (
     list_profiles, get_active_slug, get_active_profile, set_active,
     create_profile, delete_profile, has_any_profiles, slugify,
     get_profile_path, get_config_path, get_resumes_path, active_profile_dir,
+    get_profile_json,
     PROFILES_DIR,
 )
 
 from job.paths import BASE
 from job.fetcher import SOURCES
 from job.models import RemoteType, DEFAULT_BLACKLIST, JOB_STATUSES
+from job.match import compute_match
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
@@ -203,7 +205,7 @@ def _find_pdf_path(profile_dir: Path, company: str, subdir: str, suffix: str) ->
     return None
 
 
-def _serialize_job(row, task_status: dict, cl_task_status: dict) -> dict:
+def _serialize_job(row, task_status: dict, cl_task_status: dict, profile: dict | None = None) -> dict:
     r = dict(row)
     job_id = r["job_id"]
     company = r.get("company") or ""
@@ -243,6 +245,7 @@ def _serialize_job(row, task_status: dict, cl_task_status: dict) -> dict:
         "first_seen_at": r.get("first_seen_at") or "",
         "status": r.get("status") or "pending",
         "source": _source_label(r.get("search_name") or ""),
+        "match": compute_match(r.get("description") or "", profile),
         "resume_status": resume_status,
         "resume_stage": ts.get("stage", ""),
         "pdf_url": _pdf_url(pdf_path),
@@ -508,7 +511,7 @@ def api_job_detail(job_id):
         return jsonify({"error": "Job not found"}), 404
     ts = get_task_status(job_id)
     cl_ts = get_cl_task_status(job_id)
-    data = _serialize_job(row, {job_id: ts}, {job_id: cl_ts})
+    data = _serialize_job(row, {job_id: ts}, {job_id: cl_ts}, get_profile_json())
     r = dict(row)
     data["description"]     = r.get("description") or ""
     data["posted_at"]       = r.get("posted_at") or ""
@@ -535,7 +538,8 @@ def api_jobs():
     rows = get_jobs_by_status(status_filter)
     task_statuses = {row["job_id"]: get_task_status(row["job_id"]) for row in rows}
     cl_task_statuses = {row["job_id"]: get_cl_task_status(row["job_id"]) for row in rows}
-    return jsonify([_serialize_job(row, task_statuses, cl_task_statuses) for row in rows])
+    profile = get_profile_json()  # loaded once; reused for every job's match signal
+    return jsonify([_serialize_job(row, task_statuses, cl_task_statuses, profile) for row in rows])
 
 
 @app.route("/api/resume/<job_id>", methods=["POST"])
