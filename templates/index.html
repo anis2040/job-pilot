@@ -526,10 +526,11 @@
   // Honest, deterministic badges built only from real data (no fabrication).
   function matchBadge(job) {
     const m = job.match;
-    if (!m || typeof m.score !== "number") return "";  // no description -> no badge (not a fake 0%)
-    const cls = m.score >= 75 ? "high" : m.score >= 40 ? "mid" : "low";
-    const tip = m.matched && m.matched.length ? `Matches your skills: ${m.matched.join(", ")}` : "No matching skills in your profile";
-    return `<span class="match-badge ${cls}" title="${escapeHtml(tip)}">${m.score}% match</span>`;
+    if (!m || typeof m.matched_count !== "number" || m.matched_count === 0) return "";
+    const n = m.matched_count;
+    const cls = n >= 5 ? "high" : n >= 3 ? "mid" : "low";
+    const tip = `Your skills this job asks for: ${m.matched.join(", ")}`;
+    return `<span class="match-badge ${cls}" title="${escapeHtml(tip)}">${n} skill${n !== 1 ? "s" : ""} match</span>`;
   }
   function metaBadges(job) {
     const out = [];
@@ -867,9 +868,10 @@
 
     filtered = [...filtered].sort((a, b) => {
       if (sort === "match") {
-        // Highest match first; jobs with no score (no description) sink to the bottom.
-        const sa = (a.match && typeof a.match.score === "number") ? a.match.score : -1;
-        const sb = (b.match && typeof b.match.score === "number") ? b.match.score : -1;
+        // Rank by how many of YOUR skills the job wants (absolute overlap —
+        // fairer than % which rewards vague postings). No-score jobs sink.
+        const sa = (a.match && typeof a.match.matched_count === "number") ? a.match.matched_count : -1;
+        const sb = (b.match && typeof b.match.matched_count === "number") ? b.match.matched_count : -1;
         if (sb !== sa) return sb - sa;
         return (b.posted_at || "").localeCompare(a.posted_at || "");  // tie-break: newer posting
       }

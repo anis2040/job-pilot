@@ -11,22 +11,37 @@ _PROFILE = {
 
 def test_full_match():
     m = compute_match("We need Angular and TypeScript.", _PROFILE)
-    assert m["score"] == 100
     assert set(m["matched"]) == {"Angular", "TypeScript"}
     assert m["missing"] == []
+    assert m["matched_count"] == 2
 
 
 def test_partial_match():
     m = compute_match("Angular, React, Kafka, Python required.", _PROFILE)
     assert set(m["matched"]) == {"Angular", "React"}       # React from a bullet
     assert set(m["missing"]) == {"Kafka", "Python"}
-    assert m["score"] == 50
+    assert m["matched_count"] == 2
+
+
+def test_score_denominator_floored():
+    # A JD naming only 2 keywords, both matched, must NOT read as 100% —
+    # the floored denominator (min 5) prevents vague-JD inflation.
+    m = compute_match("Angular and TypeScript.", _PROFILE)
+    assert m["matched_count"] == 2
+    assert m["score"] == 40  # 2 / max(2,5) = 40%, not 100%
 
 
 def test_skills_from_bullets_and_summary_count():
     # AWS is only in a bullet, not the competencies list — still counts.
     m = compute_match("AWS experience needed.", _PROFILE)
-    assert m["matched"] == ["AWS"] and m["score"] == 100
+    assert m["matched"] == ["AWS"] and m["matched_count"] == 1
+
+
+def test_r_not_matched_as_false_positive():
+    # "R" (removed from vocab) must not match R&D / stray letters.
+    m = compute_match("Join our R&D team building Angular apps.", _PROFILE)
+    assert "R" not in (m["matched"] + m["missing"])
+    assert "Angular" in m["matched"]
 
 
 def test_zero_keyword_jd_returns_none():

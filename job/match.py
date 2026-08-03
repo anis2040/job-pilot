@@ -25,13 +25,20 @@ def _profile_skills(profile: dict) -> set[str]:
 
 
 def compute_match(description: str, profile: dict | None) -> dict | None:
-    """Return {score, matched, missing} for a job description vs the profile,
-    or None when there's nothing to score (no profile, or the JD mentions no
-    known tech keywords — better to show nothing than a misleading 0%).
+    """Return a match signal for a job description vs the profile, or None when
+    there's nothing to score (no profile, or the JD names no known tech keywords).
 
-    score = round(100 * matched / detected-in-JD).
-    matched / missing are the JD's tech keywords split by whether the profile
-    supports them.
+    Fields:
+      matched     — the candidate's skills this job asks for (list)
+      missing     — tech the job asks for that isn't in the profile (list)
+      matched_count — len(matched); the PRIMARY, honest signal (absolute overlap)
+      score       — coverage %, but on a floored denominator so a JD that names
+                    very few keywords can't post a misleadingly high %. Kept as a
+                    secondary hint, not the ranking key.
+
+    Rationale (validated on real data): ranking by raw matched/detected rewarded
+    vague postings (2 generic keywords → 67%) over detailed ones that genuinely
+    matched more skills. matched_count ranks true fit far better.
     """
     if not profile or not description:
         return None
@@ -41,5 +48,13 @@ def compute_match(description: str, profile: dict | None) -> dict | None:
     skills = _profile_skills(profile)
     matched = [k for k in jd_keywords if k.lower() in skills]
     missing = [k for k in jd_keywords if k.lower() not in skills]
-    score = round(100 * len(matched) / len(jd_keywords))
-    return {"score": score, "matched": matched, "missing": missing}
+    # Floor the denominator at 5 so a JD naming only 2-3 keywords can't inflate
+    # the percentage; a substantive JD (>=5 keywords) uses its real count.
+    denom = max(len(jd_keywords), 5)
+    score = round(100 * len(matched) / denom)
+    return {
+        "matched": matched,
+        "missing": missing,
+        "matched_count": len(matched),
+        "score": score,
+    }

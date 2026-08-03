@@ -12,9 +12,11 @@ import re
 # Ordered roughly by category. Keep in sync with the JS SKILLS_LIST in
 # templates/job_detail.html (that copy drives the on-page skill chips).
 SKILLS_VOCAB: list[str] = [
-    # Languages
+    # Languages. Single-letter "R" is intentionally omitted — it matches "R&D",
+    # "R&B", and stray letters in prose far more than the language, poisoning the
+    # match signal. Multi-char names (Go, C#, C++) are safe with boundary checks.
     "Python", "JavaScript", "TypeScript", "Java", "Go", "Rust", "C++", "C#",
-    "Ruby", "PHP", "Swift", "Kotlin", "Scala", "R",
+    "Ruby", "PHP", "Swift", "Kotlin", "Scala",
     # Frontend
     "React", "Vue", "Angular", "Next.js", "Svelte", "HTML", "CSS", "Tailwind",
     "GraphQL", "Redux", "NgRx", "NGXS", "Lit", "Micro-frontends",
