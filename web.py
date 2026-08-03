@@ -632,12 +632,15 @@ def api_ai_settings_get():
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN") or ""
     gemini_key    = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or ""
 
-    # Token-usage counter: what THIS app has spent per provider. Best-effort —
-    # no profile / empty DB yields zeros rather than erroring.
+    # Token-usage counter: what THIS app has spent per provider, scoped to the
+    # currently-active API key (limits are per-key/org, so switching keys must
+    # show a fresh count). Best-effort — no profile / empty DB yields zeros.
     from job.limits import usage_reference
+    from job.ai_providers import _key_fingerprint
+    key_ids = {p: _key_fingerprint(p) for p in ("groq", "gemini", "anthropic")}
     try:
         from job.db import usage_last_24h, usage_today
-        u24, utoday = usage_last_24h(), usage_today()
+        u24, utoday = usage_last_24h(key_ids), usage_today(key_ids)
     except Exception:
         u24, utoday = {}, {}
 

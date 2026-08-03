@@ -201,6 +201,25 @@ def _is_gemini_text_model(name: str) -> bool:
     return not any(b in n for b in bad)
 
 
+def _key_fingerprint(provider: str) -> str:
+    """Short, non-secret fingerprint of the active API key for a provider.
+
+    Used to scope the usage counter to the current account: Groq/Gemini limits
+    are per-key/org, so switching keys must start a fresh count. We hash the key
+    (never store it) and keep 12 hex chars — enough to distinguish accounts.
+    Returns "" when there's no key (e.g. CLI-only auth)."""
+    import hashlib
+    if provider == "groq":
+        key = os.environ.get("GROQ_API_KEY", "")
+    elif provider == "gemini":
+        key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or ""
+    elif provider == "anthropic":
+        key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN") or ""
+    else:
+        key = ""
+    return hashlib.sha256(key.encode()).hexdigest()[:12] if key else ""
+
+
 def _log_tokens(tag: str, model: str, **counts: int) -> None:
     parts = " ".join(f"{k}={v}" for k, v in counts.items())
     print(f"[{tag}/{model}] {parts}")
@@ -212,7 +231,8 @@ def _log_tokens(tag: str, model: str, **counts: int) -> None:
         db.log_token_usage(provider, model,
                            input=counts.get("input", 0),
                            output=counts.get("output", 0),
-                           total=counts.get("total", 0))
+                           total=counts.get("total", 0),
+                           key_id=_key_fingerprint(provider))
     except Exception:
         pass
 

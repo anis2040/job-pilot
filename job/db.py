@@ -88,9 +88,15 @@ def init_db() -> None:
                 model    TEXT,
                 input    INTEGER DEFAULT 0,
                 output   INTEGER DEFAULT 0,
-                total    INTEGER DEFAULT 0
+                total    INTEGER DEFAULT 0,
+                key_id   TEXT DEFAULT ''
             )
         """)
+        # Migrate older DBs that predate key scoping.
+        try:
+            con.execute("ALTER TABLE token_usage ADD COLUMN key_id TEXT DEFAULT ''")
+        except Exception:
+            pass  # column already exists
         con.commit()
 
     # One-time backfill: repair workplace-type labels written under the old
@@ -221,40 +227,58 @@ def last_fetch_at(source: str | None = None) -> str | None:
 
 
 def log_token_usage(provider: str, model: str, input: int = 0,
-                    output: int = 0, total: int = 0) -> None:
-    """Record one AI call's token usage. Best-effort telemetry."""
+                    output: int = 0, total: int = 0, key_id: str = "") -> None:
+    """Record one AI call's token usage. Best-effort telemetry. `key_id` is a
+    non-secret fingerprint of the active API key, so usage can be scoped to the
+    current account (limits are per-key/org)."""
     with _connect() as con:
         con.execute(
-            "INSERT INTO token_usage (ts, provider, model, input, output, total) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (_now_iso(), provider, model, int(input or 0), int(output or 0), int(total or 0)),
+            "INSERT INTO token_usage (ts, provider, model, input, output, total, key_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (_now_iso(), provider, model, int(input or 0), int(output or 0),
+             int(total or 0), key_id or ""),
         )
         con.commit()
 
 
-def token_usage_since(since_iso: str) -> dict[str, int]:
-    """Total tokens per provider since an ISO-8601 UTC timestamp."""
+def token_usage_since(since_iso: str, key_ids: dict[str, str] | None = None) -> dict[str, int]:
+    """Total tokens per provider since an ISO-8601 UTC timestamp.
+
+    When `key_ids` maps provider -> current key fingerprint, only rows written
+    by that key are counted for that provider — so switching API keys starts a
+    fresh count and old-account rows drop out.
+    """
     with _connect() as con:
         rows = con.execute(
-            "SELECT provider, SUM(total) AS t FROM token_usage WHERE ts >= ? GROUP BY provider",
+            "SELECT provider, key_id, SUM(total) AS t FROM token_usage "
+            "WHERE ts >= ? GROUP BY provider, key_id",
             (since_iso,),
         ).fetchall()
-        return {r["provider"]: (r["t"] or 0) for r in rows}
+    out: dict[str, int] = {}
+    for r in rows:
+        provider, key_id, t = r["provider"], (r["key_id"] or ""), (r["t"] or 0)
+        if key_ids is not None:
+            want = key_ids.get(provider)
+            # Only count rows written by the current key. No current key -> skip.
+            if not want or key_id != want:
+                continue
+        out[provider] = out.get(provider, 0) + t
+    return out
 
 
-def usage_last_24h() -> dict[str, int]:
+def usage_last_24h(key_ids: dict[str, str] | None = None) -> dict[str, int]:
     """Tokens per provider over a rolling 24h window (matches Groq's daily limit)."""
     from datetime import timedelta
     cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
-    return token_usage_since(cutoff)
+    return token_usage_since(cutoff, key_ids)
 
 
-def usage_today() -> dict[str, int]:
+def usage_today(key_ids: dict[str, str] | None = None) -> dict[str, int]:
     """Tokens per provider since local calendar midnight (intuitive 'today')."""
     now_local = datetime.now().astimezone()
     midnight_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
     cutoff_utc = midnight_local.astimezone(timezone.utc).isoformat()
-    return token_usage_since(cutoff_utc)
+    return token_usage_since(cutoff_utc, key_ids)
 
 
 

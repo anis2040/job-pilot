@@ -216,3 +216,21 @@ def test_usage_last_24h_excludes_old(temp_db):
 def test_usage_empty_is_empty_dict(temp_db):
     assert temp_db.usage_last_24h() == {}
     assert temp_db.usage_today() == {}
+
+
+def test_usage_scoped_to_current_key(temp_db):
+    # Old account's usage
+    temp_db.log_token_usage("groq", "llama", total=90000, key_id="oldkeyaaaa11")
+    # After switching keys, new account starts fresh
+    temp_db.log_token_usage("groq", "llama", total=1200, key_id="newkeybbbb22")
+    # Counter scoped to the CURRENT key shows only the new account
+    scoped = temp_db.usage_last_24h({"groq": "newkeybbbb22"})
+    assert scoped.get("groq") == 1200
+    # Unscoped (no key map) still sums everything (back-compat)
+    assert temp_db.usage_last_24h().get("groq") == 91200
+
+
+def test_usage_unknown_current_key_counts_nothing(temp_db):
+    temp_db.log_token_usage("groq", "llama", total=500, key_id="somekey00001")
+    # No active key (empty fingerprint) -> nothing attributed
+    assert temp_db.usage_last_24h({"groq": ""}).get("groq", 0) == 0
