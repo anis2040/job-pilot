@@ -536,3 +536,19 @@ def test_router_unknown_source_returns_empty(search):
     search.source = "bogus_source"
     assert fetch_search(search) == []
 
+
+
+def test_greenhouse_describe_parses_api_content(monkeypatch):
+    """Greenhouse describe() hits the board JSON API and strips the content HTML."""
+    import job.greenhouse_fetcher as gf
+    monkeypatch.setattr(gf, "http_get",
+                        lambda *a, **kw: FakeResponse(data={"content": "&lt;p&gt;Build &lt;b&gt;great&lt;/b&gt; APIs with Python&lt;/p&gt;"}))
+    out = gf.fetch_description("https://boards.greenhouse.io/stripe/jobs/456")
+    assert "Build" in out and "great" in out and "Python" in out
+    assert "<p>" not in out and "&lt;" not in out  # unescaped + stripped
+
+
+def test_greenhouse_describe_bad_url_returns_empty():
+    from job.greenhouse_fetcher import fetch_description
+    assert fetch_description("") == ""
+    assert fetch_description("https://example.com/not-greenhouse") == ""

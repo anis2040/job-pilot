@@ -27,7 +27,7 @@ from job.profiles import (
 from job.paths import BASE
 from job.fetcher import SOURCES
 from job.models import RemoteType, DEFAULT_BLACKLIST, JOB_STATUSES
-from job.match import compute_match
+from job.match import compute_match, match_text
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
@@ -245,7 +245,7 @@ def _serialize_job(row, task_status: dict, cl_task_status: dict, profile: dict |
         "first_seen_at": r.get("first_seen_at") or "",
         "status": r.get("status") or "pending",
         "source": _source_label(r.get("search_name") or ""),
-        "match": compute_match(r.get("description") or "", profile),
+        "match": compute_match(match_text(r), profile),
         "resume_status": resume_status,
         "resume_stage": ts.get("stage", ""),
         "pdf_url": _pdf_url(pdf_path),
@@ -501,9 +501,10 @@ def api_job_description(job_id):
                     update_remote(job_id, inferred)
                     remote = inferred
 
-    # Compute match against the (possibly just-fetched) description so the
+    # Compute match against title + the (possibly just-fetched) description so the
     # detail page's skills card reflects on-demand descriptions too.
-    match = compute_match(description, get_profile_json())
+    match = compute_match(match_text({"title": r.get("title") or "", "description": description}),
+                          get_profile_json())
     return jsonify({"description": description, "remote": remote, "match": match})
 
 

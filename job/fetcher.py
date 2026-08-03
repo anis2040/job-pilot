@@ -53,7 +53,7 @@ SOURCE_REGISTRY: list[Source] = [
     Source("linkedin",          "li_",  "fetch_linkedin",          3, describe=linkedin_fetcher.fetch_description),
     Source("jobicy",            "jc_",  "fetch_jobicy",            3, remote_default=RemoteType.REMOTE),
     Source("himalayas",         "hi_",  "fetch_himalayas",         2, remote_default=RemoteType.REMOTE),
-    Source("greenhouse",        "gh_",  "fetch_greenhouse",        3),
+    Source("greenhouse",        "gh_",  "fetch_greenhouse",        3, describe=greenhouse_fetcher.fetch_description),
     Source("germantechjobs",    "gtj_", "fetch_germantechjobs",    3),
     Source("berlinstartupjobs", "bsj_", "fetch_berlinstartupjobs", 3),
     Source("stepstone",         "ss_",  "fetch_stepstone",         3, describe=stepstone_fetcher.fetch_description),

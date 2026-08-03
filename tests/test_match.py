@@ -76,3 +76,31 @@ def test_descriptive_competency_phrases_canonicalize():
     assert "CI/CD" in m["matched"]
     assert "Angular" in m["matched"]
     assert m["missing"] == []
+
+
+# ── match_text (title + description, centralized) ─────────────────────────────
+
+from job.match import match_text
+
+
+def test_match_text_title_plus_description():
+    assert match_text({"title": "Senior Angular Engineer", "description": "Build with NgRx"}) \
+        == "Senior Angular Engineer\nBuild with NgRx"
+
+
+def test_match_text_title_only_when_no_description():
+    assert match_text({"title": "React Developer"}) == "React Developer"
+    assert match_text({"title": "React Developer", "description": ""}) == "React Developer"
+
+
+def test_match_text_none_safe():
+    assert match_text(None) == ""
+
+
+def test_match_scores_from_title_when_no_description():
+    # A LinkedIn-style job with no description still scores from its title.
+    prof = {"competencies": ["Angular", "TypeScript"], "summary": "", "experience": []}
+    text = match_text({"title": "Senior Angular Engineer", "description": ""})
+    m = compute_match(text, prof)
+    assert m is not None
+    assert "Angular" in m["matched"]

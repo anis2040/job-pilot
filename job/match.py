@@ -10,6 +10,23 @@ from __future__ import annotations
 from .skills_vocab import detect_keywords
 
 
+def match_text(job) -> str:
+    """The text that represents a job for matching: title + description.
+
+    Single source of truth for match input across the list view, detail view,
+    and the resume keyword hint. Title is always present; description is added
+    when available. This gives providers that store no description at fetch time
+    (LinkedIn, Greenhouse) a real signal from the title alone, instead of a blank
+    badge. Accepts a sqlite Row or a dict.
+    """
+    if job is None:
+        return ""
+    get = job.get if hasattr(job, "get") else (lambda k, d="": job[k] if k in job.keys() else d)
+    title = (get("title", "") or "").strip()
+    desc = (get("description", "") or "").strip()
+    return f"{title}\n{desc}".strip()
+
+
 def _profile_skills(profile: dict) -> set[str]:
     """Canonical skill set from the profile: run competencies, summary, and
     experience bullets through detect_keywords so everything is a canonical

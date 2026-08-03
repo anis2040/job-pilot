@@ -35,6 +35,7 @@ SKILLS_VOCAB: list[str] = [
     # Tools / Concepts
     "REST", "API", "Microservices", "Git", "Agile", "Scrum", "Kanban",
     "Jira", "Figma", "OAuth", "WebSockets", "Kubernetes",
+    "Accessibility", "Test Automation", "Cloud",
 ]
 # (dedupe while preserving order — a couple of terms fit >1 category above)
 SKILLS_VOCAB = list(dict.fromkeys(SKILLS_VOCAB))
@@ -65,6 +66,14 @@ _ALIASES: dict[str, str] = {
     "scikit learn": "scikit-learn", "sklearn": "scikit-learn",
     "microfrontends": "Micro-frontends", "micro frontends": "Micro-frontends",
     "web sockets": "WebSockets", "websocket": "WebSockets",
+    # German — only high-confidence, unambiguous terms where the German word is
+    # the common phrasing. (Skill *names* like React/Kubernetes stay English in
+    # German JDs and already match via the boundary regex, so this set is small.)
+    "barrierefreiheit": "Accessibility",
+    "testautomatisierung": "Test Automation",
+    "schnittstellen": "API", "schnittstelle": "API",
+    "cloud-infrastruktur": "Cloud", "cloud infrastruktur": "Cloud",
+    "microservices-architektur": "Microservices",
 }
 # Note: very short aliases (ts, js) still require the non-alnum boundary in the
 # regex below, so they won't fire inside longer words.

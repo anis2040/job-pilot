@@ -54,3 +54,12 @@ def test_expanded_terms_detected():
                      ("Terraform", "infra as code with Terraform"),
                      (".NET", "built on .NET")]:
         assert term in detect_keywords(jd), f"{term} not detected"
+
+
+def test_german_aliases_and_english_tokens_in_german():
+    assert "Test Automation" in detect_keywords("Erfahrung mit Testautomatisierung")
+    assert "Accessibility" in detect_keywords("Fokus auf Barrierefreiheit")
+    assert "API" in detect_keywords("Entwicklung von Schnittstellen")
+    # English skill names inside German compounds still match via boundary regex
+    found = detect_keywords("React-Entwickler mit Kubernetes-Erfahrung")
+    assert "React" in found and "Kubernetes" in found

@@ -1,8 +1,9 @@
+import re
 import time
 import httpx
 
 from .config import SearchConfig
-from .fetcher_utils import SHARED_HEADERS, http_get, infer_remote
+from .fetcher_utils import SHARED_HEADERS, http_get, infer_remote, strip_tags
 from .models import RawJob, RemoteType
 from .utils import parse_experience, location_matches
 
@@ -86,3 +87,30 @@ def fetch_greenhouse(search: SearchConfig) -> list[RawJob]:
         time.sleep(0.15)
 
     return results
+
+
+def fetch_description(job_url: str) -> str:
+    """Fetch a Greenhouse job's full description on demand via its JSON API.
+
+    The board API returns clean structured content, so we derive the board token
+    and job id from the public URL (boards.greenhouse.io/<token>/jobs/<id>) and
+    hit boards-api.greenhouse.io — more reliable than scraping HTML. Returns ""
+    on any error (matches the other providers' describe fns).
+    """
+    if not job_url:
+        return ""
+    m = re.search(r"greenhouse\.io/(?:embed/job_app\?for=|)?([\w-]+)/jobs/(\d+)", job_url)
+    if not m:
+        m = re.search(r"greenhouse\.io/([\w-]+).*?[?&]gh_jid=(\d+)", job_url)
+    if not m:
+        return ""
+    token, job_id = m.group(1), m.group(2)
+    try:
+        resp = http_get(f"{_BASE}/{token}/jobs/{job_id}", headers=SHARED_HEADERS, timeout=10)
+        resp.raise_for_status()
+        content = resp.json().get("content") or ""
+    except (httpx.HTTPError, ValueError):
+        return ""
+    # Greenhouse `content` is HTML-escaped HTML; unescape then strip tags.
+    import html
+    return strip_tags(html.unescape(content))[:4000]

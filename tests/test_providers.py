@@ -105,4 +105,4 @@ def test_app_registry_prefixes_resolve():
 
 def test_app_registry_full_description_matches_describe_sources():
     caps = {p.meta.id for p in app_registry.with_capability(Capability.FULL_DESCRIPTION)}
-    assert caps == {"linkedin", "stepstone"}
+    assert caps == {"linkedin", "stepstone", "greenhouse"}

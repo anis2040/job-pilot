@@ -183,9 +183,11 @@ def _build_resume_prompt(row: dict, company: str, title: str, name_slug: str, sk
         f"based on typical responsibilities for this position."
     )
     # Deterministic ATS hint: skills from our vocabulary that this JD mentions.
-    # Zero extra tokens vs an LLM pass; steers Tier-1 keyword coverage.
+    # Zero extra tokens vs an LLM pass; steers Tier-1 keyword coverage. Uses the
+    # centralized match_text (title + description) so title keywords count too.
     from .skills_vocab import detect_keywords
-    detected = detect_keywords(desc)
+    from .match import match_text
+    detected = detect_keywords(match_text({"title": title, "description": desc}))
     kw_hint = (
         f"\n\nKey skills detected in this job description (prioritize covering "
         f"these where profile.md supports them): {', '.join(detected)}"
@@ -556,8 +558,9 @@ def _build_document(job_id: str, doc_type: str) -> None:
             # ATS keyword coverage. Logged for visibility; doesn't block the build.
             from .skills_vocab import detect_keywords
             from .latex_render import validate_resume_content
+            from .match import match_text
             issues = validate_resume_content(content, profile_text,
-                                              detect_keywords(row.get("description") or ""))
+                                              detect_keywords(match_text(row)))
             for w in issues:
                 print(f"[resume-check] {job_id}: {w}")
         else:
