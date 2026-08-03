@@ -448,7 +448,7 @@
 
   // ── Row renderers ─────────────────────────────────────────────────────────
   function remoteTag(r) {
-    if (!r) return "";
+    if (!r || r === "Unknown") return "";   // no misleading pill when unknown
     const cls = REMOTE_CSS[r] ? `job-meta-tag ${REMOTE_CSS[r]}` : "job-meta-tag";
     const icon = r === "Remote" ? "🌐" : r === "Hybrid" ? "🏠" : "🏢";
     return `<span class="${cls}">${icon} ${escapeHtml(r)}</span>`;
@@ -606,7 +606,7 @@
   function renderPanel(j) {
     const remoteIcon = { Remote: "🌐", Hybrid: "🏠", "On-site": "🏢" }[j.remote] || "🏢";
     const meta = [
-      j.remote ? `<span class="job-meta-pill">${remoteIcon} ${escapeHtml(j.remote)}</span>` : "",
+      (j.remote && j.remote !== "Unknown") ? `<span class="job-meta-pill">${remoteIcon} ${escapeHtml(j.remote)}</span>` : "",
       j.location ? `<span class="job-meta-pill">📍 ${escapeHtml(j.location)}</span>` : "",
       j.experience ? `<span class="job-meta-pill">${escapeHtml(j.experience)}</span>` : "",
       j.salary_range ? `<span class="job-meta-pill" style="color:var(--green)">${escapeHtml(j.salary_range)}</span>` : "",
@@ -639,7 +639,11 @@
     // Lazy-fetch full description for any source that supports it (backend decides)
     if (!j.description) {
       fetch(`/api/job/${j.job_id}/description`).then(r => r.json()).then(d => {
-        if (d.description && selectedJobId === j.job_id) { j.description = d.description; renderPanel(j); }
+        if (selectedJobId !== j.job_id) return;
+        let changed = false;
+        if (d.description) { j.description = d.description; changed = true; }
+        if (d.remote && d.remote !== j.remote) { j.remote = d.remote; changed = true; }
+        if (changed) renderPanel(j);
       }).catch(() => {});
     }
   }

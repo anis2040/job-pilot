@@ -21,14 +21,21 @@ def strip_tags(html: str) -> str:
     return re.sub(r"<[^>]+>", " ", html).strip()
 
 
-def infer_remote(*text_fields: str) -> str:
-    """Infer remote type from any number of text fields (title, location, description, etc.)."""
+def infer_remote(*text_fields: str, default: str = RemoteType.ONSITE) -> str:
+    """Infer remote type from any number of text fields (title, location, description…).
+
+    Returns Hybrid/Remote when those keywords appear. When there is NO signal,
+    returns `default` — pass default=RemoteType.UNKNOWN when the absence of a
+    keyword doesn't reliably mean on-site (e.g. LinkedIn search cards omit the
+    workplace type entirely, so guessing 'On-site' would be wrong)."""
     combined = " ".join(t.lower() for t in text_fields if t)
     if "hybrid" in combined:
         return RemoteType.HYBRID
     if "remote" in combined or "homeoffice" in combined or "home office" in combined or "worldwide" in combined or "anywhere" in combined:
         return RemoteType.REMOTE
-    return RemoteType.ONSITE
+    if "on-site" in combined or "on site" in combined or "onsite" in combined:
+        return RemoteType.ONSITE
+    return default
 
 
 def jsonld_job_description(soup) -> str:

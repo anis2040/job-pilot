@@ -76,6 +76,23 @@ def test_infer_remote_hybrid_takes_priority_over_remote():
 def test_infer_remote_worldwide():
     assert infer_remote("Available worldwide", "") == RemoteType.REMOTE
 
+def test_infer_remote_no_signal_defaults_onsite():
+    assert infer_remote("Software Engineer", "Berlin") == RemoteType.ONSITE
+
+def test_infer_remote_no_signal_unknown_when_requested():
+    # LinkedIn cards carry no workplace signal — caller opts into Unknown
+    assert infer_remote("Software Engineer", "Berlin", default=RemoteType.UNKNOWN) == RemoteType.UNKNOWN
+
+def test_infer_remote_explicit_onsite_beats_unknown_default():
+    assert infer_remote("On-site role", default=RemoteType.UNKNOWN) == RemoteType.ONSITE
+
+def test_linkedin_remote_search_marks_remote(monkeypatch, search):
+    # When the LinkedIn search applied the remote filter, cards with no signal are Remote
+    import job.linkedin_fetcher as lf
+    card = lf.BeautifulSoup('<div class="base-card"></div>', "lxml").select_one("div")
+    assert lf._infer_remote_linkedin("Berlin, Germany", card, True) == RemoteType.REMOTE
+    assert lf._infer_remote_linkedin("Berlin, Germany", card, False) == RemoteType.UNKNOWN
+
 
 # ── JSON-LD description extraction ──────────────────────────────────────────────
 

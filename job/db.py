@@ -197,6 +197,15 @@ def update_description(job_id: str, description: str) -> None:
         con.commit()
 
 
+def update_remote(job_id: str, remote: str) -> None:
+    with _connect() as con:
+        con.execute(
+            "UPDATE jobs SET remote = ? WHERE job_id = ?",
+            (remote, job_id),
+        )
+        con.commit()
+
+
 def get_pending_no_description() -> list[sqlite3.Row]:
     with _connect() as con:
         return con.execute(

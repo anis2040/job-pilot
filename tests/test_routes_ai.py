@@ -120,6 +120,8 @@ class TestAiSettingsTest:
         assert r.status_code == 400
 
     def test_provider_error_returns_ok_false(self, client, monkeypatch):
+        # Key present (passes the precheck) but the call itself raises
+        monkeypatch.setenv("GROQ_API_KEY", "gsk_test")
         def boom(*a, **k):
             raise RuntimeError("no key configured")
         monkeypatch.setattr(web, "_build_with_groq", boom)
@@ -130,6 +132,7 @@ class TestAiSettingsTest:
         assert "no key configured" in data["error"]
 
     def test_success_reports_latency(self, client, monkeypatch):
+        monkeypatch.setenv("GROQ_API_KEY", "gsk_test")
         monkeypatch.setattr(web, "_build_with_groq", lambda s, u: "OK")
         monkeypatch.setattr(web, "_get_model", lambda p: "llama-3.3-70b-versatile")
         r = client.post("/api/ai-settings/test", json={"provider": "groq"})

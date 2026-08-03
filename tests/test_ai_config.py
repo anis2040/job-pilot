@@ -30,6 +30,12 @@ class TestModelDefaults:
 
 
 class TestGetModel:
+    @pytest.fixture(autouse=True)
+    def _no_env_reload(self, monkeypatch):
+        # _get_model calls _load_env(), which re-reads the real .env and would
+        # clobber per-test env patches. Neutralize it for isolation.
+        monkeypatch.setattr(w, "_load_env", lambda: None)
+
     def test_falls_back_to_default(self, monkeypatch):
         monkeypatch.delenv("GROQ_MODEL", raising=False)
         assert w._get_model("groq") == w._MODEL_DEFAULTS["groq"]

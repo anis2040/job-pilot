@@ -263,9 +263,10 @@ function renderHero(j) {
   headerTitle.title = `${j.title} — ${j.company}`;   // tooltip when truncated
   document.title = `${j.title} at ${j.company} — JobPilot AI`;
 
+  const knownRemote = j.remote && j.remote !== "Unknown";
   const remoteIcon = { Remote: "🌐", Hybrid: "🏠", "On-site": "🏢" }[j.remote] || "🏢";
   const metaItems = [
-    j.remote   ? `<span class="${remoteItemClass(j.remote)}">${remoteIcon} ${escapeHtml(j.remote)}</span>` : "",
+    knownRemote ? `<span class="${remoteItemClass(j.remote)}">${remoteIcon} ${escapeHtml(j.remote)}</span>` : "",
     j.location ? `<span class="job-meta-item">📍 ${escapeHtml(j.location)}</span>` : "",
     j.experience ? `<span class="job-meta-item">🎯 ${escapeHtml(j.experience)}</span>` : "",
     j.posted   ? `<span class="job-meta-item">📅 Posted ${escapeHtml(j.posted)}</span>` : "",
@@ -300,6 +301,11 @@ async function renderDescription(j) {
   </div>`;
   try {
     const data = await fetch(`/api/job/${j.job_id}/description`).then(r => r.json());
+    if (data.remote && data.remote !== j.remote) {
+      j.remote = data.remote;
+      renderHero(j);          // refresh the remote pill in the hero
+      renderDetailsCard(j);   // and in the sidebar details
+    }
     if (data.description) {
       j.description = data.description;
       _setDescription(el, data.description);
@@ -385,7 +391,7 @@ function renderDetailsCard(j) {
     j.employment_type ? { label: "Employment",     value: escapeHtml(j.employment_type) } : null,
     j.company         ? { label: "Company",        value: escapeHtml(j.company) } : null,
     j.location        ? { label: "Location",       value: escapeHtml(j.location) } : null,
-    j.remote          ? { label: "Work type",      value: escapeHtml(j.remote) } : null,
+    (j.remote && j.remote !== "Unknown") ? { label: "Work type", value: escapeHtml(j.remote) } : null,
     j.experience      ? { label: "Experience",     value: escapeHtml(j.experience) } : null,
     j.source          ? { label: "Source",         value: escapeHtml(j.source) } : null,
     j.url             ? { label: "Original",       value: `<a href="${safeUrl(j.url)}" target="_blank">View posting ↗</a>` } : null,
@@ -475,7 +481,7 @@ async function loadSimilarJobs() {
       <div class="similar-job-title">${escapeHtml(j.title)}</div>
       <div class="similar-job-meta">
         <span>${escapeHtml(j.company)}</span>
-        ${j.remote ? `<span>·</span><span>${escapeHtml(j.remote)}</span>` : ""}
+        ${(j.remote && j.remote !== "Unknown") ? `<span>·</span><span>${escapeHtml(j.remote)}</span>` : ""}
         ${j.age    ? `<span>·</span><span>${escapeHtml(j.age)}</span>` : ""}
       </div>
     </a>`).join("");

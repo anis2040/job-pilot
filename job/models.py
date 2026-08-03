@@ -6,7 +6,8 @@ class RemoteType:
     REMOTE = "Remote"
     HYBRID = "Hybrid"
     ONSITE = "On-site"
-    ALL = [REMOTE, HYBRID, ONSITE]
+    UNKNOWN = "Unknown"
+    ALL = [REMOTE, HYBRID, ONSITE]   # filterable types; Unknown is not a filter option
 
 
 DEFAULT_BLACKLIST = ["internship", "junior", "unpaid", "staffing"]

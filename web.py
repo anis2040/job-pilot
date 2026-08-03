@@ -470,21 +470,33 @@ def job_detail_page(job_id):
 @app.route("/api/job/<job_id>/description")
 def api_job_description(job_id):
     """Return description for a job — from DB if stored, otherwise scrape on demand
-    via the source's declared describe capability (see job.fetcher.SOURCE_REGISTRY)."""
+    via the source's declared describe capability (see job.fetcher.SOURCE_REGISTRY).
+    When a fresh description is fetched and the stored workplace type is Unknown,
+    re-infer it from the description (LinkedIn cards don't expose it)."""
     row = get_job(job_id)
     if not row:
         return jsonify({"error": "Job not found"}), 404
 
-    description = dict(row).get("description") or ""
+    r = dict(row)
+    description = r.get("description") or ""
+    remote = r.get("remote") or ""
 
     if not description:
         from job.fetcher import fetch_description as _fetch_desc
-        from job.db import update_description
-        description = _fetch_desc(job_id, dict(row).get("url") or "")
+        from job.db import update_description, update_remote
+        from job.fetcher_utils import infer_remote
+        description = _fetch_desc(job_id, r.get("url") or "")
         if description:
             update_description(job_id, description)
+            # Backfill workplace type from the full text if we didn't know it
+            if remote in ("", RemoteType.UNKNOWN):
+                inferred = infer_remote(r.get("title") or "", r.get("location") or "",
+                                        description, default=RemoteType.UNKNOWN)
+                if inferred != RemoteType.UNKNOWN:
+                    update_remote(job_id, inferred)
+                    remote = inferred
 
-    return jsonify({"description": description})
+    return jsonify({"description": description, "remote": remote})
 
 
 @app.route("/api/job/<job_id>")
