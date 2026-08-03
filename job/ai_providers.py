@@ -57,7 +57,7 @@ def _get_anthropic_client():
         return None
 
 
-_GROQ_MODELS      = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768", "gemma2-9b-it"]
+_GROQ_MODELS      = ["llama-3.3-70b-versatile", "openai/gpt-oss-120b", "openai/gpt-oss-20b", "llama-3.1-8b-instant"]
 _ANTHROPIC_MODELS = ["claude-haiku-4-5", "claude-sonnet-4-6", "claude-opus-4-6"]
 _GEMINI_MODELS    = ["gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-3-flash-preview", "gemini-flash-lite-latest"]
 
@@ -186,14 +186,15 @@ def _build_with_groq(system_text: str, user_prompt: str, stage_fn=None) -> str:
                 {"role": "system", "content": system_text},
                 {"role": "user",   "content": user_prompt},
             ],
-            max_tokens=4096,
+            max_tokens=4096,  # Groq free tier counts input+output vs an 8-12K TPM cap; keep headroom
             temperature=0.3,
         )
     except Exception as e:
         msg = str(e)
-        # Free-tier TPM limit is per-model; small models (e.g. llama-3.1-8b-instant,
-        # 6k TPM) can't fit a full resume prompt. Surface a clear, actionable error.
-        if "rate_limit" in msg or "413" in msg or "too large" in msg.lower():
+        # Free-tier limits are per-model (TPM and TPD): smaller models and
+        # gpt-oss (8K TPM) can't fit a full resume prompt + output. Surface a
+        # clear, actionable error.
+        if "rate_limit" in msg or "413" in msg or "429" in msg or "too large" in msg.lower():
             raise RuntimeError(
                 f"Groq model '{model}' hit its token/rate limit for this request. "
                 f"Pick a model with a larger limit (e.g. llama-3.3-70b-versatile) "
@@ -231,7 +232,7 @@ def _build_with_sdk(system_text: str, user_prompt: str, stage_fn=None, on_delta=
     if on_delta is not None:
         # Stream tokens; report cumulative text to on_delta.
         acc = []
-        with client.messages.stream(model=model, max_tokens=4096,
+        with client.messages.stream(model=model, max_tokens=8192,
                                     system=system, messages=messages) as stream:
             for text in stream.text_stream:
                 acc.append(text)
@@ -243,7 +244,7 @@ def _build_with_sdk(system_text: str, user_prompt: str, stage_fn=None, on_delta=
 
     response = client.messages.create(
         model=model,
-        max_tokens=4096,
+        max_tokens=8192,
         system=system,
         messages=messages,
     )
@@ -313,7 +314,7 @@ def _build_with_gemini_sdk(system_text: str, user_prompt: str, backend_out=None)
         contents=user_prompt,
         config=types.GenerateContentConfig(
             system_instruction=system_text,
-            max_output_tokens=4096,
+            max_output_tokens=8192,
         ),
     )
     u = response.usage_metadata

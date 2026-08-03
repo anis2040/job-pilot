@@ -46,6 +46,11 @@ Readability floor (never cross these to hit one page):
 - Keep at least `itemsep=2pt` between bullets — never `0pt` to the point lines visually collide
 - Never drop a bullet that maps to a Tier 1 JD requirement purely for space
 
+Vertical fill (the page should look intentionally full, not padded or sparse):
+- If content ends well short of one page, the resume is too thin — expand Key Projects to 3–4 bullets each and restore trimmed detail rather than leaving a block of whitespace at the bottom.
+- Never let content spill just 2–3 lines onto a second page. Either tighten to fit one page (using the techniques below), or add enough real content that the second page fills past its halfway point. A near-empty page 2 looks worse than either.
+- Never strand a section heading alone at the bottom of a page with its content on the next. Reorder sections or adjust content length so the heading moves with its content (do not add packages to the locked preamble).
+
 Tightening techniques (apply progressively, only as needed):
 - Reduce margins toward `0.75in` (from `1in`), and only toward `0.5in` if still needed
 - Tighten list spacing: `itemsep=2pt, topsep=2pt`

@@ -183,6 +183,43 @@ def _cl_preview_cb(job_id: str):
     return cb
 
 
+def _compile_and_repair(tex_path, latex_content: str, skill_dir, stage_fn, job_id: str):
+    """Compile the LaTeX; on failure, ask the model to fix it once and recompile.
+
+    Weak models occasionally emit LaTeX that won't compile (unescaped chars,
+    unbalanced braces, undefined commands). Rather than fail the whole build,
+    feed the actual pdflatex error back to the model for a single repair pass.
+    Only fires on failure — zero overhead on the happy path. If the repair also
+    fails to compile, the original error is raised so the user sees a real cause.
+    """
+    try:
+        return _compile_latex(tex_path)
+    except RuntimeError as first_err:
+        stage_fn(job_id, "Fixing LaTeX and recompiling…")
+        repair_system = (
+            "You are a LaTeX repair tool. The following LaTeX failed to compile "
+            "with pdflatex. Fix ONLY the compilation error — do not rewrite content, "
+            "change wording, or alter the layout. Common causes: unescaped & % # _ $, "
+            "unbalanced braces, or a command/package not in the preamble. "
+            "Return ONLY the corrected LaTeX, starting with \\documentclass and ending "
+            "with \\end{document}. No explanation, no markdown fences."
+        )
+        repair_prompt = (
+            f"pdflatex error:\n{first_err}\n\n"
+            f"Broken LaTeX:\n{latex_content}"
+        )
+        try:
+            fixed_text = _generate_content(repair_system, repair_prompt, cwd=str(skill_dir))
+            fixed_latex, _ = _parse_latex_response(fixed_text)  # sanitizes internally
+            if not fixed_latex.strip():
+                raise first_err
+            tex_path.write_text(fixed_latex, encoding="utf-8")
+            return _compile_latex(tex_path)
+        except RuntimeError:
+            # Repair didn't help — surface the ORIGINAL error, it's more diagnostic.
+            raise first_err
+
+
 def _build_document(job_id: str, doc_type: str) -> None:
     """Shared document builder for resumes and cover letters."""
     is_resume = doc_type == "resume"
@@ -245,7 +282,7 @@ def _build_document(job_id: str, doc_type: str) -> None:
         if is_resume:
             (output_dir / "job_description.txt").write_text(row.get("description", ""), encoding="utf-8")
 
-        pdf_path = _compile_latex(tex_path)
+        pdf_path = _compile_and_repair(tex_path, latex_content, skill_dir, stage_fn, job_id)
 
         with task_state._lock:
             status_dict[job_id] = {"status": "done", "pdf_path": str(pdf_path), "error": None}
