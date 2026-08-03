@@ -38,9 +38,17 @@ Mirror `latex_template.md` exactly:
 
 **Key projects:** treat these as mini case studies, not labels. For each project, write 3–4 bullets covering: what the platform/product was, what the candidate's specific role was, the key delivery challenge or scope, and the measurable outcome. Do not compress to one sentence.
 
-**Page length:** Default is one page. Use two pages only if content genuinely cannot fit without cutting something meaningful. To achieve one page:
-- Reduce margins to `0.75in` (from `1in`)
-- Tighten list spacing: `itemsep=0pt, topsep=2pt`
+**Page length:** Prefer one page, but readability wins over the page count. One page is the target *when the content fits comfortably* — never at the cost of a cramped, hard-to-scan resume. Apply the techniques below in order and stop as soon as it fits; do not stack all of them if a subset already works. If, after reasonable tightening, one page would force tiny text, near-zero spacing, or cutting genuinely relevant experience, let it flow to two pages — a clean, readable two-page resume beats a crammed one-page one.
+
+Readability floor (never cross these to hit one page):
+- Body font no smaller than `10pt` (never go to `9pt` just to fit)
+- Margins no tighter than `0.5in`
+- Keep at least `itemsep=2pt` between bullets — never `0pt` to the point lines visually collide
+- Never drop a bullet that maps to a Tier 1 JD requirement purely for space
+
+Tightening techniques (apply progressively, only as needed):
+- Reduce margins toward `0.75in` (from `1in`), and only toward `0.5in` if still needed
+- Tighten list spacing: `itemsep=2pt, topsep=2pt`
 - Tighten section spacing: `\titlespacing{\section}{0pt}{8pt}{3pt}`
 - Move tools (Jira, Confluence, etc.) into the header contact line, not a separate competency item
 - Cap Core Competencies at 6 items (drop the weakest for this JD)
