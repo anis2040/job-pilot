@@ -141,7 +141,12 @@
   /* Similar jobs card */
   /* ── Similar jobs (horizontal slider under the description) ── */
   .similar-section { margin-top: var(--space-6); }
-  .similar-heading { font-size: var(--text-lg); font-weight: 700; color: var(--text-white); margin-bottom: var(--space-4); }
+  .similar-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-4); }
+  .similar-heading { font-size: var(--text-lg); font-weight: 700; color: var(--text-white); margin: 0; }
+  .similar-nav { display: flex; gap: 6px; }
+  .similar-arrow { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; line-height: 1; color: var(--text-soft); background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-full); cursor: pointer; transition: border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard); }
+  .similar-arrow:hover:not(:disabled) { border-color: var(--blue-light); color: var(--blue-light); }
+  .similar-arrow:disabled { opacity: var(--opacity-disabled, 0.4); cursor: default; }
   .similar-slider { display: flex; gap: var(--space-3); overflow-x: auto; padding-bottom: var(--space-2); scroll-snap-type: x proximity; scrollbar-width: thin; }
   .similar-slider::-webkit-scrollbar { height: 8px; }
   .similar-slider::-webkit-scrollbar-thumb { background: var(--border); border-radius: var(--radius-full); }
@@ -202,7 +207,13 @@
 
     <!-- Similar jobs (horizontal slider) -->
     <div class="similar-section" id="similar-card" style="display:none">
-      <h2 class="similar-heading">Similar Jobs</h2>
+      <div class="similar-head">
+        <h2 class="similar-heading">Similar Jobs</h2>
+        <div class="similar-nav">
+          <button class="similar-arrow" id="similar-prev" onclick="scrollSimilar(-1)" aria-label="Previous" title="Previous">‹</button>
+          <button class="similar-arrow" id="similar-next" onclick="scrollSimilar(1)" aria-label="Next" title="Next">›</button>
+        </div>
+      </div>
       <div class="similar-slider" id="similar-card-body"></div>
     </div>
   </div>
@@ -588,6 +599,31 @@ async function loadSimilarJobs() {
         ${j.age ? `<span>${escapeHtml(j.age)}</span>` : ""}
       </div>
     </a>`).join("");
+  const slider = document.getElementById("similar-card-body");
+  slider.addEventListener("scroll", updateSimilarArrows, { passive: true });
+  updateSimilarArrows();
+}
+
+// Scroll the slider by roughly one card-width * direction (-1 prev, +1 next).
+function scrollSimilar(dir) {
+  const slider = document.getElementById("similar-card-body");
+  if (!slider) return;
+  slider.scrollBy({ left: dir * 260, behavior: "smooth" });
+}
+
+// Grey out an arrow when there's nothing further to scroll that way; hide the
+// whole nav when everything already fits (no overflow).
+function updateSimilarArrows() {
+  const slider = document.getElementById("similar-card-body");
+  const nav = document.querySelector(".similar-nav");
+  const prev = document.getElementById("similar-prev");
+  const next = document.getElementById("similar-next");
+  if (!slider || !nav) return;
+  const overflow = slider.scrollWidth - slider.clientWidth > 2;
+  nav.style.display = overflow ? "" : "none";
+  if (!overflow) return;
+  prev.disabled = slider.scrollLeft <= 2;
+  next.disabled = slider.scrollLeft >= slider.scrollWidth - slider.clientWidth - 2;
 }
 
 // ── Actions ───────────────────────────────────────────────────────────────
