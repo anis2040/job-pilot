@@ -746,6 +746,7 @@
   // ── Saved & recent searches (localStorage-backed) ─────────────────────────
   const _LS_SAVED = "jobpilot.savedSearches";
   const _LS_RECENT = "jobpilot.recentSearches";
+  const _LS_LAST = "jobpilot.lastSearch";   // last active filter state, restored on load
 
   function _lsGet(key) {
     try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; }
@@ -765,7 +766,8 @@
     };
   }
 
-  function applySearchState(s) {
+  // Set the filter controls to a saved state WITHOUT triggering a re-render.
+  function restoreControls(s) {
     document.getElementById("search-input").value = s.q || "";
     document.querySelectorAll(".filter-chip[data-filter='remote']").forEach(c => {
       const on = (s.remote || []).includes(c.dataset.value);
@@ -774,7 +776,11 @@
     });
     document.getElementById("filter-source").value = s.source || "";
     document.getElementById("filter-posted").value = s.posted || "";
-    document.getElementById("filter-sort").value = s.sort || "posted";
+    document.getElementById("filter-sort").value = s.sort || "match";
+  }
+
+  function applySearchState(s) {
+    restoreControls(s);
     applyFiltersAndSort();
   }
 
@@ -919,14 +925,25 @@
     const srcSel = document.getElementById("filter-source");
     if (srcSel) srcSel.classList.toggle("active", !!srcFilter);
 
+    // Remember the active filter state so a reload restores it (not defaults).
+    try { _lsSet(_LS_LAST, getSearchState()); } catch {}
+
     renderJobs(filtered);
   }
 
   // ── Data loading ──────────────────────────────────────────────────────────
+  let _searchRestored = false;
   async function loadJobs() {
     const res = await fetch(`/api/jobs?status=${currentStatus}`);
     jobs = await res.json();
     populateSourceFilter();
+    // On the first load, restore the last-used filter state (if any).
+    if (!_searchRestored) {
+      _searchRestored = true;
+      let last = null;
+      try { const raw = localStorage.getItem(_LS_LAST); if (raw) last = JSON.parse(raw); } catch {}
+      if (last) { restoreControls(last); }
+    }
     applyFiltersAndSort();
     renderSearchChips();
     updateCounts();
