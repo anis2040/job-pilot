@@ -147,15 +147,18 @@
   .similar-arrow { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; line-height: 1; color: var(--text-soft); background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-full); cursor: pointer; transition: border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard); }
   .similar-arrow:hover:not(:disabled) { border-color: var(--blue-light); color: var(--blue-light); }
   .similar-arrow:disabled { opacity: var(--opacity-disabled, 0.4); cursor: default; }
-  .similar-slider { display: flex; gap: var(--space-3); overflow-x: auto; padding-bottom: var(--space-2); scroll-snap-type: x proximity; scrollbar-width: thin; }
-  .similar-slider::-webkit-scrollbar { height: 8px; }
-  .similar-slider::-webkit-scrollbar-thumb { background: var(--border); border-radius: var(--radius-full); }
+  .similar-slider { display: flex; gap: var(--space-3); overflow-x: auto; padding-bottom: var(--space-2); scroll-snap-type: x proximity; scroll-behavior: smooth; }
   .similar-card-item { flex: 0 0 240px; scroll-snap-align: start; display: flex; flex-direction: column; gap: 5px; padding: var(--space-4); background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-lg); text-decoration: none; transition: border-color var(--dur-fast) var(--ease-standard), background var(--dur-fast) var(--ease-standard); }
   .similar-card-item:hover { border-color: var(--blue-light); background: var(--bg-raised); }
   .similar-card-item:hover .similar-job-title { color: var(--blue-light); }
   .similar-job-title { font-size: var(--text-base); font-weight: 600; color: var(--text); line-height: var(--leading-tight); }
   .similar-job-company { font-size: var(--text-sm); color: var(--text-soft); }
   .similar-job-meta  { font-size: var(--text-xs); color: var(--text-muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: auto; }
+  /* Staggered entrance for the slider cards */
+  @keyframes similar-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .similar-card-item { animation: similar-in var(--dur-base) var(--ease-out) both; }
+  .similar-arrow { transition: border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard); }
+  .similar-arrow:active:not(:disabled) { transform: scale(0.9); }
 
   /* ── Responsive ── */
   @media (max-width: 768px) {
@@ -590,8 +593,8 @@ async function loadSimilarJobs() {
   const card = document.getElementById("similar-card");
   if (!data.length) { card.style.display = "none"; return; }
   card.style.display = "";
-  document.getElementById("similar-card-body").innerHTML = data.map(j => `
-    <a class="similar-card-item" href="/job/${j.job_id}">
+  document.getElementById("similar-card-body").innerHTML = data.map((j, i) => `
+    <a class="similar-card-item" href="/job/${j.job_id}" style="animation-delay:${i * 60}ms">
       <div class="similar-job-title">${escapeHtml(j.title)}</div>
       <div class="similar-job-company">${escapeHtml(j.company)}</div>
       <div class="similar-job-meta">
