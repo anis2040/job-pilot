@@ -44,17 +44,15 @@ def _get_anthropic_client():
             return client
         elif auth_token:
             client = anthropic.Anthropic(auth_token=auth_token)
-        elif shutil.which("claude"):
-            client = anthropic.Anthropic()
+            # For token/OAuth clients, reject proxy endpoints
+            base = str(getattr(getattr(client, "_client", None), "base_url", ""))
+            if base and "anthropic.com" not in base:
+                return None
+            return client
         else:
+            # No explicit credentials — don't attempt to create a client.
+            # The claude CLI subprocess path handles OAuth login separately.
             return None
-
-        # For token/OAuth clients, reject proxy endpoints
-        base = str(getattr(getattr(client, "_client", None), "base_url", ""))
-        if base and "anthropic.com" not in base:
-            return None
-
-        return client
     except Exception:
         return None
 
