@@ -423,9 +423,13 @@ const SKILLS_LIST = [
 function extractSkills(text) {
   if (!text) return [];
   const lower = text.toLowerCase();
+  const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return SKILLS_LIST.filter(s => {
-    const needle = s.toLowerCase().replace(".", "\\.");
-    return new RegExp(`\\b${needle}\\b`).test(lower);
+    const needle = esc(s.toLowerCase());
+    // Boundary = start/end or a non-alphanumeric char. \b can't be used because
+    // skills like "c++"/"c#" end in non-word characters; this keeps "java" from
+    // matching "javascript" while still matching "c++", "node.js", "ci/cd".
+    return new RegExp(`(^|[^a-z0-9])${needle}([^a-z0-9]|$)`).test(lower);
   });
 }
 
