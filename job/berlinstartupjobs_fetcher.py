@@ -2,7 +2,7 @@ import httpx
 
 from .config import SearchConfig
 from .fetcher_utils import http_get, strip_tags, infer_remote
-from .models import RawJob
+from .models import RawJob, RemoteType
 from .utils import parse_experience, location_matches
 
 _API_BASE = "https://berlinstartupjobs.com/wp-json/wp/v2/posts"
@@ -50,7 +50,7 @@ def fetch_berlinstartupjobs(search: SearchConfig) -> list[RawJob]:
 
             company = _extract_company(title, description)
             experience = parse_experience(title + " " + description)
-            remote = infer_remote(title, description)
+            remote = infer_remote(title, description, default=RemoteType.UNKNOWN)
 
             results.append(RawJob(
                 job_id=job_id,

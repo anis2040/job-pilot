@@ -2,7 +2,7 @@ import httpx
 
 from .config import SearchConfig
 from .fetcher_utils import http_get, strip_tags, infer_remote
-from .models import RawJob
+from .models import RawJob, RemoteType
 from .utils import parse_experience, location_matches
 
 
@@ -41,7 +41,9 @@ def fetch_jobicy(search: SearchConfig) -> list[RawJob]:
         job_types = item.get("jobType", [])
         description = strip_tags(item.get("jobDescription") or item.get("jobExcerpt") or "")
         experience = parse_experience(title + " " + item.get("jobLevel", "") + " " + description)
-        remote = infer_remote(title, " ".join(job_types), geo)
+        # Jobicy is a remote-only board (/api/v2/remote-jobs) — default Remote;
+        # keywords can still upgrade to Hybrid where stated.
+        remote = infer_remote(title, " ".join(job_types), geo, default=RemoteType.REMOTE)
         employment_type = _parse_employment_type(job_types)
         salary = _parse_salary(item)
 

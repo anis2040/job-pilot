@@ -265,6 +265,19 @@ def test_jobicy_fetcher_parses_json(monkeypatch, search):
     assert "<p>" not in job.description  # HTML stripped
 
 
+def test_jobicy_defaults_remote_without_keyword(monkeypatch, search):
+    """Jobicy is a remote-only board — a job with no 'remote' keyword must still
+    be Remote, not a false On-site."""
+    import job.jobicy_fetcher as jf
+    data = {"jobs": [{"id": 1, "jobTitle": "Backend Engineer", "companyName": "X",
+                      "jobGeo": "USA", "jobType": ["full-time"],
+                      "jobDescription": "Build things", "url": "http://x", "pubDate": "2024"}]}
+    search.source = "jobicy"
+    monkeypatch.setattr(jf, "http_get", lambda *a, **kw: FakeResponse(data=data))
+    out = jf.fetch_jobicy(search)
+    assert out[0].remote == RemoteType.REMOTE
+
+
 # ── Himalayas ─────────────────────────────────────────────────────────────────
 
 _HIMALAYAS_JSON = {
@@ -345,6 +358,20 @@ def test_greenhouse_title_filter_excludes_non_matching(monkeypatch, search):
     assert results == []
 
 
+def test_greenhouse_named_location_is_onsite(monkeypatch, search):
+    """A Greenhouse job with a named office location (no remote keyword) is
+    On-site, not Unknown — the location itself is the signal."""
+    import job.greenhouse_fetcher as gf
+    data = {"jobs": [{"id": 9, "title": "Product Manager", "location": {"name": "Berlin, Germany"},
+                      "absolute_url": "http://x", "updated_at": "2024"}]}
+    search.source = "greenhouse"; search.query = "product"; search.companies = ["acme"]
+    search.location = "Germany"
+    search.remote = False  # don't skip on-site
+    monkeypatch.setattr(gf, "http_get", lambda *a, **kw: FakeResponse(data=data))
+    out = gf.fetch_greenhouse(search)
+    assert out[0].remote == RemoteType.ONSITE
+
+
 # ── GermanTechJobs ────────────────────────────────────────────────────────────
 
 _GTJ_RSS = """<?xml version="1.0" encoding="UTF-8"?>
@@ -376,6 +403,8 @@ def test_germantechjobs_fetcher_parses_rss(monkeypatch, search):
     assert job.company == "TechGmbH"
     assert job.location == "Berlin"
     assert "Senior Engineer" in job.title
+    # No remote/hybrid keyword in the listing → Unknown, not a false On-site
+    assert job.remote == RemoteType.UNKNOWN
 
 
 def test_germantechjobs_location_filter(monkeypatch, search):

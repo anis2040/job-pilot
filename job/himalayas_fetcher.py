@@ -2,7 +2,7 @@ import httpx
 
 from .config import SearchConfig
 from .fetcher_utils import http_get, strip_tags, infer_remote
-from .models import RawJob
+from .models import RawJob, RemoteType
 from .utils import parse_experience, location_matches
 
 
@@ -46,7 +46,9 @@ def fetch_himalayas(search: SearchConfig) -> list[RawJob]:
             description = strip_tags(item.get("description") or item.get("excerpt") or "")
             seniority = " ".join(item.get("seniority") or [])
             experience = parse_experience(title + " " + seniority + " " + description)
-            remote = infer_remote(" ".join(restrictions), item.get("employmentType") or "")
+            # Himalayas is a remote-only board — default Remote; Hybrid upgrades on keyword.
+            remote = infer_remote(" ".join(restrictions), item.get("employmentType") or "",
+                                  default=RemoteType.REMOTE)
             url = item.get("applicationLink") or slug
             employment_type = _parse_employment_type(item.get("employmentType") or "")
             salary = _parse_salary(item)

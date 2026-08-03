@@ -3,7 +3,7 @@ import httpx
 
 from .config import SearchConfig
 from .fetcher_utils import http_get, strip_tags, infer_remote
-from .models import RawJob
+from .models import RawJob, RemoteType
 from .utils import parse_experience, location_matches
 
 _RSS_URL = "https://germantechjobs.de/rss"
@@ -49,7 +49,7 @@ def fetch_germantechjobs(search: SearchConfig) -> list[RawJob]:
         slug = link.split("?")[0].rstrip("/").split("/")[-1]
         job_id = f"gtj_{slug}"
         experience = parse_experience(title + " " + full_text)
-        remote = infer_remote(title, full_text, location)
+        remote = infer_remote(title, full_text, location, default=RemoteType.UNKNOWN)
 
         results.append(RawJob(
             job_id=job_id,

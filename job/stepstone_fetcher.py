@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 
 from .config import SearchConfig
 from .fetcher_utils import infer_remote, strip_tags, jsonld_job_description
-from .models import RawJob
+from .models import RawJob, RemoteType
 from .utils import parse_experience, location_matches
 
 _HEADERS = {
@@ -84,7 +84,9 @@ def fetch_stepstone(search: SearchConfig) -> list[RawJob]:
             description = description_el.get_text(strip=True) if description_el else ""
 
             experience = parse_experience(title + " " + description)
-            remote = infer_remote(title, raw_location, description)
+            # A named StepStone location is an On-site signal; remote/hybrid keywords win.
+            remote = infer_remote(title, raw_location, description,
+                                  default=RemoteType.ONSITE if (raw_location or "").strip() else RemoteType.UNKNOWN)
 
             results.append(RawJob(
                 job_id=job_id,

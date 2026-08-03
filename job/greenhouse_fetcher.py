@@ -55,7 +55,10 @@ def fetch_greenhouse(search: SearchConfig) -> list[RawJob]:
             if location_name and not location_matches(location_name, search.location):
                 continue
 
-            remote = infer_remote(location_name)
+            # Greenhouse location is a real signal: "Remote"/"Hybrid" keywords win,
+            # a named office location means On-site, and only a blank location is Unknown.
+            remote = infer_remote(location_name,
+                                  default=RemoteType.ONSITE if location_name.strip() else RemoteType.UNKNOWN)
 
             # Skip on-site if search is remote-only
             if search.remote and remote == RemoteType.ONSITE:
