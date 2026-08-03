@@ -111,6 +111,7 @@
       <span class="toggle-icon" id="chevron-{{ p.id }}" style="margin-left:var(--space-2)">▾</span>
     </div>
     <div class="card-body" id="body-{{ p.id }}">
+      {% if not p.get('no_key') %}
       <div class="input-group">
         <label>API Key</label>
         <div class="input-row">
@@ -118,13 +119,14 @@
           <button class="btn btn-ghost btn-sm" type="button" onclick="event.stopPropagation(); toggleKeyVisibility('{{ p.id }}')" id="eye-{{ p.id }}" title="Show/hide key" style="padding:5px 8px;">👁</button>
           <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); saveKey('{{ p.id }}')">Save</button>
         </div>
-        <div class="hint">{{ p.hint | safe }}</div>
         <div id="{{ p.id }}-key-status" class="key-status"></div>
       </div>
       <div class="model-row">
         <label>Model</label>
         <select id="{{ p.id }}-model" onchange="saveModel('{{ p.id }}')" onclick="event.stopPropagation()"></select>
       </div>
+      {% endif %}
+      <div class="hint">{{ p.hint | safe }}</div>
       <div class="test-row">
         <button class="btn btn-ghost btn-sm" onclick="testProvider('{{ p.id }}')" id="test-{{ p.id }}">Test connection</button>
         <span class="test-result" id="test-{{ p.id }}-result"></span>
@@ -160,7 +162,8 @@ const KEY_ENDPOINTS = {
   anthropic: "/api/setup/save-anthropic-key",
   gemini:    "/api/setup/save-gemini-key",
 };
-const PROVIDER_LABELS = { groq: "Groq", anthropic: "Claude", gemini: "Gemini" };
+const PROVIDER_LABELS = { groq: "Groq", anthropic: "Claude", gemini: "Gemini", claude: "Claude Pro" };
+const NO_KEY_LABEL    = { claude: "No CLI" };
 
 let PROVIDERS = [];
 let preferredProvider = null;
@@ -244,6 +247,11 @@ async function load() {  const res  = await fetch("/api/ai-settings");
     }
 
     document.getElementById(`nokey-${provider}`).style.display = info.key_set ? "none" : "";
+    const nokeyEl = document.getElementById(`nokey-${provider}`);
+    if (nokeyEl) {
+      nokeyEl.textContent = NO_KEY_LABEL[provider] || "No key";
+      nokeyEl.style.display = info.key_set ? "none" : "";
+    }
     renderUsage(provider, info.usage, info.key_set);
   }
 

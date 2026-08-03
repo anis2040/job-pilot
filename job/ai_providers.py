@@ -388,6 +388,28 @@ def _build_with_sdk(system_text: str, user_prompt: str, stage_fn=None, on_delta=
     return response.content[0].text
 
 
+def _build_with_claude_cli(system_text: str, user_prompt: str, cwd: str, stage_fn=None) -> str:
+    """Call Claude via the Claude Code CLI using the user's Pro subscription (no API key needed)."""
+    if not shutil.which("claude"):
+        raise RuntimeError(
+            "Claude Code CLI not found. Install it with: npm install -g @anthropic-ai/claude-code"
+        )
+    if stage_fn:
+        stage_fn("Generating with Claude…")
+    extra = {}
+    if sys.platform == "win32":
+        extra["creationflags"] = subprocess.CREATE_NO_WINDOW
+    claude_exe = shutil.which("claude") or "claude"
+    result = subprocess.run(
+        [claude_exe, "-p", user_prompt, "--append-system-prompt", system_text, "--output-format", "text"],
+        capture_output=True, text=True, cwd=cwd, timeout=600, **extra,
+    )
+    if result.returncode != 0:
+        err = (result.stderr or result.stdout or "").strip()
+        raise RuntimeError(f"Claude CLI error: {err[:300]}")
+    return result.stdout.strip()
+
+
 def _get_gemini_client():
     """Return a configured Gemini client, or None if no credentials available."""
     _load_env()  # keys saved via the UI live in .env — load them like the other getters
@@ -590,10 +612,16 @@ def _generate_content(system_text: str, user_prompt: str, cwd: str, stage_fn=Non
             return _build_with_gemini(system_text, user_prompt, cwd=cwd, stage_fn=stage_fn)
         return None
 
-    _order = {"groq": [_try_groq, _try_anthropic, _try_gemini],
-              "anthropic": [_try_anthropic, _try_groq, _try_gemini],
-              "gemini": [_try_gemini, _try_groq, _try_anthropic]}
-    fns = _order.get(preferred, [_try_groq, _try_anthropic, _try_gemini])
+    def _try_claude_cli():
+        if shutil.which("claude"):
+            return _build_with_claude_cli(system_text, user_prompt, cwd=cwd, stage_fn=stage_fn)
+        return None
+
+    _order = {"groq":     [_try_groq, _try_anthropic, _try_gemini, _try_claude_cli],
+              "anthropic": [_try_anthropic, _try_groq, _try_gemini, _try_claude_cli],
+              "gemini":   [_try_gemini, _try_groq, _try_anthropic, _try_claude_cli],
+              "claude":   [_try_claude_cli, _try_groq, _try_anthropic, _try_gemini]}
+    fns = _order.get(preferred, [_try_groq, _try_anthropic, _try_gemini, _try_claude_cli])
 
     for fn in fns:
         result = fn()

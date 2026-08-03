@@ -367,6 +367,7 @@ def ai_settings_page():
         {"id": "groq",      "label": "Groq",             "sub": "Fast free inference — llama, mixtral, gemma",  "badge_class": "badge-free",  "badge_text": "Free ⚡",  "placeholder": "gsk_…",    "hint": 'Get a free key at <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys ↗</a>. Saved locally in <code>.env</code>.'},
         {"id": "anthropic", "label": "Claude (Anthropic)","sub": "High quality — Haiku, Sonnet, Opus",          "badge_class": "badge-paid",  "badge_text": "API key",  "placeholder": "sk-ant-…", "hint": 'Get a key at <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com ↗</a>. Saved locally in <code>.env</code>.'},
         {"id": "gemini",    "label": "Gemini (Google)",   "sub": "Free API key — Flash, Flash-lite, 1.5",        "badge_class": "badge-free",  "badge_text": "Free",     "placeholder": "AIza…",    "hint": 'Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio ↗</a>. Saved locally in <code>.env</code>.'},
+        {"id": "claude",    "label": "Claude Pro (CLI)",  "sub": "Use your claude.ai Pro subscription — no API key", "badge_class": "badge-free", "badge_text": "Pro sub", "placeholder": "",         "hint": 'Uses Claude Code CLI with your claude.ai login. Run <code>claude login</code> in a terminal if not already signed in.', "no_key": True},
     ]
     return render_template("ai_settings.html", providers=providers)
 
@@ -741,6 +742,14 @@ def api_ai_settings_get():
                 "models":  _models_for("gemini"),
                 "usage":   _usage_for("gemini"),
             },
+            "claude": {
+                "configured": bool(shutil.which("claude")),
+                "model":   "claude-cli",
+                "key_set": bool(shutil.which("claude")),
+                "key":     "",
+                "models":  [],
+                "usage":   {},
+            },
         }
     })
 
@@ -759,7 +768,7 @@ def api_ai_settings_save():
             updated_keys.add(env_key)
 
     preferred = (data.get("preferred_provider") or "").strip().lower()
-    if preferred in ("groq", "anthropic", "gemini", ""):
+    if preferred in ("groq", "anthropic", "gemini", "claude", ""):
         if preferred:
             _write_env_var(env_path, "PREFERRED_PROVIDER", preferred)
             os.environ["PREFERRED_PROVIDER"] = preferred
@@ -808,6 +817,9 @@ def api_ai_settings_test():
             _load_env()
             if not (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or shutil.which("gemini")):
                 return jsonify({"ok": False, "error": "No Gemini credentials found. Add an API key or install the Gemini CLI."})
+        elif provider == "claude":
+            if not shutil.which("claude"):
+                return jsonify({"ok": False, "error": "Claude Code CLI not found. Install it with: npm install -g @anthropic-ai/claude-code"})
 
         t0 = time.time()
         if provider == "groq":
@@ -819,10 +831,14 @@ def api_ai_settings_test():
             backend_out = []
             result = _build_with_gemini("You are a test.", "Say OK in one word.", cwd=str(_skill_path()), backend_out=backend_out)
             backend = backend_out[0] if backend_out else None
+        elif provider == "claude":
+            from job.ai_providers import _build_with_claude_cli
+            from job.web_api import _skill_path
+            result = _build_with_claude_cli("You are a test.", "Say OK in one word.", cwd=str(_skill_path()))
         else:
             return jsonify({"ok": False, "error": f"Unknown provider: {provider}"}), 400
         latency = round((time.time() - t0) * 1000)
-        return jsonify({"ok": True, "model": _get_model(provider), "latency_ms": latency,
+        return jsonify({"ok": True, "model": _get_model(provider) if provider != "claude" else "claude-cli", "latency_ms": latency,
                         "backend": backend, "response": result.strip()[:50]})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})

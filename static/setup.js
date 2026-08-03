@@ -402,8 +402,8 @@ async function installCLI(provider) {
 async function testSetupProvider(provider) {
   const btn = document.getElementById(`test-${provider}`);
   const out = document.getElementById(`test-${provider}-result`);
-  // API keys use "anthropic"/"groq"/"gemini"; wizard uses "claude" for Anthropic.
-  const apiProvider = provider === "claude" ? "anthropic" : provider;
+  // "claude" maps to itself (CLI provider); other providers pass through unchanged.
+  const apiProvider = provider;
   if (btn) { btn.disabled = true; }
   if (out) { out.style.color = "#94a3b8"; out.innerHTML = `<span class="spinner"></span> Testing…`; }
   try {
