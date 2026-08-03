@@ -18,15 +18,14 @@
   /* Main content */
   .main { flex: 1; min-width: 0; }
   .section { display: none; }
-  .section.active { display: block; }
+  .section.active { display: block; animation: fadeSlideIn var(--dur-base) var(--ease-out) both; }
 
   /* Settings cards */
   .settings-card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-lg); margin-bottom: var(--space-4); overflow: hidden; }
   .settings-card-header { padding: var(--space-4) var(--space-5); display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; }
   .settings-card-header h3 { font-size: 0.9rem; font-weight: 600; color: var(--text); }
   .settings-card-header p { font-size: var(--text-sm); color: var(--text-muted); margin-top: 2px; }
-  .settings-card-body { padding: var(--space-5); border-top: 1px solid var(--border-faint); }
-  .settings-card-body.hidden { display: none; }
+  .settings-card-body { padding: 0 var(--space-5); border-top: 1px solid var(--border-faint); }
 
   /* Danger zone */
   .danger-card { background: var(--bg-surface); border: 1px solid var(--red-border); border-radius: var(--radius-lg); padding: var(--space-5); display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
@@ -77,12 +76,12 @@
       {% include "partials/autofill_bar.html" %}
 
       <div class="settings-card">
-        <div class="settings-card-body">
+        <div class="settings-card-body is-expanded">
           {% include "partials/profile_form.html" %}
           <div id="profile-save-alert"></div>
           <div class="save-row">
             <button class="btn btn-primary" onclick="saveProfileForm()">Save profile</button>
-            <span class="save-notice" id="profile-save-ok" style="display:none">✓ Saved</span>
+            <span class="save-notice" id="profile-save-ok">✓ Saved</span>
           </div>
         </div>
       </div>
@@ -95,7 +94,7 @@
           </div>
           <span id="toggle-auto-config-body" class="toggle-icon">▼</span>
         </div>
-        <div class="settings-card-body hidden" id="auto-config-body">
+        <div class="settings-card-body" id="auto-config-body">
           <p style="font-size:0.84rem;color:#94a3b8;margin-bottom:12px">Analyzes your profile to extract job titles, location, and remote preference, then rewrites your search config.</p>
           <button class="btn btn-primary" id="btn-auto-config" onclick="autoConfig()">⚡ Configure from profile</button>
           <div id="auto-config-alert" style="margin-top:10px"></div>
@@ -112,7 +111,7 @@
         <div class="settings-card-header">
           <div><h3>Search Sources</h3><p>One entry per source</p></div>
         </div>
-        <div class="settings-card-body">
+        <div class="settings-card-body is-expanded">
           <div id="search-rows"></div>
           <button class="btn-add-row" onclick="addSearchRow({}, 'search-rows')">+ Add search</button>
         </div>
@@ -123,7 +122,7 @@
           <div><h3>Filters</h3><p>Title filter, blacklist, company blacklist</p></div>
           <span id="toggle-filter-body" class="toggle-icon">▼</span>
         </div>
-        <div class="settings-card-body hidden" id="filter-body">
+        <div class="settings-card-body" id="filter-body">
           <div class="field">
             <label>Title Filter <span class="label-hint">(keep jobs matching at least one)</span></label>
             <div class="tag-wrap" id="title-filter-wrap" onclick="document.getElementById('title-filter-input').focus()">
@@ -148,7 +147,7 @@
       <div id="search-save-alert"></div>
       <div class="save-row">
         <button class="btn btn-primary" onclick="saveSearchSettings()">Save search settings</button>
-        <span class="save-notice" id="search-save-ok" style="display:none">✓ Saved</span>
+        <span class="save-notice" id="search-save-ok">✓ Saved</span>
       </div>
     </div>
 
@@ -205,9 +204,9 @@ function showSection(name) {
 function toggleCard(bodyId, header) {
   const body = document.getElementById(bodyId);
   const icon = document.getElementById(`toggle-${bodyId}`);
-  const hidden = body.classList.toggle("hidden");
-  if (icon) icon.textContent = hidden ? "▼" : "▲";
-  if (header) header.setAttribute("aria-expanded", hidden ? "false" : "true");
+  const isExpanded = body.classList.toggle("is-expanded");
+  if (icon) icon.textContent = isExpanded ? "▲" : "▼";
+  if (header) header.setAttribute("aria-expanded", String(isExpanded));
 }
 
 function cardKeydown(e, bodyId, header) {
@@ -235,8 +234,8 @@ async function saveProfileForm() {
   if (data.ok) {
     alertEl.innerHTML = "";
     const ok = document.getElementById("profile-save-ok");
-    ok.style.display = "inline";
-    setTimeout(() => ok.style.display = "none", 2500);
+    ok.classList.add("show");
+    setTimeout(() => ok.classList.remove("show"), 2500);
   } else {
     alertEl.innerHTML = `<div class="alert alert-error" style="margin-top:8px">${data.error}</div>`;
   }
@@ -262,8 +261,8 @@ async function saveSearchSettings() {
     if (IS_ACTIVE) { window.location.href = "/?fetch=1"; }
     else {
       const ok = document.getElementById("search-save-ok");
-      ok.style.display = "inline";
-      setTimeout(() => ok.style.display = "none", 2500);
+      ok.classList.add("show");
+      setTimeout(() => ok.classList.remove("show"), 2500);
     }
   } else {
     document.getElementById("search-save-alert").innerHTML = `<div class="alert alert-error">${data.error}</div>`;
