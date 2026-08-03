@@ -214,3 +214,68 @@ def test_verify_content_restores_env(monkeypatch):
     _docs._verify_content(_content(experiences=[], core_competencies=[]), "prof")
     assert os.environ.get("PREFERRED_PROVIDER") == "gemini"
     assert os.environ.get("GROQ_MODEL") is None
+
+
+# ── cover-letter JSON build + guard ───────────────────────────────────────────
+
+_CL_CONTENT = {
+    "company": "Acme & Co",
+    "paragraphs": [
+        "I'm applying for the Staff Engineer role. My NgRx work at SAP LeanIX for 1M+ users fits.",
+        "At DocCheck I cut CI/CD time by 50% and built shared component libraries.",
+        "I'd love to contribute to your platform and would welcome a conversation.",
+    ],
+}
+
+
+@pytest.fixture
+def cl_wired(tmp_path, monkeypatch):
+    db_file = tmp_path / "state.db"
+    def _connect():
+        con = sqlite3.connect(db_file); con.row_factory = sqlite3.Row; return con
+    monkeypatch.setattr(db, "_connect", _connect)
+    db.init_db()
+    db.insert_job(job_id="li_2", url="http://x", title="Staff Engineer", company="Acme",
+                  location="Berlin", remote="Remote", experience="", description="x" * 200,
+                  posted_at=None, search_name="t")
+    prof = tmp_path / "profile.md"; prof.write_text(_PROFILE)
+    monkeypatch.setattr(documents, "get_profile_path", lambda: prof)
+    monkeypatch.setattr(documents, "_validate_profile", lambda: None)
+    monkeypatch.setattr(documents, "_candidate_name_slug", lambda: "Anis_Helaoui")
+    resumes = tmp_path / "resumes"; resumes.mkdir()
+    monkeypatch.setattr(documents, "_resumes_path", lambda: resumes)
+    monkeypatch.setattr(documents, "_generate_content", lambda *a, **k: json.dumps(_CL_CONTENT))
+    monkeypatch.setattr(documents, "call_ai", lambda *a, **k: '{"ok": true}')
+    monkeypatch.setattr(documents, "_verify_providers", lambda: [("gemini", "gemini-x")])
+    task_state.clear_task_state()
+    return resumes
+
+
+def test_build_cover_letter_renders_json_to_tex(cl_wired):
+    resumes = cl_wired
+    documents._build_cover_letter("li_2")
+    st = task_state._cl_task_status.get("li_2", {})
+    tex = resumes / "AcmeCo" / "cover-letters" / "Anis_Helaoui_Cover_Letter.tex"
+    assert tex.exists(), f"CL tex not written; status={st}"
+    text = tex.read_text()
+    assert text.startswith(r"\documentclass") and r"\end{document}" in text
+    assert r"Acme \& Co" in text  # company escaped
+    assert "Anis Helaoui" in text  # name from profile
+    assert "NgRx work at SAP LeanIX" in text  # paragraph rendered
+
+
+def test_verify_cover_letter_rewrites_fabricated(monkeypatch):
+    monkeypatch.setattr(_docs, "_verify_providers", lambda: [("gemini", "gemini-x")])
+    monkeypatch.setattr(_docs, "call_ai", lambda p, system="":
+        '{"ok": false, "paragraphs": ["Grounded p1", "Grounded p2"]}')
+    content = {"paragraphs": ["Invented Kafka pipelines", "Real Angular work"]}
+    assert _docs._verify_cover_letter(content, "# Me\nAngular dev") is True
+    assert content["paragraphs"] == ["Grounded p1", "Grounded p2"]
+
+
+def test_verify_cover_letter_length_mismatch_ignored(monkeypatch):
+    monkeypatch.setattr(_docs, "_verify_providers", lambda: [("gemini", "gemini-x")])
+    monkeypatch.setattr(_docs, "call_ai", lambda p, system="": '{"ok": false, "paragraphs": ["only one"]}')
+    content = {"paragraphs": ["a", "b"]}
+    assert _docs._verify_cover_letter(content, "prof") is False
+    assert content["paragraphs"] == ["a", "b"]

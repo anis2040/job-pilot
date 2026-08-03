@@ -92,11 +92,12 @@ def _parse_contact_from_profile(profile_text: str) -> dict:
 
 # ── JSON parsing + validation ─────────────────────────────────────────────────
 
-def _parse_content_json(text: str) -> dict:
-    """Extract and validate the resume content JSON from a model response.
+def _extract_json_object(text: str) -> dict:
+    """Tolerantly extract the first JSON object from a model response.
 
-    Tolerant of ```json fences, leading prose, and trailing text — scans for the
-    first balanced {...} object. Raises ResumeParseError on anything unusable.
+    Handles ```json fences, leading prose, and trailing text by scanning for the
+    first balanced {...}. Raises ResumeParseError on anything unusable. Shared by
+    the resume and cover-letter parsers.
     """
     if not text:
         raise ResumeParseError("Empty response")
@@ -126,10 +127,14 @@ def _parse_content_json(text: str) -> dict:
         candidate = text[start:end]
 
     try:
-        data = _json.loads(candidate)
+        return _json.loads(candidate)
     except _json.JSONDecodeError as e:
         raise ResumeParseError(f"Invalid JSON: {e}") from e
 
+
+def _parse_content_json(text: str) -> dict:
+    """Extract and validate the resume content JSON from a model response."""
+    data = _extract_json_object(text)
     _validate_resume_content(data)
     return data
 
@@ -328,5 +333,66 @@ def render_resume_latex(content: dict, profile_text: str) -> str:
         lines.append(" \\\\\n".join(rendered))
         parts.append("\n".join(lines))
 
+    parts.append("\\end{document}")
+    return "\n\n".join(parts) + "\n"
+
+
+# ── Cover letter ──────────────────────────────────────────────────────────────
+
+def _parse_cover_letter_json(text: str) -> dict:
+    """Parse + validate cover-letter content JSON (paragraphs + company).
+
+    Reuses the tolerant _extract_json_object, then validates the cover-letter
+    shape. Raises ResumeParseError on anything unusable.
+    """
+    data = _extract_json_object(text)
+    if not isinstance(data, dict):
+        raise ResumeParseError("Top-level JSON must be an object")
+    paras = data.get("paragraphs")
+    if not isinstance(paras, list) or not [p for p in paras if isinstance(p, str) and p.strip()]:
+        raise ResumeParseError("Missing or empty 'paragraphs'")
+    return data
+
+
+_CL_PREAMBLE = r"""\documentclass[11pt,a4paper]{letter}
+\usepackage[margin=1in]{geometry}
+\usepackage[hidelinks]{hyperref}
+\usepackage{microtype}
+\pagestyle{empty}
+
+\begin{document}
+"""
+
+
+def render_cover_letter_latex(content: dict, profile_text: str) -> str:
+    """Render a complete cover-letter .tex from structured content.
+
+    Contact/name come from profile.md (never the model). Body paragraphs are
+    escaped. The fixed `letter` shell lives here, not in the model output —
+    eliminating cover-letter compile failures.
+    """
+    contact = _parse_contact_from_profile(profile_text)
+    name = _latex_escape(contact.get("name") or "Candidate")
+    company = _latex_escape(content.get("company") or "the company")
+    greeting = _latex_escape(content.get("greeting") or "Dear Hiring Manager,")
+    closing = _latex_escape(content.get("closing") or "Best regards,")
+    paras = [p.strip() for p in content.get("paragraphs", []) if isinstance(p, str) and p.strip()]
+
+    parts = [_CL_PREAMBLE]
+    parts.append(f"\\begin{{letter}}{{Hiring Manager\\\\{company}}}")
+    parts.append(f"\\opening{{{greeting}}}")
+    parts.append("\n\n".join(_latex_escape(p) for p in paras))
+    parts.append(f"\\closing{{{closing}}}")
+    # Signature block: name + contact from profile
+    contact_bits = []
+    if contact.get("email"):
+        contact_bits.append(_latex_escape(contact["email"]))
+    if contact.get("phone"):
+        contact_bits.append(_latex_escape(contact["phone"]))
+    sig = f"\\vspace{{1em}}\n\\noindent {name}"
+    if contact_bits:
+        sig += "\\\\\n" + " $\\cdot$ ".join(contact_bits)
+    parts.append(sig)
+    parts.append("\\end{letter}")
     parts.append("\\end{document}")
     return "\n\n".join(parts) + "\n"

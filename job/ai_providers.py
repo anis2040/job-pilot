@@ -321,6 +321,15 @@ def _build_with_sdk(system_text: str, user_prompt: str, stage_fn=None, on_delta=
                     on_delta("".join(acc))
                 except Exception:
                     pass  # preview is best-effort; never break generation
+            # Record usage from the final message (best-effort — the loop above
+            # never surfaces usage, so streamed calls would otherwise be uncounted).
+            try:
+                fu = stream.get_final_message().usage
+                fin = (getattr(fu, "input_tokens", 0) or 0) + (getattr(fu, "cache_read_input_tokens", 0) or 0) + (getattr(fu, "cache_creation_input_tokens", 0) or 0)
+                fout = getattr(fu, "output_tokens", 0) or 0
+                _log_tokens("anthropic", model, input=fin, output=fout, total=fin + fout)
+            except Exception:
+                pass
         return "".join(acc)
 
     response = client.messages.create(
@@ -350,6 +359,7 @@ def _build_with_sdk(system_text: str, user_prompt: str, stage_fn=None, on_delta=
 
 def _get_gemini_client():
     """Return a configured Gemini client, or None if no credentials available."""
+    _load_env()  # keys saved via the UI live in .env — load them like the other getters
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if not api_key:
         return None
@@ -467,7 +477,7 @@ def _build_with_gemini(system_text: str, user_prompt: str, cwd: str, stage_fn=No
         try:
             return _build_with_gemini_sdk(system_text, user_prompt, backend_out)
         except Exception as sdk_err:
-            print(f"[gemini] SDK failed ({sdk_err.__class__.__name__}), falling back to CLI")
+            print(f"[gemini] SDK failed ({type(sdk_err).__name__}): {str(sdk_err)[:200]} — falling back to CLI")
     return _build_with_gemini_cli(system_text, user_prompt, cwd, backend_out)
 
 

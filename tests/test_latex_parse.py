@@ -79,33 +79,6 @@ Body
     assert meta["company"] == "X"
 
 
-# ── _latex_to_prose (live cover-letter streaming preview) ───────────────────────
-from job.documents import _latex_to_prose
+# (Cover-letter live-streaming preview and _latex_to_prose were removed when
+# cover letters moved to JSON-content + code rendering; tests dropped with them.)
 
-
-def test_prose_strips_preamble_and_commands():
-    tex = (r"\documentclass{article}" "\n"
-           r"\usepackage{geometry}" "\n"
-           r"\begin{document}" "\n"
-           r"Dear Hiring Manager,\\" "\n"
-           r"I bring \textbf{5 years} of experience." "\n"
-           r"% hidden comment" "\n"
-           r"\end{document}")
-    out = _latex_to_prose(tex)
-    assert "documentclass" not in out
-    assert "usepackage" not in out
-    assert "hidden comment" not in out
-    assert "\\textbf" not in out
-    assert "5 years" in out                 # bold content preserved
-    assert "Dear Hiring Manager" in out
-
-
-def test_prose_handles_partial_stream():
-    # Mid-stream fragment (no \end{document} yet) must not blow up
-    partial = r"\begin{document}" "\n" r"Dear Team, I am writing to"
-    out = _latex_to_prose(partial)
-    assert "Dear Team, I am writing to" in out
-
-
-def test_prose_empty_safe():
-    assert _latex_to_prose("") == ""
