@@ -1,7 +1,7 @@
 import httpx
 
 from .config import SearchConfig
-from .fetcher_utils import http_get, strip_tags, infer_remote
+from .fetcher_utils import http_get, strip_tags, infer_remote, parse_employment_type, parse_salary
 from .models import RawJob, RemoteType
 from .utils import parse_experience, location_matches
 
@@ -44,8 +44,8 @@ def fetch_jobicy(search: SearchConfig) -> list[RawJob]:
         # Jobicy is a remote-only board (/api/v2/remote-jobs) — default Remote;
         # keywords can still upgrade to Hybrid where stated.
         remote = infer_remote(title, " ".join(job_types), geo, default=RemoteType.REMOTE)
-        employment_type = _parse_employment_type(job_types)
-        salary = _parse_salary(item)
+        employment_type = parse_employment_type(job_types)
+        salary = parse_salary(item)
 
         results.append(RawJob(
             job_id=job_id,
@@ -90,27 +90,4 @@ def _geo(location: str) -> str:
     if "singapore" in loc:
         return "singapore"
     # For unrecognised locations, don't pass a geo filter — let location_matches handle it
-    return ""
-
-
-def _parse_employment_type(job_types: list) -> str:
-    mapping = {"full-time": "Full-time", "fulltime": "Full-time",
-               "part-time": "Part-time", "parttime": "Part-time",
-               "contract": "Contract", "freelance": "Freelance",
-               "internship": "Internship"}
-    for jt in job_types:
-        key = jt.lower().replace(" ", "")
-        if key in mapping:
-            return mapping[key]
-    return ""
-
-
-def _parse_salary(item: dict) -> str:
-    low = item.get("salaryMin") or item.get("salary_min") or 0
-    high = item.get("salaryMax") or item.get("salary_max") or 0
-    currency = item.get("salaryCurrency") or "$"
-    if low and high:
-        return f"{currency}{int(low):,}–{currency}{int(high):,}"
-    if low:
-        return f"{currency}{int(low):,}+"
     return ""

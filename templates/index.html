@@ -76,8 +76,8 @@
   .filter-chip:hover { border-color: var(--blue-light); color: var(--text); }
   .filter-chip:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--bg-page), 0 0 0 4px var(--blue); }
   .filter-chip.active { background: var(--blue-dim); border-color: var(--blue); color: var(--blue-light); font-weight: 600; }
-  .filter-chip.remote-remote.active { background: #0d2e1a; border-color: var(--green); color: var(--green); }
-  .filter-chip.remote-hybrid.active { background: #1a1400; border-color: var(--yellow); color: var(--yellow); }
+  .filter-chip.remote-remote.active { background: var(--remote-bg); border-color: var(--green); color: var(--green); }
+  .filter-chip.remote-hybrid.active { background: var(--hybrid-bg); border-color: var(--yellow); color: var(--yellow); }
   .filter-select {
     padding: 4px 28px 4px 10px;
     border-radius: var(--radius-full);
@@ -252,8 +252,7 @@
   .avatar-btn:hover { background: var(--bg-raised); }
   .avatar-btn .chevron { font-size: 0.7rem; color: var(--text-muted); }
   .avatar { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; color: #fff; flex-shrink: 0; }
-  .profile-menu { display: none; position: absolute; right: 0; top: calc(100% + 6px); background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-lg); min-width: 220px; box-shadow: var(--shadow-lg); z-index: var(--z-dropdown); overflow: hidden; }
-  .profile-menu.open { display: block; }
+  .profile-menu { position: absolute; right: 0; top: calc(100% + 6px); background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-lg); min-width: 220px; box-shadow: var(--shadow-lg); z-index: var(--z-dropdown); overflow: hidden; }
   .profile-menu-header { padding: 12px 16px 6px; font-size: var(--text-xs); font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; }
   .profile-menu-item { display: flex; align-items: center; gap: 10px; padding: 12px 16px; color: var(--text); text-decoration: none; font-size: var(--text-base); cursor: pointer; transition: background var(--dur-fast) var(--ease-standard); border: none; background: none; width: 100%; text-align: left; }
   .profile-menu-item:hover { background: var(--bg-raised); }
@@ -314,7 +313,7 @@
 <div class="pdf-banner" id="pdf-banner">
   ⚠ <strong>pdflatex not installed</strong> — needed to compile resumes to PDF.
   <a href="/setup">Install it in setup →</a>
-  <button class="pdf-banner-dismiss" onclick="this.parentElement.style.display='none'" aria-label="Dismiss">✕</button>
+  <button class="pdf-banner-dismiss" onclick="(function(el){el.style.transition='opacity var(--dur-base) ease';el.style.opacity='0';setTimeout(()=>el.remove(),200);})(this.parentElement)" aria-label="Dismiss">✕</button>
 </div>
 {% endif %}
 
@@ -338,7 +337,7 @@
     <span class="fetch-msg" id="last-fetch-label">{{ last_fetch }}</span>
   {% endif %}
   <span id="fetch-progress" class="fetch-msg" style="display:none"></span>
-  <span class="save-notice hidden" id="header-save-notice">✓ Saved</span>
+  <span class="save-notice" id="header-save-notice">✓ Saved</span>
   <div class="search-input-wrap">
     <input type="text" id="search-input" placeholder="Search jobs…" oninput="applyFiltersAndSort()" onchange="captureRecent()" aria-label="Search jobs">
   </div>
@@ -455,7 +454,7 @@
       </div>
     </div>
     <div class="modal-footer">
-      <span class="save-notice hidden" id="modal-save-notice">✓ Saved</span>
+      <span class="save-notice" id="modal-save-notice">✓ Saved</span>
       <button class="btn btn-ghost" onclick="closeSettings()">Cancel</button>
       <button class="btn btn-primary" onclick="saveSettings()">Save settings</button>
     </div>
@@ -1197,7 +1196,7 @@
     renderTags("title-filter-wrap", "title-filter-input", cfg.title_filter || []);
     renderTags("blacklist-wrap", "blacklist-input", cfg.blacklist || []);
     renderTags("company-blacklist-wrap", "company-blacklist-input", cfg.company_blacklist || []);
-    document.getElementById("modal-save-notice").classList.add("hidden");
+    document.getElementById("modal-save-notice").classList.remove("show");
     const modal = document.getElementById("settings-modal");
     modal.classList.add("open");
     _modalRelease = trapFocus(modal.querySelector(".modal"), { onEscape: closeSettings });
@@ -1227,8 +1226,8 @@
     if (data.ok) {
       closeSettings();
       const notice = document.getElementById("header-save-notice");
-      notice.classList.remove("hidden");
-      setTimeout(() => notice.classList.add("hidden"), 2500);
+      notice.classList.add("show");
+      setTimeout(() => notice.classList.remove("show"), 2500);
       await fetch("/api/jobs/clear", { method: "POST" });
       runFetch();
     } else {

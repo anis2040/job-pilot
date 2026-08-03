@@ -28,6 +28,7 @@ from job.paths import BASE
 from job.fetcher import SOURCES
 from job.models import RemoteType, DEFAULT_BLACKLIST, JOB_STATUSES
 from job.match import compute_match, match_text, semantic_score, get_profile_embedding
+from job.ai_providers import extract_json_from_llm
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
@@ -929,10 +930,7 @@ Profile:
 
     try:
         output = call_ai(prompt)
-        if output.startswith("```"):
-            output = "\n".join(output.split("\n")[1:])
-            output = output.rsplit("```", 1)[0].strip()
-        extracted = _json.loads(output)
+        extracted = extract_json_from_llm(output)
 
         titles = extracted.get("titles", [])
         location = extracted.get("location", "United States")
@@ -1113,10 +1111,7 @@ Resume text:
 
     try:
         output = call_ai(prompt)
-        if output.startswith("```"):
-            output = "\n".join(output.split("\n")[1:])
-            output = output.rsplit("```", 1)[0].strip()
-        data = _json.loads(output)
+        data = extract_json_from_llm(output)
         return jsonify({"ok": True, "data": data})
     except _json.JSONDecodeError:
         return jsonify({"error": f"AI returned unexpected output (not JSON). Raw: {output[:200]}"}), 500

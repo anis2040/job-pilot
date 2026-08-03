@@ -10,6 +10,37 @@ from pathlib import Path
 from . import paths
 
 
+def strip_llm_fences(text: str) -> str:
+    """Strip a leading/trailing markdown code fence from LLM output.
+
+    Models often wrap JSON/LaTeX in ```json … ``` or ``` … ```. Removes the
+    opening fence line and the closing fence, returning the inner payload. Safe
+    on unfenced text (returned unchanged). Shared by every place that parses a
+    model response (config suggestion, resume parsing, verifier, LaTeX fallback).
+    """
+    if not text:
+        return ""
+    t = text.strip()
+    if t.startswith("```"):
+        t = "\n".join(t.split("\n")[1:])
+        t = t.rsplit("```", 1)[0].strip()
+    return t
+
+
+def extract_json_from_llm(text: str):
+    """Parse the first JSON object/array from an LLM response, tolerating fences
+    and surrounding prose. Strips code fences, then falls back to slicing from the
+    first '{' to the last '}'. Raises json.JSONDecodeError if nothing parses."""
+    cleaned = strip_llm_fences(text)
+    try:
+        return _json.loads(cleaned)
+    except _json.JSONDecodeError:
+        start, end = cleaned.find("{"), cleaned.rfind("}")
+        if start != -1 and end > start:
+            return _json.loads(cleaned[start:end + 1])
+        raise
+
+
 class RateLimitError(RuntimeError):
     """A provider rate/quota limit was hit. Carries structured detail (when the
     provider exposes it) so the UI can show usage and reset time."""

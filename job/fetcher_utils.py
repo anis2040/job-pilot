@@ -89,3 +89,52 @@ def jsonld_job_description(soup) -> str:
                     return strip_tags(desc)[:4000]
     return ""
 
+
+_EMPLOYMENT_MAP = {
+    "full-time": "Full-time", "fulltime": "Full-time",
+    "part-time": "Part-time", "parttime": "Part-time",
+    "contract": "Contract", "freelance": "Freelance", "internship": "Internship",
+}
+
+
+def parse_employment_type(value: str | list) -> str:
+    """Normalise a raw employment-type string or list of strings to a canonical
+    label (e.g. "full-time" → "Full-time"). Returns "" when unrecognised."""
+    if isinstance(value, list):
+        for item in value:
+            result = parse_employment_type(item)
+            if result:
+                return result
+        return ""
+    key = str(value or "").lower().replace(" ", "")
+    return _EMPLOYMENT_MAP.get(key, "")
+
+
+def parse_salary(item: dict, *,
+                 min_keys: tuple = ("salaryMin", "minSalary", "salary_min"),
+                 max_keys: tuple = ("salaryMax", "maxSalary", "salary_max"),
+                 currency_keys: tuple = ("salaryCurrency", "currency"),
+                 period_key: str = "salaryPeriod") -> str:
+    """Build a human-readable salary range from a job-data dict.
+
+    Works across providers by accepting a union of key names. Returns "" when
+    no salary data is present.
+    """
+    def _first(keys):
+        for k in keys:
+            v = item.get(k)
+            if v:
+                return v
+        return 0
+
+    low = _first(min_keys)
+    high = _first(max_keys)
+    currency = _first(currency_keys) or "$"
+    period = item.get(period_key) or ""
+    if low and high:
+        suffix = f"/{period}" if period else ""
+        return f"{currency}{int(low):,}–{currency}{int(high):,}{suffix}"
+    if low:
+        return f"{currency}{int(low):,}+"
+    return ""
+

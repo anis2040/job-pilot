@@ -5,6 +5,8 @@ import subprocess
 import json as _json
 from pathlib import Path
 
+from .ai_providers import strip_llm_fences
+
 
 def _compile_latex(tex_path: Path) -> Path:
     """Run pdflatex on a .tex file. Returns path to the generated PDF."""
@@ -135,8 +137,4 @@ def _parse_latex_response(response_text: str) -> tuple[str, dict]:
         return _sanitize_latex(latex_match.group(1)), meta
 
     # Fallback: strip markdown code fences
-    text = response_text.strip()
-    if text.startswith("```"):
-        text = "\n".join(text.split("\n")[1:])
-        text = text.rsplit("```", 1)[0].strip()
-    return _sanitize_latex(text), meta
+    return _sanitize_latex(strip_llm_fences(response_text.strip())), meta

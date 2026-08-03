@@ -284,7 +284,7 @@ function selectProvider(p) {
         <label>Groq API Key</label>
         <div class="input-row" style="display:flex;gap:6px;align-items:center">
           <input type="password" id="groq-key-input" placeholder="gsk_..." value="${keySet ? (status.groq_key || '••••••••••••••••') : ''}" style="flex:1">
-          <button class="btn btn-ghost btn-sm" type="button" id="eye-groq" title="Show/hide key" style="padding:5px 8px" onclick="toggleSetupKey('groq')">👁</button>
+          <button class="btn btn-ghost btn-sm" type="button" id="eye-groq" title="Show/hide key" style="padding:5px 8px" onclick="toggleKeyVisibility('groq')">👁</button>
         </div>
         <div class="hint">Your key is saved locally in .env and never shared.</div>
       </div>
@@ -339,7 +339,7 @@ function selectProvider(p) {
          <label>Gemini API Key <a href="https://aistudio.google.com/apikey" target="_blank" style="color:#60a5fa;font-size:0.72rem;margin-left:6px">Get a free key at Google AI Studio ↗</a></label>
          <div class="input-row" style="display:flex;gap:6px;align-items:center">
            <input type="password" id="gemini-key-input" placeholder="AIza…" value="${keySet ? (status.gemini_key || '••••••••••••••••') : ''}" style="flex:1">
-           <button class="btn btn-ghost btn-sm" type="button" id="eye-gemini" title="Show/hide key" style="padding:5px 8px" onclick="toggleSetupKey('gemini')">👁</button>
+           <button class="btn btn-ghost btn-sm" type="button" id="eye-gemini" title="Show/hide key" style="padding:5px 8px" onclick="toggleKeyVisibility('gemini')">👁</button>
          </div>
          <div class="hint">Free tier — no credit card required. Your key is saved locally and never shared.</div>
        </div>
@@ -397,15 +397,6 @@ async function installCLI(provider) {
     btn.disabled = false;
     btn.innerHTML = "Retry";
   }
-}
-
-function toggleSetupKey(provider) {
-  const inp = document.getElementById(`${provider}-key-input`);
-  if (!inp) return;
-  const showing = inp.type === "password";
-  inp.type = showing ? "text" : "password";
-  const eye = document.getElementById(`eye-${provider}`);
-  if (eye) eye.textContent = showing ? "🙈" : "👁";
 }
 
 async function testSetupProvider(provider) {

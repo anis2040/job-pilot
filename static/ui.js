@@ -29,6 +29,40 @@ async function apiPost(url, body) {
   return res.json();
 }
 
+// ── Formatting helpers (shared across pages) ────────────────────────────────
+// Only allow absolute http(s) URLs (external postings) and same-origin paths
+// like /pdf/... (built resume/cover-letter downloads); everything else -> "#".
+function safeUrl(u) {
+  const s = String(u ?? "");
+  return /^https?:\/\//i.test(s) || s.startsWith("/") ? escapeHtml(s) : "#";
+}
+
+// Compact thousands: 1500 -> "1.5k", 12000 -> "12k".
+function fmtK(n) {
+  n = n || 0;
+  if (n >= 1000) return (n / 1000).toFixed(n >= 10000 ? 0 : 1) + "k";
+  return String(n);
+}
+
+// Human date from ISO; returns "" for empty, echoes input if unparseable.
+function fmtDate(iso) {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  } catch { return iso; }
+}
+
+// Toggle a password field's visibility, swapping the eye glyph. Convention:
+// input id = `${provider}-key-input`, eye element id = `eye-${provider}`.
+function toggleKeyVisibility(provider) {
+  const inp = document.getElementById(`${provider}-key-input`);
+  if (!inp) return;
+  const showing = inp.type === "password";
+  inp.type = showing ? "text" : "password";
+  const eye = document.getElementById(`eye-${provider}`);
+  if (eye) eye.textContent = showing ? "🙈" : "👁";
+}
+
 // ── SVG icons (Lucide, 1.5px stroke, currentColor) ─────────────────────────
 const ICONS = {
   search:   '<path d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z"/><path d="m21 21-4.3-4.3"/>',

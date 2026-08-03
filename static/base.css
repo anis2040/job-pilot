@@ -35,6 +35,12 @@
   --orange:       #fb923c;
   --yellow:       #fbbf24;
 
+  /* Remote/hybrid pill tints (shared by filter chips + meta pills across pages) */
+  --remote-bg:     #0d2e1a;
+  --remote-border: #1a4d2e;
+  --hybrid-bg:     #1a1400;
+  --hybrid-border: #5a4500;
+
   /* Radius scale */
   --radius-sm:    4px;
   --radius:       8px;
@@ -167,6 +173,88 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── Animation System ────────────────────────────────────────────────────── */
+/* JS toggles a class; CSS owns the shape. All motion tokens from :root.     */
+
+@keyframes fadeSlideIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* Modal backdrop + box */
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: var(--z-backdrop);
+  display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px);
+  visibility: hidden; opacity: 0; pointer-events: none;
+  transition: opacity var(--dur-base) var(--ease-out), visibility 0s var(--dur-base);
+}
+.modal-backdrop.open {
+  visibility: visible; opacity: 1; pointer-events: auto;
+  transition: opacity var(--dur-base) var(--ease-out), visibility 0s 0s;
+}
+.modal {
+  transform: translateY(10px) scale(0.98); opacity: 0;
+  transition: transform var(--dur-slow) var(--ease-out), opacity var(--dur-slow) var(--ease-out);
+}
+.modal-backdrop.open .modal { transform: none; opacity: 1; }
+
+/* Profile dropdown */
+.profile-menu {
+  visibility: hidden; opacity: 0; pointer-events: none;
+  transform: translateY(-6px);
+  transition: opacity var(--dur-fast) var(--ease-out),
+              transform var(--dur-fast) var(--ease-out),
+              visibility 0s var(--dur-fast);
+}
+.profile-menu.open {
+  visibility: visible; opacity: 1; pointer-events: auto; transform: none;
+  transition: opacity var(--dur-fast) var(--ease-out),
+              transform var(--dur-fast) var(--ease-out),
+              visibility 0s 0s;
+}
+
+/* Detail panel slide-in (desktop only) */
+@media (min-width: 1200px) {
+  .detail-panel {
+    opacity: 0; transform: translateX(16px);
+    transition: opacity var(--dur-slow) var(--ease-out), transform var(--dur-slow) var(--ease-out);
+  }
+  .split-wrap.split-active .detail-panel { opacity: 1; transform: none; }
+}
+
+/* Accordions */
+.settings-card-body, .card-body {
+  max-height: 0; opacity: 0; overflow: hidden;
+  padding-top: 0 !important; padding-bottom: 0 !important;
+  transition: max-height var(--dur-slow) var(--ease-out),
+              opacity var(--dur-base) var(--ease-out),
+              padding var(--dur-slow) var(--ease-out);
+}
+.settings-card-body.is-expanded {
+  max-height: 800px; opacity: 1;
+  padding-top: var(--space-5) !important; padding-bottom: var(--space-5) !important;
+}
+.card-body.is-expanded {
+  max-height: 800px; opacity: 1;
+  padding-top: var(--space-4) !important; padding-bottom: var(--space-4) !important;
+}
+
+/* Inline save notices */
+.save-notice {
+  opacity: 0; pointer-events: none;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.save-notice.show { opacity: 1; pointer-events: auto; }
+
+/* Empty state entrance */
+#empty-state { animation: fadeSlideIn var(--dur-slow) var(--ease-out) both; }
+
+/* Filter chip press feedback */
+.filter-chip {
+  transition: color var(--dur-fast) var(--ease-standard),
+              background var(--dur-fast) var(--ease-standard),
+              border-color var(--dur-fast) var(--ease-standard),
+              transform var(--dur-fast) var(--ease-out);
+}
+.filter-chip:active { transform: scale(0.95); }
 
 /* ── Buttons ──────────────────────────────────────────────────────────────── */
 .btn {
@@ -610,8 +698,6 @@ a.btn { text-decoration: none; }
 @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
 /* ── Modal ────────────────────────────────────────────────────────────────── */
-.modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: var(--z-backdrop); align-items: center; justify-content: center; backdrop-filter: blur(2px); }
-.modal-backdrop.open { display: flex; }
 .modal { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-xl); width: 740px; max-width: 95vw; max-height: 88vh; display: flex; flex-direction: column; box-shadow: var(--shadow-lg); }
 .modal-header { padding: 20px var(--space-6) 16px; border-bottom: 1px solid var(--border-faint); display: flex; align-items: center; justify-content: space-between; }
 .modal-header h2 { font-size: var(--text-lg); font-weight: 700; color: var(--text-white); }

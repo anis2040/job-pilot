@@ -52,8 +52,8 @@
     background: var(--bg-raised); border: 1px solid var(--border);
     border-radius: var(--radius); padding: 5px 12px;
   }
-  .job-meta-item.remote-remote { color: var(--green);  background: #0d2e1a; border-color: #1a4d2e; }
-  .job-meta-item.remote-hybrid { color: var(--yellow); background: #1a1400; border-color: #5a4500; }
+  .job-meta-item.remote-remote { color: var(--green);  background: var(--remote-bg); border-color: var(--remote-border); }
+  .job-meta-item.remote-hybrid { color: var(--yellow); background: var(--hybrid-bg); border-color: var(--hybrid-border); }
   .job-hero-actions { display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: center; }
   .hero-action-divider { width: 1px; align-self: stretch; background: var(--border); margin: 2px 0; }
 
@@ -127,6 +127,16 @@
   .salary-value { font-size: var(--text-lg); font-weight: 700; color: var(--green); }
 
   /* Similar jobs card */
+  /* ── Meta row (Details + Timeline, full-width below description) ── */
+  .meta-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+    margin-top: var(--space-5);
+  }
+  .meta-row .sidebar-card-body { flex-direction: row; flex-wrap: wrap; gap: var(--space-4); }
+  .meta-row .detail-row { flex: 1 1 140px; }
+
   /* ── Similar jobs (horizontal slider under the description) ── */
   .similar-section { margin-top: var(--space-6); }
   .similar-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-4); }
@@ -153,6 +163,7 @@
     .detail-layout { grid-template-columns: 1fr; }
     .detail-sidebar { order: -1; }
     .job-hero-title { font-size: var(--text-2xl); }
+    .meta-row { grid-template-columns: 1fr; }
   }
 </style>
 {% endblock %}
@@ -196,6 +207,24 @@
       </div>
     </div>
 
+    <!-- Details + Timeline row -->
+    <div class="meta-row">
+      <div class="sidebar-card">
+        <div class="sidebar-card-header"><h3>Details</h3></div>
+        <div class="sidebar-card-body" id="details-card-body">
+          <div class="skel-line skeleton" style="height:40px;border-radius:6px"></div>
+          <div class="skel-line skeleton" style="height:40px;border-radius:6px"></div>
+          <div class="skel-line skeleton" style="height:40px;border-radius:6px"></div>
+        </div>
+      </div>
+      <div class="sidebar-card">
+        <div class="sidebar-card-header"><h3>Timeline</h3></div>
+        <div class="sidebar-card-body" id="timeline-card-body">
+          <div class="skel-line skeleton" style="height:48px;border-radius:6px"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- Similar jobs (horizontal slider) -->
     <div class="similar-section" id="similar-card" style="display:none">
       <div class="similar-head">
@@ -230,28 +259,10 @@
       </div>
     </div>
 
-    <!-- Job details -->
-    <div class="sidebar-card">
-      <div class="sidebar-card-header"><h3>Details</h3></div>
-      <div class="sidebar-card-body" id="details-card-body">
-        <div class="skel-line skeleton" style="height:40px;border-radius:6px"></div>
-        <div class="skel-line skeleton" style="height:40px;border-radius:6px"></div>
-        <div class="skel-line skeleton" style="height:40px;border-radius:6px"></div>
-      </div>
-    </div>
-
     <!-- Skills -->
     <div class="sidebar-card" id="skills-card" style="display:none">
       <div class="sidebar-card-header"><h3>Skills match</h3></div>
       <div class="sidebar-card-body" id="skills-card-body"></div>
-    </div>
-
-    <!-- Timeline -->
-    <div class="sidebar-card">
-      <div class="sidebar-card-header"><h3>Timeline</h3></div>
-      <div class="sidebar-card-body" id="timeline-card-body">
-        <div class="skel-line skeleton" style="height:48px;border-radius:6px"></div>
-      </div>
     </div>
 
   </aside>
@@ -262,13 +273,6 @@
 <script>
 const JOB_ID = "{{ job_id }}";
 let job = null;
-
-function safeUrl(u) {
-  const s = String(u ?? "");
-  // Allow absolute http(s) URLs (external postings) and same-origin paths
-  // like /pdf/... (built resume/cover-letter downloads).
-  return /^https?:\/\//i.test(s) || s.startsWith("/") ? escapeHtml(s) : "#";
-}
 
 function remoteItemClass(r) {
   if (!r) return "job-meta-item";
@@ -398,12 +402,6 @@ function rateLimitBanner(rl) {
     <a href="/ai-settings" class="btn btn-ghost btn-sm">Switch provider</a>`;
 }
 
-function fmtK(n) {
-  n = n || 0;
-  if (n >= 1000) return (n / 1000).toFixed(n >= 10000 ? 0 : 1) + "k";
-  return String(n);
-}
-
 function cvContent(j) {
   const rs = j.resume_status;
   if (rs === "building") return `<div class="doc-building"><span class="spinner" style="color:#a78bfa"></span>${escapeHtml(j.resume_stage || "Building…")}</div>`;
@@ -485,13 +483,6 @@ function renderSkillsCard(j) {
 }
 
 // ── Timeline ──────────────────────────────────────────────────────────────
-function fmtDate(iso) {
-  if (!iso) return "";
-  try {
-    return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
-  } catch { return iso; }
-}
-
 function renderTimeline(j) {
   const statusColors = { applied: "green", skipped: "red", pending: "active" };
   const statusLabels = { applied: "✓ Applied", skipped: "✗ Skipped", pending: "Pending review" };

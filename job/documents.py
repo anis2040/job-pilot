@@ -7,7 +7,7 @@ from .db import get_job, update_description, init_db
 from .fetcher import fetch_description as fetch_job_description
 from .profiles import get_profile_path, get_resumes_path
 from .ai_providers import (_get_anthropic_client, _get_gemini_client, _get_groq_client,
-                           _get_model, _generate_content, call_ai)
+                           _get_model, _generate_content, call_ai, extract_json_from_llm)
 from .latex import _compile_latex, _parse_latex_response
 from .latex_render import (_parse_content_json, render_resume_latex, ResumeParseError,
                            _parse_cover_letter_json, render_cover_letter_latex)
@@ -328,9 +328,7 @@ def _run_verifier(system: str, prompt: str) -> dict | None:
             _restore_env("PREFERRED_PROVIDER", saved_pref)
             _restore_env(f"{provider.upper()}_MODEL", saved_model)
         try:
-            if raw.strip().startswith("```"):
-                raw = "\n".join(raw.split("\n")[1:]).rsplit("```", 1)[0]
-            return _json.loads(raw[raw.find("{"):raw.rfind("}") + 1])
+            return extract_json_from_llm(raw)
         except Exception:
             continue  # unparseable verdict — try the next verifier
     return None
