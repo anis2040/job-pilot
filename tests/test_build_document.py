@@ -95,58 +95,101 @@ def test_build_resume_compiles_pdf_if_pdflatex(wired):
     assert status.get("pdf_path") and status["pdf_path"].endswith(".pdf")
 
 
-# ── _verify_summary (semantic fabrication guard) ──────────────────────────────
+# ── _verify_content (combined fabrication guard: summary+bullets+competencies) ─
 
 import job.documents as _docs
 
 
 @pytest.fixture(autouse=True)
 def _stub_verify_provider(monkeypatch):
-    # Pretend a strong verifier is available so _verify_summary proceeds offline.
+    # Pretend a strong verifier is available so _verify_content proceeds offline.
     monkeypatch.setattr(_docs, "_verify_providers", lambda: [("gemini", "gemini-x")])
 
 
-def test_verify_summary_returns_none_when_ok(monkeypatch):
-    monkeypatch.setattr(_docs, "call_ai", lambda p, system="": '{"ok": true}')
-    assert _docs._verify_summary("Frontend engineer.", "# Me\nFrontend engineer.") is None
+def _content(**over):
+    c = {
+        "summary": "Data engineer with Spark.",
+        "core_competencies": ["Angular", "Apache Iceberg", "Java"],
+        "experiences": [
+            {"bullets": ["Built Angular apps", "Architected Kafka pipelines"]},
+            {"bullets": ["Wrote tests in Jest"]},
+        ],
+    }
+    c.update(over)
+    return c
 
 
-def test_verify_summary_returns_fix_when_fabricated(monkeypatch):
+def test_verify_content_all_fields_corrected(monkeypatch):
+    monkeypatch.setattr(_docs, "call_ai", lambda p, system="": (
+        '{"summary": "Frontend engineer with Angular.", '
+        '"bullets": ["Built Angular apps", "Led NgRx refactor", "Wrote tests in Jest"], '
+        '"competencies": ["Angular", "TypeScript", "NgRx"]}'
+    ))
+    c = _content()
+    changed = _docs._verify_content(c, "# Me\nAngular NgRx Jest dev.")
+    assert set(changed) == {"summary", "bullets", "competencies"}
+    assert c["summary"] == "Frontend engineer with Angular."
+    # bullet remap by position, only the fabricated one changed
+    assert c["experiences"][0]["bullets"] == ["Built Angular apps", "Led NgRx refactor"]
+    assert c["experiences"][1]["bullets"] == ["Wrote tests in Jest"]
+    assert c["core_competencies"] == ["Angular", "TypeScript", "NgRx"]
+
+
+def test_verify_content_noop_when_grounded(monkeypatch):
+    # Verifier echoes everything unchanged -> no field reported changed.
+    def echo(p, system=""):
+        return ('{"summary": "Data engineer with Spark.", '
+                '"bullets": ["Built Angular apps", "Architected Kafka pipelines", "Wrote tests in Jest"], '
+                '"competencies": ["Angular", "Apache Iceberg", "Java"]}')
+    monkeypatch.setattr(_docs, "call_ai", echo)
+    c = _content()
+    assert _docs._verify_content(c, "prof") == []
+
+
+def test_verify_content_ignores_bullet_length_mismatch(monkeypatch):
+    # Wrong bullet count must NOT scramble the mapping; other fields still apply.
+    monkeypatch.setattr(_docs, "call_ai", lambda p, system="": (
+        '{"summary": "Fixed.", "bullets": ["only one"], "competencies": ["Angular"]}'
+    ))
+    c = _content()
+    changed = _docs._verify_content(c, "prof")
+    assert "bullets" not in changed
+    assert c["experiences"][0]["bullets"] == ["Built Angular apps", "Architected Kafka pipelines"]
+    assert "summary" in changed and c["summary"] == "Fixed."
+
+
+def test_verify_content_tolerates_fences(monkeypatch):
     monkeypatch.setattr(_docs, "call_ai", lambda p, system="":
-                        '{"ok": false, "summary": "Frontend engineer with Angular expertise."}')
-    fixed = _docs._verify_summary("Data engineer with Spark.", "# Me\nFrontend Angular dev.")
-    assert fixed == "Frontend engineer with Angular expertise."
+        'Here:\n```json\n{"summary": "Fixed.", "bullets": [], "competencies": []}\n```')
+    c = _content(experiences=[], core_competencies=[])
+    assert _docs._verify_content(c, "prof") == ["summary"]
 
 
-def test_verify_summary_tolerates_fences_and_prose(monkeypatch):
-    monkeypatch.setattr(_docs, "call_ai", lambda p, system="":
-                        'Here:\n```json\n{"ok": false, "summary": "Corrected."}\n```')
-    assert _docs._verify_summary("x", "prof") == "Corrected."
-
-
-def test_verify_summary_swallows_errors(monkeypatch):
-    def boom(p, system=""): raise RuntimeError("no provider")
-    monkeypatch.setattr(_docs, "call_ai", boom)
-    assert _docs._verify_summary("x", "prof") is None  # never blocks the build
-
-
-def test_verify_summary_empty_is_noop(monkeypatch):
+def test_verify_content_empty_is_noop(monkeypatch):
     called = []
     monkeypatch.setattr(_docs, "call_ai", lambda *a, **k: called.append(1) or "{}")
-    assert _docs._verify_summary("   ", "prof") is None
-    assert not called  # doesn't waste a call on empty input
+    c = {"summary": "", "core_competencies": [], "experiences": [{"bullets": []}]}
+    assert _docs._verify_content(c, "prof") == []
+    assert not called  # nothing to check -> no call
 
 
-def test_verify_summary_none_when_no_verifier(monkeypatch):
+def test_verify_content_survives_dead_verifier(monkeypatch):
+    def boom(p, system=""): raise RuntimeError("no credits")
+    monkeypatch.setattr(_docs, "call_ai", boom)
+    c = _content()
+    assert _docs._verify_content(c, "prof") == []  # never blocks
+    assert c["summary"] == "Data engineer with Spark."  # untouched
+
+
+def test_verify_content_none_when_no_verifier(monkeypatch):
     monkeypatch.setattr(_docs, "_verify_providers", lambda: [])
     called = []
     monkeypatch.setattr(_docs, "call_ai", lambda *a, **k: called.append(1) or "{}")
-    assert _docs._verify_summary("x", "prof") is None
-    assert not called  # no verifier available -> no call
+    assert _docs._verify_content(_content(), "prof") == []
+    assert not called
 
 
-def test_verify_summary_falls_through_on_failure(monkeypatch):
-    # First verifier raises; second returns a valid verdict -> guard recovers.
+def test_verify_content_falls_through_on_failure(monkeypatch):
     monkeypatch.setattr(_docs, "_verify_providers",
                         lambda: [("anthropic", "claude"), ("groq", "openai/gpt-oss-120b")])
     calls = []
@@ -154,99 +197,20 @@ def test_verify_summary_falls_through_on_failure(monkeypatch):
         calls.append(1)
         if len(calls) == 1:
             raise RuntimeError("no credits")
-        return '{"ok": false, "summary": "Grounded rewrite."}'
+        return '{"summary": "Grounded.", "bullets": [], "competencies": []}'
     monkeypatch.setattr(_docs, "call_ai", flaky)
-    assert _docs._verify_summary("bad summary", "prof") == "Grounded rewrite."
-    assert len(calls) == 2  # fell through from the dead provider to the working one
+    c = _content(experiences=[], core_competencies=[])
+    assert _docs._verify_content(c, "prof") == ["summary"]
+    assert len(calls) == 2
 
 
-def test_verify_restores_env(monkeypatch):
+def test_verify_content_restores_env(monkeypatch):
     import os
-    monkeypatch.setattr(_docs, "call_ai", lambda p, system="": '{"ok": true}')
+    monkeypatch.setattr(_docs, "call_ai", lambda p, system="":
+        '{"summary": "s", "bullets": [], "competencies": []}')
     monkeypatch.setattr(_docs, "_verify_providers", lambda: [("groq", "openai/gpt-oss-120b")])
     monkeypatch.setenv("PREFERRED_PROVIDER", "gemini")
     monkeypatch.delenv("GROQ_MODEL", raising=False)
-    _docs._verify_summary("some summary", "some profile")
-    # env restored to pre-call state
+    _docs._verify_content(_content(experiences=[], core_competencies=[]), "prof")
     assert os.environ.get("PREFERRED_PROVIDER") == "gemini"
     assert os.environ.get("GROQ_MODEL") is None
-
-
-# ── _verify_bullets (bullet fabrication guard) ────────────────────────────────
-
-def test_verify_bullets_noop_when_ok(monkeypatch):
-    monkeypatch.setattr(_docs, "call_ai", lambda p, system="": '{"ok": true}')
-    exps = [{"bullets": ["Built Angular apps", "Led NgRx refactor"]}]
-    assert _docs._verify_bullets(exps, "# Me\nAngular NgRx dev.") is False
-    assert exps[0]["bullets"] == ["Built Angular apps", "Led NgRx refactor"]  # unchanged
-
-
-def test_verify_bullets_rewrites_and_remaps(monkeypatch):
-    # Two experiences, three bullets total; verifier rewrites the fabricated one.
-    monkeypatch.setattr(_docs, "call_ai", lambda p, system="":
-        '{"ok": false, "bullets": ["Built Angular apps", "Led NgRx refactor", "Wrote tests in Jest"]}')
-    exps = [
-        {"bullets": ["Built Angular apps", "Architected Kafka streaming pipelines"]},
-        {"bullets": ["Wrote tests in Jest"]},
-    ]
-    changed = _docs._verify_bullets(exps, "# Me\nAngular NgRx Jest dev.")
-    assert changed is True
-    # Correction landed in the right experience/position (remap intact)
-    assert exps[0]["bullets"] == ["Built Angular apps", "Led NgRx refactor"]
-    assert exps[1]["bullets"] == ["Wrote tests in Jest"]
-
-
-def test_verify_bullets_ignores_length_mismatch(monkeypatch):
-    # A response with the wrong number of bullets must NOT scramble the mapping.
-    monkeypatch.setattr(_docs, "call_ai", lambda p, system="":
-        '{"ok": false, "bullets": ["only one"]}')
-    exps = [{"bullets": ["a", "b"]}]
-    assert _docs._verify_bullets(exps, "prof") is False
-    assert exps[0]["bullets"] == ["a", "b"]  # untouched
-
-
-def test_verify_bullets_empty_is_noop(monkeypatch):
-    called = []
-    monkeypatch.setattr(_docs, "call_ai", lambda *a, **k: called.append(1) or "{}")
-    assert _docs._verify_bullets([{"bullets": []}], "prof") is False
-    assert not called  # no bullets -> no call
-
-
-def test_verify_bullets_survives_dead_verifier(monkeypatch):
-    def boom(p, system=""): raise RuntimeError("no credits")
-    monkeypatch.setattr(_docs, "call_ai", boom)
-    exps = [{"bullets": ["a"]}]
-    assert _docs._verify_bullets(exps, "prof") is False  # never blocks
-    assert exps[0]["bullets"] == ["a"]
-
-
-# ── _verify_competencies (competency fabrication guard) ───────────────────────
-
-def test_verify_competencies_noop_when_ok(monkeypatch):
-    monkeypatch.setattr(_docs, "call_ai", lambda p, system="": '{"ok": true}')
-    content = {"core_competencies": ["Angular", "NgRx"]}
-    assert _docs._verify_competencies(content, "# Me\nAngular NgRx dev.") is False
-    assert content["core_competencies"] == ["Angular", "NgRx"]
-
-
-def test_verify_competencies_prunes_fabricated(monkeypatch):
-    monkeypatch.setattr(_docs, "call_ai", lambda p, system="":
-        '{"ok": false, "core_competencies": ["Angular", "TypeScript", "NgRx"]}')
-    content = {"core_competencies": ["Angular", "Apache Iceberg", "Java", "TypeScript", "NgRx"]}
-    assert _docs._verify_competencies(content, "# Me\nAngular TS NgRx dev.") is True
-    assert content["core_competencies"] == ["Angular", "TypeScript", "NgRx"]
-
-
-def test_verify_competencies_empty_is_noop(monkeypatch):
-    called = []
-    monkeypatch.setattr(_docs, "call_ai", lambda *a, **k: called.append(1) or "{}")
-    assert _docs._verify_competencies({"core_competencies": []}, "prof") is False
-    assert not called
-
-
-def test_verify_competencies_survives_dead_verifier(monkeypatch):
-    def boom(p, system=""): raise RuntimeError("no credits")
-    monkeypatch.setattr(_docs, "call_ai", boom)
-    content = {"core_competencies": ["Angular"]}
-    assert _docs._verify_competencies(content, "prof") is False
-    assert content["core_competencies"] == ["Angular"]
