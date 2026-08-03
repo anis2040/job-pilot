@@ -119,28 +119,27 @@ def _content(**over):
     return c
 
 
-def test_verify_content_all_fields_corrected(monkeypatch):
+def test_verify_content_prose_fields_corrected(monkeypatch):
+    # _verify_content now covers only summary + bullets (competencies are
+    # grounded deterministically elsewhere).
     monkeypatch.setattr(_docs, "call_ai", lambda p, system="": (
         '{"summary": "Frontend engineer with Angular.", '
-        '"bullets": ["Built Angular apps", "Led NgRx refactor", "Wrote tests in Jest"], '
-        '"competencies": ["Angular", "TypeScript", "NgRx"]}'
+        '"bullets": ["Built Angular apps", "Led NgRx refactor", "Wrote tests in Jest"]}'
     ))
     c = _content()
     changed = _docs._verify_content(c, "# Me\nAngular NgRx Jest dev.")
-    assert set(changed) == {"summary", "bullets", "competencies"}
+    assert set(changed) == {"summary", "bullets"}
     assert c["summary"] == "Frontend engineer with Angular."
     # bullet remap by position, only the fabricated one changed
     assert c["experiences"][0]["bullets"] == ["Built Angular apps", "Led NgRx refactor"]
     assert c["experiences"][1]["bullets"] == ["Wrote tests in Jest"]
-    assert c["core_competencies"] == ["Angular", "TypeScript", "NgRx"]
 
 
 def test_verify_content_noop_when_grounded(monkeypatch):
     # Verifier echoes everything unchanged -> no field reported changed.
     def echo(p, system=""):
         return ('{"summary": "Data engineer with Spark.", '
-                '"bullets": ["Built Angular apps", "Architected Kafka pipelines", "Wrote tests in Jest"], '
-                '"competencies": ["Angular", "Apache Iceberg", "Java"]}')
+                '"bullets": ["Built Angular apps", "Architected Kafka pipelines", "Wrote tests in Jest"]}')
     monkeypatch.setattr(_docs, "call_ai", echo)
     c = _content()
     assert _docs._verify_content(c, "prof") == []

@@ -254,6 +254,43 @@ def _norm(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", (s or "").lower()).strip()
 
 
+def ground_competencies(competencies: list, profile: dict, backfill_to: int = 6) -> tuple[list, list]:
+    """Deterministically drop competencies not supported by the structured
+    profile, then backfill from the profile's real competency list so the
+    section stays strong. A competency is grounded if it appears in the
+    profile's competencies, its experience bullets, or its summary
+    (case/space-insensitive substring). Returns (kept, dropped).
+
+    Backfill matters because a weak model may emit mostly-fabricated JD
+    keywords; after dropping them we top up (preserving order, no dupes) from
+    the profile's own competencies up to `backfill_to`, so grounding never
+    leaves a near-empty section. Free — profile.json is ground truth.
+    """
+    if not competencies and not profile.get("competencies"):
+        return [], []
+    haystack = _norm(" ".join([
+        " ".join(profile.get("competencies", []) or []),
+        profile.get("summary", "") or "",
+        " ".join(b for e in profile.get("experience", []) or [] for b in (e.get("bullets") or [])),
+    ]))
+    kept, dropped = [], []
+    for c in competencies:
+        if c and c.strip() and _norm(c) and _norm(c) in haystack:
+            kept.append(c)
+        elif c and c.strip():
+            dropped.append(c)
+    # Backfill from the profile's real competencies if we're short.
+    if len(kept) < backfill_to:
+        seen = {_norm(c) for c in kept}
+        for c in profile.get("competencies", []) or []:
+            if len(kept) >= backfill_to:
+                break
+            if c and _norm(c) not in seen:
+                kept.append(c)
+                seen.add(_norm(c))
+    return kept, dropped
+
+
 def validate_resume_content(content: dict, profile_text: str, jd_keywords: list | None = None) -> list[str]:
     """Deterministic post-generation checks. Returns a list of human-readable
     warnings (empty = clean). Non-fatal: the resume is already rendered — these

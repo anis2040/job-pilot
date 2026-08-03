@@ -224,3 +224,41 @@ def test_validate_reports_keyword_coverage():
     ats = [w for w in warnings if w.startswith("ATS")]
     assert ats and "1/3" in ats[0]
     assert "Kubernetes" in ats[0] and "Go" in ats[0]
+
+
+# ── ground_competencies (deterministic competency fabrication check) ──────────
+
+from job.latex_render import ground_competencies
+
+
+def test_ground_competencies_drops_unsupported():
+    profile = {
+        "competencies": ["Angular", "TypeScript", "NgRx"],
+        "summary": "Frontend engineer.",
+        "experience": [{"bullets": ["Built Angular apps with GraphQL"]}],
+    }
+    comps = ["Angular", "Apache Iceberg", "Java", "GraphQL"]
+    kept, dropped = ground_competencies(comps, profile, backfill_to=0)
+    assert "Angular" in kept and "GraphQL" in kept  # in comps list / in a bullet
+    assert set(dropped) == {"Apache Iceberg", "Java"}  # nowhere in profile
+
+
+def test_ground_competencies_backfills_when_short():
+    # Model emitted mostly fabrications; after dropping them, top up from profile.
+    profile = {"competencies": ["Angular", "TypeScript", "NgRx", "GraphQL", "Jest", "Cypress"],
+               "summary": "", "experience": []}
+    kept, dropped = ground_competencies(["Angular", "Apache Iceberg"], profile, backfill_to=6)
+    assert "Apache Iceberg" in dropped
+    assert kept[0] == "Angular"                 # grounded ones kept first
+    assert len(kept) == 6                        # backfilled to 6 from profile
+    assert "Apache Iceberg" not in kept          # fabrication never re-added
+
+
+def test_ground_competencies_all_supported():
+    profile = {"competencies": ["Python", "Django"], "summary": "", "experience": []}
+    kept, dropped = ground_competencies(["Python", "Django"], profile, backfill_to=0)
+    assert kept == ["Python", "Django"] and dropped == []
+
+
+def test_ground_competencies_empty():
+    assert ground_competencies([], {"competencies": []}) == ([], [])

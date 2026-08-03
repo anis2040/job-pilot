@@ -335,22 +335,19 @@ def _run_verifier(system: str, prompt: str) -> dict | None:
 
 
 def _verify_content(content: dict, profile_text: str) -> list[str]:
-    """Single-call fabrication guard for summary + bullets + competencies.
+    """LLM fabrication guard for the prose fields — summary + bullets.
 
-    Weak models fabricate across every free-text field: an invented background
-    in the summary, unsupported claims in bullets, JD keywords stuffed into
-    competencies. Rather than one verification call per field (3x cost), send
-    all of them to a strong model in ONE call and apply grounded corrections in
-    place. Mutates `content`. Returns a list of field names that were changed
-    (e.g. ["summary", "bullets"]) for logging. Best effort — never blocks.
+    Competencies are grounded deterministically against profile.json elsewhere
+    (cheaper + more precise), so this call covers only the prose the model can
+    fabricate in ways regex can't judge. One call for both fields. Mutates
+    `content`; returns changed field names. Best effort — never blocks.
 
-    Per-field safety is preserved: bullets are remapped by position and only
-    applied on a same-length response; competencies only replaced when non-empty.
+    Per-field safety: bullets are remapped by position and only applied on a
+    same-length response.
     """
     import json as _json
 
     summary = (content.get("summary") or "").strip()
-    comps = [c for c in content.get("core_competencies", []) if c and c.strip()]
 
     flat: list[str] = []
     index: list[tuple[int, int]] = []   # (experience_idx, bullet_idx)
@@ -360,7 +357,7 @@ def _verify_content(content: dict, profile_text: str) -> list[str]:
                 flat.append(b)
                 index.append((ei, bi))
 
-    if not summary and not comps and not flat:
+    if not summary and not flat:
         return []
 
     system = (
@@ -370,19 +367,16 @@ def _verify_content(content: dict, profile_text: str) -> list[str]:
         "Be strict: when in doubt, treat it as unsupported. Do not invent "
         "replacements; ground everything in the profile's actual experience. "
         "No filler ('proven track record', 'passionate'). "
-        "You are given SUMMARY (string), BULLETS (string array), and COMPETENCIES "
-        "(string array). Reply with a JSON object ONLY, echoing each field with "
-        "corrections applied and preserving the BULLETS array's exact length and "
-        "order:\n"
+        "You are given SUMMARY (string) and BULLETS (string array). Reply with a "
+        "JSON object ONLY, echoing each field with corrections applied and "
+        "preserving the BULLETS array's exact length and order:\n"
         '{"summary": "<grounded summary>", '
-        '"bullets": [<same length/order, unsupported ones rewritten>], '
-        '"competencies": [<grounded, profile-supported skills only, 6-8 items>]}'
+        '"bullets": [<same length/order, unsupported ones rewritten>]}'
     )
     prompt = (
         f"PROFILE:\n{profile_text}\n\n"
         f"SUMMARY:\n{summary}\n\n"
-        f"BULLETS (keep this exact length and order):\n{_json.dumps(flat, ensure_ascii=False)}\n\n"
-        f"COMPETENCIES:\n{_json.dumps(comps, ensure_ascii=False)}"
+        f"BULLETS (keep this exact length and order):\n{_json.dumps(flat, ensure_ascii=False)}"
     )
 
     verdict = _run_verifier(system, prompt)
@@ -406,13 +400,6 @@ def _verify_content(content: dict, profile_text: str) -> list[str]:
                 bullet_changed = True
         if bullet_changed:
             changed.append("bullets")
-
-    new_comps = verdict.get("competencies")
-    if isinstance(new_comps, list) and new_comps and all(isinstance(c, str) for c in new_comps):
-        cleaned = [c.strip() for c in new_comps if c.strip()]
-        if cleaned and cleaned != comps:
-            content["core_competencies"] = cleaned
-            changed.append("competencies")
 
     return changed
 
@@ -541,9 +528,22 @@ def _build_document(job_id: str, doc_type: str) -> None:
             stage_fn(job_id, "Rendering document…")
             profile_text = get_profile_path().read_text(encoding="utf-8")
 
-            # Semantic guard: one strong-model call checks summary, bullets, and
-            # competencies together and grounds anything the profile doesn't
-            # support (weak models fabricate across all three when tailoring).
+            # Deterministic competency grounding (free, precise): drop any
+            # competency not supported by the structured profile. Runs before
+            # the LLM guard, which now only covers the prose fields.
+            from .profiles import get_profile_json
+            from .latex_render import ground_competencies
+            pj = get_profile_json()
+            if pj:
+                orig = content.get("core_competencies", [])
+                kept, dropped = ground_competencies(orig, pj)
+                if kept != orig:
+                    content["core_competencies"] = kept
+                if dropped:
+                    print(f"[resume-check] {job_id}: dropped unsupported competencies: {', '.join(dropped)}")
+
+            # Semantic guard: one strong-model call grounds the prose fields
+            # (summary + bullets) — the fabrication regex can't judge.
             stage_fn(job_id, "Checking accuracy…")
             fixed = _verify_content(content, profile_text)
             if fixed:
