@@ -110,6 +110,10 @@
   /* Skills card */
   .skills-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
   .skill-tag { display: inline-flex; align-items: center; padding: 5px 12px; background: var(--blue-dim); border: 1px solid var(--blue); border-radius: var(--radius-full); font-size: var(--text-xs); color: var(--blue-light); font-weight: 500; }
+  .skill-tag-missing { display: inline-flex; align-items: center; padding: 5px 12px; background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--radius-full); font-size: var(--text-xs); color: var(--text-muted); font-weight: 500; }
+  .skills-summary { font-size: var(--text-sm); color: var(--text-soft); font-weight: 600; margin-bottom: var(--space-3); }
+  .skills-group-label { font-size: var(--text-xs); color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; margin: var(--space-3) 0 6px; }
+  .skills-gap-hint { font-size: var(--text-xs); color: var(--text-faint); line-height: var(--leading-normal); margin-top: 8px; }
 
   /* Timeline card */
   .timeline { display: flex; flex-direction: column; gap: 0; }
@@ -216,7 +220,7 @@
 
     <!-- Skills -->
     <div class="sidebar-card" id="skills-card" style="display:none">
-      <div class="sidebar-card-header"><h3>Skills & Technologies</h3></div>
+      <div class="sidebar-card-header"><h3>Skills match</h3></div>
       <div class="sidebar-card-body" id="skills-card-body"></div>
     </div>
 
@@ -308,6 +312,7 @@ async function renderDescription(j) {
     }
     if (data.description) {
       j.description = data.description;
+      if (data.match !== undefined) { j.match = data.match; renderSkillsCard(j); }
       _setDescription(el, data.description);
       return;
     }
@@ -441,41 +446,30 @@ function renderDetailsCard(j) {
 }
 
 // ── Skills extraction ─────────────────────────────────────────────────────
-const SKILLS_LIST = [
-  // Languages
-  "Python","JavaScript","TypeScript","Java","Go","Rust","C++","C#","Ruby","PHP","Swift","Kotlin","Scala","R",
-  // Frontend
-  "React","Vue","Angular","Next.js","Svelte","HTML","CSS","Tailwind","GraphQL","Redux",
-  // Backend
-  "Node.js","Django","Flask","FastAPI","Spring","Laravel","Rails","Express",
-  // Data / ML
-  "SQL","PostgreSQL","MySQL","MongoDB","Redis","Elasticsearch","Kafka","Spark","Pandas","NumPy","TensorFlow","PyTorch","scikit-learn","dbt",
-  // Cloud / Infra
-  "AWS","GCP","Azure","Docker","Kubernetes","Terraform","CI/CD","GitHub Actions","Linux","Bash",
-  // Tools / Concepts
-  "REST","API","Microservices","Git","Agile","Scrum","Jira","Figma",
-];
-
-function extractSkills(text) {
-  if (!text) return [];
-  const lower = text.toLowerCase();
-  const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return SKILLS_LIST.filter(s => {
-    const needle = esc(s.toLowerCase());
-    // Boundary = start/end or a non-alphanumeric char. \b can't be used because
-    // skills like "c++"/"c#" end in non-word characters; this keeps "java" from
-    // matching "javascript" while still matching "c++", "node.js", "ci/cd".
-    return new RegExp(`(^|[^a-z0-9])${needle}([^a-z0-9]|$)`).test(lower);
-  });
-}
-
+// Skills match card — driven by the server's match data (canonical vocab).
+// Shows which of the candidate's skills the job wants, and which it asks for
+// that aren't in the profile. No client-side skill list (single source of truth
+// lives in job/skills_vocab.py).
 function renderSkillsCard(j) {
-  const skills = extractSkills(j.description);
   const card = document.getElementById("skills-card");
-  if (!skills.length) { card.style.display = "none"; return; }
+  const m = j.match;
+  if (!m || (!(m.matched || []).length && !(m.missing || []).length)) {
+    card.style.display = "none";
+    return;
+  }
   card.style.display = "";
-  document.getElementById("skills-card-body").innerHTML = `
-    <div class="skills-wrap">${skills.map(s => `<span class="skill-tag">${escapeHtml(s)}</span>`).join("")}</div>`;
+  const total = (m.matched || []).length + (m.missing || []).length;
+  const matchedTags = (m.matched || []).map(s => `<span class="skill-tag">${escapeHtml(s)}</span>`).join("");
+  const missingTags = (m.missing || []).map(s => `<span class="skill-tag-missing">${escapeHtml(s)}</span>`).join("");
+  let html = `<div class="skills-summary">${(m.matched || []).length} of ${total} required skills match your profile</div>`;
+  if (matchedTags) {
+    html += `<div class="skills-group-label">✓ Your matching skills</div><div class="skills-wrap">${matchedTags}</div>`;
+  }
+  if (missingTags) {
+    html += `<div class="skills-group-label">Not in your profile</div><div class="skills-wrap">${missingTags}</div>`
+          + `<div class="skills-gap-hint">Add any you actually have to your profile so future matches count them — or treat them as growth areas.</div>`;
+  }
+  document.getElementById("skills-card-body").innerHTML = html;
 }
 
 // ── Timeline ──────────────────────────────────────────────────────────────

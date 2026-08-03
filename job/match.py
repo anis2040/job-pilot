@@ -11,17 +11,20 @@ from .skills_vocab import detect_keywords
 
 
 def _profile_skills(profile: dict) -> set[str]:
-    """Lowercased skill set from the profile: competencies + skills detected in
-    its summary and experience bullets (so 'built Angular apps' counts)."""
+    """Canonical skill set from the profile: run competencies, summary, and
+    experience bullets through detect_keywords so everything is a canonical
+    vocab term (lowercased). This is what lets a JD's canonical keyword match
+    the profile — a raw competency phrase like 'CI/CD & quality delivery' is
+    reduced to the canonical 'CI/CD', which is what the JD side produces too.
+    """
     if not profile:
         return set()
-    skills = {c.strip().lower() for c in (profile.get("competencies") or []) if c and c.strip()}
     text = " ".join([
+        " ".join(profile.get("competencies") or []),
         profile.get("summary", "") or "",
         " ".join(b for e in (profile.get("experience") or []) for b in (e.get("bullets") or [])),
     ])
-    skills |= {k.lower() for k in detect_keywords(text)}
-    return skills
+    return {k.lower() for k in detect_keywords(text)}
 
 
 def compute_match(description: str, profile: dict | None) -> dict | None:

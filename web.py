@@ -501,7 +501,10 @@ def api_job_description(job_id):
                     update_remote(job_id, inferred)
                     remote = inferred
 
-    return jsonify({"description": description, "remote": remote})
+    # Compute match against the (possibly just-fetched) description so the
+    # detail page's skills card reflects on-demand descriptions too.
+    match = compute_match(description, get_profile_json())
+    return jsonify({"description": description, "remote": remote, "match": match})
 
 
 @app.route("/api/job/<job_id>")

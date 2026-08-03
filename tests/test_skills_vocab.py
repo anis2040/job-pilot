@@ -31,3 +31,26 @@ def test_order_stable_and_deduped():
     found = detect_keywords(text)
     assert found == [s for s in SKILLS_VOCAB if s in found]  # vocab order
     assert len(found) == len(set(found))  # deduped
+
+
+# ── synonyms / aliases (canonicalization) ─────────────────────────────────────
+
+def test_aliases_canonicalize():
+    assert "React" in detect_keywords("Deep ReactJS experience")
+    assert "PostgreSQL" in detect_keywords("We run Postgres in prod")
+    assert "Kubernetes" in detect_keywords("Deploy to K8s")
+    assert "Go" in detect_keywords("Backend in golang")
+    assert "Tailwind" in detect_keywords("Styled with TailwindCSS")
+
+
+def test_alias_and_canonical_dedupe_to_one():
+    found = detect_keywords("We use React and ReactJS interchangeably")
+    assert found.count("React") == 1
+
+
+def test_expanded_terms_detected():
+    for term, jd in [("Spring Boot", "Spring Boot services"),
+                     ("Snowflake", "data in Snowflake"),
+                     ("Terraform", "infra as code with Terraform"),
+                     (".NET", "built on .NET")]:
+        assert term in detect_keywords(jd), f"{term} not detected"

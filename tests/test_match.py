@@ -55,3 +55,24 @@ def test_no_profile_returns_none():
 
 def test_empty_description_returns_none():
     assert compute_match("", _PROFILE) is None
+
+
+def test_synonym_alignment():
+    # Profile lists "React"; JD says "ReactJS" — synonym canonicalization means
+    # they align and it counts as matched, not missing.
+    prof = {"competencies": ["React"], "summary": "", "experience": []}
+    m = compute_match("We need ReactJS and Postgres.", prof)
+    assert "React" in m["matched"]
+    assert "PostgreSQL" in m["missing"]  # profile lacks it, canonicalized
+
+
+def test_descriptive_competency_phrases_canonicalize():
+    # Regression: a profile listing a rich phrase like 'CI/CD & quality delivery'
+    # must still match a JD's canonical 'CI/CD' (not be treated as a separate
+    # raw string that never matches).
+    prof = {"competencies": ["CI/CD & quality-driven delivery", "Angular architecture"],
+            "summary": "", "experience": []}
+    m = compute_match("We use CI/CD pipelines and Angular.", prof)
+    assert "CI/CD" in m["matched"]
+    assert "Angular" in m["matched"]
+    assert m["missing"] == []
