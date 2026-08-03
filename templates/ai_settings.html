@@ -55,6 +55,17 @@
   .test-result { font-size: var(--text-sm); }
   .test-result.ok  { color: var(--green); }
   .test-result.err { color: var(--red); }
+
+  .usage-strip { margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--border-faint); font-size: var(--text-xs); color: var(--text-muted); }
+  .usage-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
+  .usage-head .usage-label { color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+  .usage-head .usage-count { color: var(--text); font-variant-numeric: tabular-nums; }
+  .usage-bar { height: 6px; border-radius: var(--radius-full); background: var(--bg-raised); overflow: hidden; }
+  .usage-fill { height: 100%; border-radius: var(--radius-full); background: var(--blue); transition: width var(--dur-base) var(--ease-out); }
+  .usage-fill.warn { background: var(--yellow); }
+  .usage-fill.full { background: var(--red); }
+  .usage-foot { margin-top: 5px; color: var(--text-faint); }
+  .usage-foot .approx { cursor: help; border-bottom: 1px dotted var(--text-faint); }
 </style>
 {% endblock %}
 
@@ -109,6 +120,7 @@
         <button class="btn btn-ghost btn-sm" onclick="testProvider('{{ p.id }}')" id="test-{{ p.id }}">Test connection</button>
         <span class="test-result" id="test-{{ p.id }}-result"></span>
       </div>
+      <div class="usage-strip" id="usage-{{ p.id }}" style="display:none"></div>
     </div>
   </div>
   {% endfor %}
@@ -148,8 +160,34 @@ function toggleKeyVisibility(pid) {
   if (eye) eye.textContent = showing ? "🙈" : "👁";
 }
 
-async function load() {
-  const res  = await fetch("/api/ai-settings");
+function fmtK(n) {
+  n = n || 0;
+  if (n >= 1000) return (n / 1000).toFixed(n >= 10000 ? 0 : 1) + "k";
+  return String(n);
+}
+
+function renderUsage(provider, usage, keySet) {
+  const el = document.getElementById(`usage-${provider}`);
+  if (!el) return;
+  if (!usage || !keySet) { el.style.display = "none"; return; }
+  const used = usage.last_24h_tokens || 0;
+  const limit = usage.limit_tpd || 0;
+  const pct = limit ? Math.min(100, Math.round(used / limit * 100)) : 0;
+  const fillClass = pct >= 100 ? "full" : pct >= 80 ? "warn" : "";
+  const limitLabel = usage.approx
+    ? `<span class="approx" title="Approximate free-tier limit; actual may differ by plan.">≈ ${fmtK(limit)}</span>`
+    : fmtK(limit);
+  el.style.display = "";
+  el.innerHTML = `
+    <div class="usage-head">
+      <span class="usage-label">Last 24h</span>
+      <span class="usage-count">${fmtK(used)} / ${limitLabel} tokens</span>
+    </div>
+    <div class="usage-bar"><div class="usage-fill ${fillClass}" style="width:${pct}%"></div></div>
+    <div class="usage-foot">Today: ${fmtK(usage.today_tokens)} · resets ${usage.resets || "—"} · this app's usage only</div>`;
+}
+
+async function load() {  const res  = await fetch("/api/ai-settings");
   const data = await res.json();
 
   PROVIDERS = Object.keys(data.providers);
@@ -196,6 +234,7 @@ async function load() {
     }
 
     document.getElementById(`nokey-${provider}`).style.display = info.key_set ? "none" : "";
+    renderUsage(provider, info.usage, info.key_set);
   }
 
   // Auto-expand the active/preferred provider

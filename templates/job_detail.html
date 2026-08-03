@@ -362,14 +362,46 @@ function renderDocsCard(j) {
     </div>`;
 }
 
+function fmtRetry(secs) {
+  if (!secs || secs <= 0) return "";
+  if (secs < 90) return `~${secs}s`;
+  if (secs < 5400) return `~${Math.round(secs / 60)} min`;
+  return `~${Math.round(secs / 3600)} h`;
+}
+
+// Rich rate-limit block (real usage + reset) when the provider gave us detail.
+// Returns "" when there's no structured rate_limit, so callers fall back to the
+// plain error message.
+function rateLimitBanner(rl) {
+  if (!rl) return "";
+  const prov = (rl.provider || "provider").replace(/^\w/, c => c.toUpperCase());
+  const scope = rl.scope === "TPD" ? "daily" : rl.scope === "TPM" ? "per-minute" : "";
+  let head = `${prov} ${scope} limit reached`.replace(/\s+/g, " ").trim();
+  let usage = (rl.used != null && rl.limit != null)
+    ? ` — ${fmtK(rl.used)} / ${fmtK(rl.limit)} tokens` : "";
+  const retry = fmtRetry(rl.retry_seconds);
+  const reset = retry ? ` · resets in ${retry}` : "";
+  return `<div class="doc-error-msg">⚠ ${escapeHtml(head)}${usage}${reset}</div>
+    <a href="/ai-settings" class="btn btn-ghost btn-sm">Switch provider</a>`;
+}
+
+function fmtK(n) {
+  n = n || 0;
+  if (n >= 1000) return (n / 1000).toFixed(n >= 10000 ? 0 : 1) + "k";
+  return String(n);
+}
+
 function cvContent(j) {
   const rs = j.resume_status;
   if (rs === "building") return `<div class="doc-building"><span class="spinner" style="color:#a78bfa"></span>${escapeHtml(j.resume_stage || "Building…")}</div>`;
   if (rs === "done" && j.pdf_url) return `<a href="${safeUrl(j.pdf_url)}" target="_blank" class="btn btn-success btn-sm">📄 Open CV</a><button class="btn btn-ghost btn-sm" onclick="buildResume()">Rebuild</button>`;
   if (rs === "error") {
     const isSetup = (j.resume_error || "").includes("profile.md");
+    const banner = rateLimitBanner(j.resume_rate_limit);
+    const body = banner
+      || `<div class="doc-error-msg">${isSetup ? `<a href="/setup" style="color:var(--red)">Profile missing</a>` : escapeHtml((j.resume_error||"").slice(0,80))}</div>`;
     return `<div style="display:flex;flex-direction:column;gap:6px;width:100%">
-      <div class="doc-error-msg">${isSetup ? `<a href="/setup" style="color:var(--red)">Profile missing</a>` : escapeHtml((j.resume_error||"").slice(0,80))}</div>
+      ${body}
       <button class="btn btn-ghost btn-sm" onclick="buildResume()">Retry</button></div>`;
   }
   return `<button class="btn btn-sm" style="background:#2e1f6e;color:#c4b5fd;border:1px solid #4c2ea8;" onclick="buildResume()">▶ Build CV</button>`;
@@ -379,7 +411,11 @@ function clContent(j) {
   const rs = j.cl_status;
   if (rs === "building") return `<div class="doc-building"><span class="spinner" style="color:#60a5fa"></span>${escapeHtml(j.cl_stage || "Building…")}</div>`;
   if (rs === "done" && j.cl_pdf_url) return `<a href="${safeUrl(j.cl_pdf_url)}" target="_blank" class="btn btn-success btn-sm">✉ Open Letter</a><button class="btn btn-ghost btn-sm" onclick="buildCL()">Rebuild</button>`;
-  if (rs === "error") return `<div style="display:flex;flex-direction:column;gap:6px;width:100%"><div class="doc-error-msg">Error building letter</div><button class="btn btn-ghost btn-sm" onclick="buildCL()">Retry</button></div>`;
+  if (rs === "error") {
+    const banner = rateLimitBanner(j.cl_rate_limit);
+    const body = banner || `<div class="doc-error-msg">Error building letter</div>`;
+    return `<div style="display:flex;flex-direction:column;gap:6px;width:100%">${body}<button class="btn btn-ghost btn-sm" onclick="buildCL()">Retry</button></div>`;
+  }
   if (j.resume_status === "done") return `<button class="btn btn-sm" style="background:#0c2d42;color:#7dd3fc;border:1px solid #0e4a72;" onclick="buildCL()">✉ Write Cover Letter</button>`;
   return `<span style="font-size:var(--text-sm);color:var(--text-faint);">🔒 Build CV first</span>`;
 }
@@ -526,9 +562,11 @@ async function pollDoc(docType) {
   if (isResume) {
     job.resume_status = data.status; job.resume_stage = data.stage || "";
     job.pdf_url = data.pdf_url; job.resume_error = data.error;
+    job.resume_rate_limit = data.rate_limit || null;
   } else {
     job.cl_status = data.status; job.cl_stage = data.stage || "";
     job.cl_pdf_url = data.pdf_url; job.cl_error = data.error;
+    job.cl_rate_limit = data.rate_limit || null;
     job.cl_preview = data.preview || "";
     renderClPreview();
   }

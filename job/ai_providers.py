@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+import re
 import sys
 import subprocess
 import shutil
@@ -7,6 +8,53 @@ import json as _json
 from pathlib import Path
 
 from . import paths
+
+
+class RateLimitError(RuntimeError):
+    """A provider rate/quota limit was hit. Carries structured detail (when the
+    provider exposes it) so the UI can show usage and reset time."""
+    def __init__(self, message: str, provider: str = "", used: int | None = None,
+                 limit: int | None = None, retry_seconds: int | None = None,
+                 scope: str = ""):
+        super().__init__(message)
+        self.provider = provider
+        self.used = used
+        self.limit = limit
+        self.retry_seconds = retry_seconds
+        self.scope = scope  # "TPM" | "TPD" | "RPM" | "RPD" | ""
+
+    def as_dict(self) -> dict:
+        return {"provider": self.provider, "used": self.used, "limit": self.limit,
+                "retry_seconds": self.retry_seconds, "scope": self.scope}
+
+
+def _parse_groq_limit(msg: str) -> dict | None:
+    """Extract structured rate-limit detail from a raw Groq 429 error string, e.g.
+    '... on tokens per day (TPD): Limit 100000, Used 95115, Requested 8712.
+    Please try again in 55m6.528s.' Returns a dict or None if it doesn't match.
+    """
+    if not msg:
+        return None
+    out: dict = {}
+    scope_m = re.search(r"tokens per (day|minute)", msg, re.I)
+    if scope_m:
+        out["scope"] = "TPD" if scope_m.group(1).lower() == "day" else "TPM"
+    lim_m = re.search(r"Limit\s+([\d,]+)", msg, re.I)
+    used_m = re.search(r"Used\s+([\d,]+)", msg, re.I)
+    if lim_m:
+        out["limit"] = int(lim_m.group(1).replace(",", ""))
+    if used_m:
+        out["used"] = int(used_m.group(1).replace(",", ""))
+    # "try again in 55m6.528s" / "12.5s" / "1h2m"
+    retry_m = re.search(r"try again in\s+([0-9hms.\s]+)", msg, re.I)
+    if retry_m:
+        secs = 0.0
+        for val, unit in re.findall(r"([\d.]+)\s*([hms])", retry_m.group(1)):
+            secs += float(val) * {"h": 3600, "m": 60, "s": 1}[unit]
+        if secs:
+            out["retry_seconds"] = int(round(secs))
+    return out or None
+
 
 
 def _load_env() -> None:
@@ -156,6 +204,17 @@ def _is_gemini_text_model(name: str) -> bool:
 def _log_tokens(tag: str, model: str, **counts: int) -> None:
     parts = " ".join(f"{k}={v}" for k, v in counts.items())
     print(f"[{tag}/{model}] {parts}")
+    # Persist for the usage counter (best-effort — never break a build; there
+    # may be no active profile). `tag` is the provider (or "gemini/cli").
+    try:
+        from . import db
+        provider = tag.split("/")[0]
+        db.log_token_usage(provider, model,
+                           input=counts.get("input", 0),
+                           output=counts.get("output", 0),
+                           total=counts.get("total", 0))
+    except Exception:
+        pass
 
 
 def _get_groq_client():
@@ -193,12 +252,14 @@ def _build_with_groq(system_text: str, user_prompt: str, stage_fn=None) -> str:
         msg = str(e)
         # Free-tier limits are per-model (TPM and TPD): smaller models and
         # gpt-oss (8K TPM) can't fit a full resume prompt + output. Surface a
-        # clear, actionable error.
+        # clear, actionable error, preserving Groq's structured detail when present.
         if "rate_limit" in msg or "413" in msg or "429" in msg or "too large" in msg.lower():
-            raise RuntimeError(
+            detail = _parse_groq_limit(msg) or {}
+            raise RateLimitError(
                 f"Groq model '{model}' hit its token/rate limit for this request. "
                 f"Pick a model with a larger limit (e.g. llama-3.3-70b-versatile) "
-                f"in AI Settings, or wait a minute and retry."
+                f"in AI Settings, or wait and retry.",
+                provider="groq", **detail
             ) from e
         raise
     u = response.usage
@@ -260,6 +321,10 @@ def _build_with_sdk(system_text: str, user_prompt: str, stage_fn=None, on_delta=
         f"(uncached={uncached} write={cache_write} read={cache_read}) "
         f"output={output_toks} saved={saved_pct}%"
     )
+    # Persist usage uniformly with the other providers (the print above is the
+    # detailed cache view; this records the totals for the usage counter).
+    _log_tokens("anthropic", model, input=total_input, output=output_toks,
+                total=total_input + output_toks)
     return response.content[0].text
 
 

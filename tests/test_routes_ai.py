@@ -53,6 +53,17 @@ class TestAiSettingsGet:
         for p in data["providers"].values():
             assert set(p) >= {"configured", "model", "key_set", "models"}
 
+    def test_usage_block_present(self, client):
+        data = client.get("/api/ai-settings").get_json()
+        for name, p in data["providers"].items():
+            assert "usage" in p, f"{name} missing usage block"
+            u = p["usage"]
+            assert set(u) >= {"last_24h_tokens", "today_tokens", "limit_tpd", "approx", "resets"}
+            assert isinstance(u["last_24h_tokens"], int)
+        # Groq limits are exact; Gemini/Anthropic are approximate.
+        assert data["providers"]["groq"]["usage"]["approx"] is False
+        assert data["providers"]["gemini"]["usage"]["approx"] is True
+
     def test_no_keys_means_no_active(self, client):
         data = client.get("/api/ai-settings").get_json()
         assert data["active_provider"] is None

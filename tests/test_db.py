@@ -187,3 +187,32 @@ def test_remote_backfill_is_idempotent(temp_db):
     temp_db._backfill_remote()
     assert temp_db.get_job("jc_9")["remote"] == "Remote"
 
+
+
+# ── token usage tracking ──────────────────────────────────────────────────────
+
+def test_log_and_sum_token_usage(temp_db):
+    temp_db.log_token_usage("groq", "llama", input=100, output=50, total=150)
+    temp_db.log_token_usage("groq", "llama", input=10, output=5, total=15)
+    temp_db.log_token_usage("gemini", "flash", input=0, output=0, total=200)
+    since = temp_db.usage_last_24h()
+    assert since["groq"] == 165
+    assert since["gemini"] == 200
+
+
+def test_usage_last_24h_excludes_old(temp_db):
+    import sqlite3
+    # Insert a row 48h old directly, plus a fresh one.
+    from datetime import datetime, timezone, timedelta
+    old = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
+    with temp_db._connect() as con:
+        con.execute("INSERT INTO token_usage (ts, provider, model, input, output, total) VALUES (?,?,?,?,?,?)",
+                    (old, "groq", "llama", 0, 0, 999))
+        con.commit()
+    temp_db.log_token_usage("groq", "llama", total=10)
+    assert temp_db.usage_last_24h().get("groq") == 10  # old 999 excluded
+
+
+def test_usage_empty_is_empty_dict(temp_db):
+    assert temp_db.usage_last_24h() == {}
+    assert temp_db.usage_today() == {}

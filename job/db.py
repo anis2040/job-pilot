@@ -80,6 +80,17 @@ def init_db() -> None:
                 new_count    INTEGER DEFAULT 0
             )
         """)
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS token_usage (
+                id       INTEGER PRIMARY KEY AUTOINCREMENT,
+                ts       TEXT NOT NULL,
+                provider TEXT,
+                model    TEXT,
+                input    INTEGER DEFAULT 0,
+                output   INTEGER DEFAULT 0,
+                total    INTEGER DEFAULT 0
+            )
+        """)
         con.commit()
 
     # One-time backfill: repair workplace-type labels written under the old
@@ -207,6 +218,44 @@ def last_fetch_at(source: str | None = None) -> str | None:
                 "SELECT fetched_at FROM fetch_log ORDER BY fetched_at DESC LIMIT 1"
             ).fetchone()
         return row["fetched_at"] if row else None
+
+
+def log_token_usage(provider: str, model: str, input: int = 0,
+                    output: int = 0, total: int = 0) -> None:
+    """Record one AI call's token usage. Best-effort telemetry."""
+    with _connect() as con:
+        con.execute(
+            "INSERT INTO token_usage (ts, provider, model, input, output, total) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (_now_iso(), provider, model, int(input or 0), int(output or 0), int(total or 0)),
+        )
+        con.commit()
+
+
+def token_usage_since(since_iso: str) -> dict[str, int]:
+    """Total tokens per provider since an ISO-8601 UTC timestamp."""
+    with _connect() as con:
+        rows = con.execute(
+            "SELECT provider, SUM(total) AS t FROM token_usage WHERE ts >= ? GROUP BY provider",
+            (since_iso,),
+        ).fetchall()
+        return {r["provider"]: (r["t"] or 0) for r in rows}
+
+
+def usage_last_24h() -> dict[str, int]:
+    """Tokens per provider over a rolling 24h window (matches Groq's daily limit)."""
+    from datetime import timedelta
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    return token_usage_since(cutoff)
+
+
+def usage_today() -> dict[str, int]:
+    """Tokens per provider since local calendar midnight (intuitive 'today')."""
+    now_local = datetime.now().astimezone()
+    midnight_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    cutoff_utc = midnight_local.astimezone(timezone.utc).isoformat()
+    return token_usage_since(cutoff_utc)
+
 
 
 def update_status(job_id: str, status: str) -> bool:

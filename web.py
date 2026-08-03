@@ -548,7 +548,7 @@ def api_build_resume(job_id):
 @app.route("/api/resume-status/<job_id>")
 def api_resume_status(job_id):
     ts = get_task_status(job_id)
-    return jsonify({"status": ts.get("status", "idle"), "stage": ts.get("stage", ""), "pdf_url": _pdf_url(ts.get("pdf_path")), "error": ts.get("error")})
+    return jsonify({"status": ts.get("status", "idle"), "stage": ts.get("stage", ""), "pdf_url": _pdf_url(ts.get("pdf_path")), "error": ts.get("error"), "rate_limit": ts.get("rate_limit")})
 
 
 @app.route("/api/cover-letter/<job_id>", methods=["POST"])
@@ -563,7 +563,7 @@ def api_build_cover_letter(job_id):
 @app.route("/api/cover-letter-status/<job_id>")
 def api_cover_letter_status(job_id):
     ts = get_cl_task_status(job_id)
-    return jsonify({"status": ts.get("status", "idle"), "stage": ts.get("stage", ""), "pdf_url": _pdf_url(ts.get("pdf_path")), "error": ts.get("error"), "preview": ts.get("preview", "")})
+    return jsonify({"status": ts.get("status", "idle"), "stage": ts.get("stage", ""), "pdf_url": _pdf_url(ts.get("pdf_path")), "error": ts.get("error"), "preview": ts.get("preview", ""), "rate_limit": ts.get("rate_limit")})
 
 
 @app.route("/api/job-status/<job_id>/<new_status>", methods=["POST"])
@@ -632,6 +632,25 @@ def api_ai_settings_get():
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN") or ""
     gemini_key    = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or ""
 
+    # Token-usage counter: what THIS app has spent per provider. Best-effort —
+    # no profile / empty DB yields zeros rather than erroring.
+    from job.limits import usage_reference
+    try:
+        from job.db import usage_last_24h, usage_today
+        u24, utoday = usage_last_24h(), usage_today()
+    except Exception:
+        u24, utoday = {}, {}
+
+    def _usage_for(provider):
+        ref = usage_reference(provider, _get_model(provider))
+        return {
+            "last_24h_tokens": u24.get(provider, 0),
+            "today_tokens":    utoday.get(provider, 0),
+            "limit_tpd":       ref["limit_tpd"],
+            "approx":          ref["approx"],
+            "resets":          ref["resets"],
+        }
+
     return jsonify({
         "active_provider":    active,
         "preferred_provider": preferred or None,
@@ -642,6 +661,7 @@ def api_ai_settings_get():
                 "key_set": bool(os.environ.get("GROQ_API_KEY")),
                 "key":     groq_key,
                 "models":  _models_for("groq"),
+                "usage":   _usage_for("groq"),
             },
             "anthropic": {
                 "configured": anthropic_ok,
@@ -649,6 +669,7 @@ def api_ai_settings_get():
                 "key_set": bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN") or shutil.which("claude")),
                 "key":     anthropic_key,
                 "models":  _models_for("anthropic"),
+                "usage":   _usage_for("anthropic"),
             },
             "gemini": {
                 "configured": gemini_ok,
@@ -656,6 +677,7 @@ def api_ai_settings_get():
                 "key_set": bool(os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or shutil.which("gemini")),
                 "key":     gemini_key,
                 "models":  _models_for("gemini"),
+                "usage":   _usage_for("gemini"),
             },
         }
     })

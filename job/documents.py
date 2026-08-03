@@ -537,8 +537,12 @@ def _build_document(job_id: str, doc_type: str) -> None:
             status_dict[job_id] = {"status": "done", "pdf_path": str(pdf_path), "error": None}
 
     except Exception as e:
+        from .ai_providers import RateLimitError
+        entry = {"status": "error", "pdf_path": None, "error": str(e)}
+        if isinstance(e, RateLimitError):
+            entry["rate_limit"] = e.as_dict()
         with task_state._lock:
-            status_dict[job_id] = {"status": "error", "pdf_path": None, "error": str(e)}
+            status_dict[job_id] = entry
 
 
 def _build_resume(job_id: str) -> None:

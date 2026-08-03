@@ -456,14 +456,27 @@
     return `<span class="${cls}">${icon} ${escapeHtml(r)}</span>`;
   }
 
+  function rlShort(rl) {
+    const prov = (rl.provider || "AI").replace(/^\w/, c => c.toUpperCase());
+    const scope = rl.scope === "TPD" ? "daily limit" : rl.scope === "TPM" ? "rate limit" : "limit";
+    let s = rl.retry_seconds;
+    let when = "";
+    if (s > 0) when = s < 90 ? `~${s}s` : s < 5400 ? `~${Math.round(s/60)}m` : `~${Math.round(s/3600)}h`;
+    return `${prov} ${scope} reached${when ? ` · retry in ${when}` : ""}`;
+  }
+
   function resumeSlot(job) {
     const rs = job.resume_status;
     if (rs === "building") return `<div class="doc-slot"><span class="doc-label">CV</span><span class="fetch-msg" style="display:flex;align-items:center;gap:4px"><span class="spinner spinner-resume"></span>${escapeHtml(job.resume_stage || "Building…")}</span></div>`;
     if (rs === "done" && job.pdf_url) return `<div class="doc-slot"><span class="doc-label">CV</span><a href="${safeUrl(job.pdf_url)}" target="_blank" class="btn btn-sm btn-success" style="min-height:26px;padding:3px 10px;">📄 Open CV</a></div>`;
     if (rs === "error") {
       const isSetup = (job.resume_error || "").includes("profile.md");
+      const rl = job.resume_rate_limit;
+      const msg = rl
+        ? `⏳ ${rlShort(rl)} · <a href="/ai-settings">switch</a>`
+        : (isSetup ? `<a href="/setup">Profile missing — fix it</a>` : `⚠ ${escapeHtml((job.resume_error||"Error").slice(0,60))}`);
       return `<div class="doc-slot" style="flex-direction:column;align-items:flex-start;gap:3px">
-        <div class="doc-error">${isSetup ? `<a href="/setup">Profile missing — fix it</a>` : `⚠ ${escapeHtml((job.resume_error||"Error").slice(0,60))}`}
+        <div class="doc-error">${msg}
           <button class="btn btn-sm" style="background:#3d1515;color:#fca5a5;border:none;min-height:22px;padding:2px 8px;" onclick="buildResume('${job.job_id}')">Retry</button>
         </div></div>`;
     }
@@ -781,9 +794,11 @@
       if (isResume) {
         job.resume_status = data.status; job.resume_stage = data.stage || "";
         job.pdf_url = data.pdf_url; job.resume_error = data.error;
+        job.resume_rate_limit = data.rate_limit || null;
       } else {
         job.cl_status = data.status; job.cl_stage = data.stage || "";
         job.cl_pdf_url = data.pdf_url; job.cl_error = data.error;
+        job.cl_rate_limit = data.rate_limit || null;
       }
       const docsEl = document.getElementById(`docs-${job_id}`);
       if (docsEl) docsEl.innerHTML = resumeSlot(job) + clSlot(job);
