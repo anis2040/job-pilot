@@ -132,16 +132,33 @@
   .jobs-col { display: flex; flex-direction: column; }
   .detail-panel { display: none; }
   @media (min-width: 1200px) {
-    .split-wrap.split-active { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: var(--space-4); align-items: start; }
+    .split-wrap {
+      display: grid;
+      grid-template-columns: 1fr 0fr;
+      gap: 0;
+      align-items: start;
+      transition: grid-template-columns var(--dur-slow) var(--ease-out),
+                  gap var(--dur-slow) var(--ease-out);
+    }
+    .split-wrap.split-active {
+      grid-template-columns: 5fr 6fr;
+      gap: var(--space-4);
+    }
     .split-wrap.split-active .jobs-col { margin-top: 0; }
     .detail-panel {
+      display: flex;
+      overflow: hidden;
       position: sticky; top: 72px;
       background: var(--bg-surface); border: 1px solid var(--border);
-      border-radius: var(--radius-lg); overflow: hidden;
+      border-radius: var(--radius-lg);
       max-height: calc(100vh - 96px); flex-direction: column;
+      opacity: 0; visibility: hidden; pointer-events: none;
+      transition: opacity var(--dur-slow) var(--ease-out), visibility 0s var(--dur-slow);
     }
-    .split-wrap.split-active .detail-panel { display: flex; }
-    /* Compact rows when split so more fit beside the panel */
+    .split-wrap.split-active .detail-panel {
+      opacity: 1; visibility: visible; pointer-events: auto;
+      transition: opacity var(--dur-slow) var(--ease-out), visibility 0s 0s;
+    }
     .split-active .job-row-docs { display: none; }
   }
   .dp-head { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-faint); flex-shrink: 0; }
@@ -199,7 +216,24 @@
   .job-row-meta-right { display: flex; align-items: center; gap: 6px; }
   .job-row-posted { font-size: var(--text-xs); color: var(--text-muted); white-space: nowrap; }
   .source-badge { font-size: var(--text-xs); color: var(--text-faint); background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1px 7px; font-family: "SF Mono", monospace; }
-  .job-row-actions { display: flex; gap: var(--space-2); align-items: center; }
+  .job-row-actions { display: flex; gap: 4px; align-items: center; }
+  .row-action-btn {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 9px;
+    border-radius: var(--radius-full);
+    font-size: var(--text-xs); font-weight: 600;
+    border: 1px solid transparent;
+    background: none; cursor: pointer;
+    color: var(--text-faint);
+    transition: color var(--dur-fast) var(--ease-standard),
+                background var(--dur-fast) var(--ease-standard),
+                border-color var(--dur-fast) var(--ease-standard);
+    white-space: nowrap;
+  }
+  .row-action-btn:hover { background: var(--bg-raised); border-color: var(--border); color: var(--text-soft); }
+  .row-action-btn.apply:hover  { color: var(--green); border-color: var(--green-border); background: var(--green-bg); }
+  .row-action-btn.skip:hover   { color: var(--text-muted); border-color: var(--border); background: var(--bg-raised); }
+  .row-action-btn.restore:hover { color: var(--blue-light); border-color: var(--blue-dim); background: var(--blue-dim); }
   /* Honest match/status badges */
   .match-badge { font-size: var(--text-xs); font-weight: 700; border-radius: var(--radius-full); padding: 1px 9px; white-space: nowrap; cursor: default; }
   .match-badge.high { background: var(--green-bg, #0d2e1a); color: var(--green); border: 1px solid var(--green-border, transparent); }
@@ -543,9 +577,9 @@
 
   function actionsSlot(job) {
     if (job.status === "pending") return `
-      <button class="btn btn-sm btn-success" onclick="setStatus('${job.job_id}','applied')">✓ Applied</button>
-      <button class="btn btn-sm btn-ghost"   onclick="setStatus('${job.job_id}','skipped')">✗ Skip</button>`;
-    return `<button class="btn btn-sm btn-ghost" onclick="setStatus('${job.job_id}','pending')">↩ Restore</button>`;
+      <button class="row-action-btn apply" onclick="setStatus('${job.job_id}','applied')">✓ Applied</button>
+      <button class="row-action-btn skip"  onclick="setStatus('${job.job_id}','skipped')">✗ Skip</button>`;
+    return `<button class="row-action-btn restore" onclick="setStatus('${job.job_id}','pending')">↩ Restore</button>`;
   }
 
   // Match badge. When a semantic "fit" score is available (embeddings), show it

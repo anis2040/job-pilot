@@ -248,7 +248,7 @@ function _formatDescription(text) {
 function renderJobDescription(el, text, { clamp = true } = {}) {
   if (!el) return;
   const html = _formatDescription(text);
-  const long = clamp && _decodeEntities(text).length > 1200;
+  const long = clamp && _decodeEntities(text).length > 400;
   el.innerHTML = `<div class="description-body${long ? " desc-clamped" : ""}">${html}</div>`
     + (long ? `<button class="desc-toggle" type="button">Show more ▾</button>` : "");
   if (long) {
