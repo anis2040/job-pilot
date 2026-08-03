@@ -1,4 +1,5 @@
 from __future__ import annotations
+import html as _html
 import json
 import re
 import httpx
@@ -18,7 +19,32 @@ def http_get(url: str, *, headers: dict | None = None, timeout: int = 15, **kwar
 
 
 def strip_tags(html: str) -> str:
-    return re.sub(r"<[^>]+>", " ", html).strip()
+    """Convert scraped HTML to clean plain text, preserving structure.
+
+    Unescapes HTML entities (so '&amp;' -> '&'), turns block/break/list tags into
+    newlines and list items into '• ' bullets BEFORE removing remaining tags, then
+    normalizes whitespace. Safe on plain strings and titles (no block tags -> no
+    injected newlines). Used by every provider + the match/resume consumers.
+    """
+    if not html:
+        return ""
+    s = html
+    # List items -> bulleted lines (the leading newline separates them; don't
+    # also break on </li> or we'd double-space bullets).
+    s = re.sub(r"<li[^>]*>", "\n• ", s, flags=re.I)
+    # Block/line-break tags -> newlines.
+    s = re.sub(r"<(br|/p|/div|/h[1-6]|/tr)[^>]*>", "\n", s, flags=re.I)
+    # Remove all remaining tags.
+    s = re.sub(r"<[^>]+>", " ", s)
+    # Decode entities after tag removal.
+    s = _html.unescape(s)
+    # Normalize non-breaking spaces, collapse runs of spaces/tabs (not newlines),
+    # trim per-line, collapse 3+ newlines to a paragraph break.
+    s = s.replace("\xa0", " ")
+    s = re.sub(r"[ \t]+", " ", s)
+    s = re.sub(r" *\n *", "\n", s)
+    s = re.sub(r"\n{3,}", "\n\n", s)
+    return s.strip()
 
 
 def infer_remote(*text_fields: str, default: str = RemoteType.ONSITE) -> str:

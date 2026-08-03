@@ -65,11 +65,18 @@
     padding: var(--space-6);
   }
   .job-description h2 { font-size: var(--text-lg); font-weight: 700; color: var(--text-white); margin-bottom: var(--space-4); padding-bottom: var(--space-3); border-bottom: 1px solid var(--border-faint); }
-  .description-body { font-size: var(--text-base); color: var(--text-soft); line-height: var(--leading-relaxed); white-space: pre-wrap; }
+  .description-body { font-size: var(--text-base); color: var(--text-soft); line-height: 1.7; max-width: 70ch; }
   .description-body p  { margin-bottom: var(--space-3); }
+  .description-body p:last-child { margin-bottom: 0; }
   .description-body ul { padding-left: var(--space-5); margin-bottom: var(--space-3); }
-  .description-body li { margin-bottom: 4px; }
+  .description-body li { margin-bottom: var(--space-1); }
+  .description-body li::marker { color: var(--text-faint); }
   .description-body strong, .description-body b { color: var(--text); font-weight: 600; }
+  .desc-heading { font-size: var(--text-md); font-weight: 700; color: var(--text); margin: var(--space-4) 0 var(--space-2); }
+  .desc-heading:first-child { margin-top: 0; }
+  .description-body.desc-clamped { max-height: 340px; overflow: hidden; -webkit-mask-image: linear-gradient(to bottom, #000 78%, transparent); mask-image: linear-gradient(to bottom, #000 78%, transparent); }
+  .desc-toggle { margin-top: var(--space-3); background: none; border: none; color: var(--blue-light); font-size: var(--text-sm); font-weight: 600; cursor: pointer; padding: 0; }
+  .desc-toggle:hover { text-decoration: underline; }
   .description-empty { color: var(--text-faint); font-style: italic; font-size: var(--text-base); padding: var(--space-5) 0; }
 
   /* ── Sidebar ── */
@@ -323,17 +330,68 @@ async function renderDescription(j) {
   el.innerHTML = `<p class="description-empty">No description available — <a href="${safeUrl(j.url)}" target="_blank" style="color:var(--blue-light)">view on source site ↗</a></p>`;
 }
 
-function _setDescription(el, text) {
-  // Strip LinkedIn "Show more"/"Show less" toggle labels that leak into
-  // already-stored descriptions (belt-and-suspenders with the scraper fix).
-  const cleaned = String(text || "")
+function _decodeEntities(text) {
+  // Decode HTML entities for EXISTING stored descriptions (which may still
+  // contain '&amp;' etc.) — belt-and-suspenders with the backend strip_tags fix.
+  const ta = document.createElement("textarea");
+  ta.innerHTML = String(text || "");
+  return ta.value;
+}
+
+function _looksLikeHeading(line) {
+  const t = line.trim();
+  if (t.length === 0 || t.length > 60) return false;
+  if (t.endsWith(":")) return true;                       // "Requirements:", "About the Team:"
+  if (/[.!?,]$/.test(t)) return false;                    // sentences aren't headings
+  // Title Case / short label with no sentence punctuation, 1-6 words.
+  const words = t.split(/\s+/);
+  return words.length <= 6 && /^[A-Z0-9]/.test(t);
+}
+
+function _formatDescription(text) {
+  const cleaned = _decodeEntities(text)
     .split("\n")
-    .filter(ln => !/^\s*(show more|show less)\s*$/i.test(ln))
-    .join("\n");
-  const html = escapeHtml(cleaned)
-    .replace(/\n{2,}/g, "</p><p>")
-    .replace(/\n/g, "<br>");
-  el.innerHTML = `<div class="description-body"><p>${html}</p></div>`;
+    .map(l => l.replace(/\s+$/, ""))
+    .filter(ln => !/^\s*(show more|show less)\s*$/i.test(ln));
+
+  const parts = [];
+  let para = [];      // buffered plain lines
+  let bullets = [];   // buffered bullet lines
+  const flushPara = () => { if (para.length) { parts.push(`<p>${para.map(escapeHtml).join("<br>")}</p>`); para = []; } };
+  const flushBullets = () => { if (bullets.length) { parts.push(`<ul>${bullets.map(b => `<li>${escapeHtml(b)}</li>`).join("")}</ul>`); bullets = []; } };
+
+  for (const raw of cleaned) {
+    const line = raw.trim();
+    if (!line) { flushPara(); flushBullets(); continue; }
+    const bulletMatch = line.match(/^([•\-*–])\s+(.*)$/);
+    if (bulletMatch) {
+      flushPara();
+      bullets.push(bulletMatch[2]);
+    } else if (_looksLikeHeading(line)) {
+      flushPara(); flushBullets();
+      parts.push(`<h4 class="desc-heading">${escapeHtml(line.replace(/:$/, ""))}</h4>`);
+    } else {
+      flushBullets();
+      para.push(line);
+    }
+  }
+  flushPara(); flushBullets();
+  return parts.join("");
+}
+
+function _setDescription(el, text) {
+  const html = _formatDescription(text);
+  const long = _decodeEntities(text).length > 700;
+  el.innerHTML = `<div class="description-body${long ? " desc-clamped" : ""}" id="desc-body">${html}</div>`
+    + (long ? `<button class="desc-toggle" id="desc-toggle" onclick="toggleDescription()">Show more ▾</button>` : "");
+}
+
+function toggleDescription() {
+  const body = document.getElementById("desc-body");
+  const btn = document.getElementById("desc-toggle");
+  if (!body) return;
+  const clamped = body.classList.toggle("desc-clamped");
+  if (btn) btn.textContent = clamped ? "Show more ▾" : "Show less ▴";
 }
 
 // ── Render actions (status card) ──────────────────────────────────────────
