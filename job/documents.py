@@ -307,38 +307,14 @@ def _verify_providers() -> list[tuple[str, str]]:
     return cands
 
 
-def _verify_summary(summary: str, profile_text: str) -> str | None:
-    """Semantic guard against prose fabrication in the summary.
+def _run_verifier(system: str, prompt: str) -> dict | None:
+    """Run a verification prompt through the strongest reachable model.
 
-    Weak models, when told to rewrite the summary, sometimes invent a
-    background that fits the JD but not the candidate (e.g. a "data engineering"
-    summary for a frontend profile). Deterministic checks can't catch this, so
-    a *strong* model judges the summary against the profile and, if it invents
-    anything, returns a corrected summary grounded only in the profile.
-
-    Tries each verifier in _verify_providers() until one returns a usable
-    verdict, so a configured-but-unreachable provider doesn't disable the guard.
-    Returns a corrected summary if a fix is needed, else None. Best effort —
-    never blocks the build.
+    Tries each provider in _verify_providers() until one returns a parseable
+    JSON verdict, falling through on failure/unparseable output. Returns the
+    parsed dict, or None if no verifier succeeded. Shared by the summary and
+    bullet fabrication guards.
     """
-    if not summary.strip():
-        return None
-
-    system = (
-        "You are a strict fact-checker for resume summaries. Compare the SUMMARY "
-        "against the PROFILE. FLAG it if the summary mentions ANY domain, industry, "
-        "technology, or skill that does not clearly appear in the profile — even if "
-        "it sounds plausible. Examples of fabrication: claiming 'distributed systems' "
-        "or 'data engineering' for a frontend profile, or naming a language the "
-        "profile never lists. Be strict: when in doubt, flag it. "
-        "Reply with a JSON object only: "
-        '{"ok": true} only if EVERY claim is directly supported by the profile, or '
-        '{"ok": false, "summary": "<corrected summary of similar length, grounded '
-        "ONLY in the profile's actual experience and skills, no filler like 'proven "
-        "track record' or 'passionate'>\"} otherwise."
-    )
-    prompt = f"PROFILE:\n{profile_text}\n\nSUMMARY TO CHECK:\n{summary}"
-
     import os, json as _json
     for provider, model in _verify_providers():
         saved_pref = os.environ.get("PREFERRED_PROVIDER")
@@ -355,15 +331,135 @@ def _verify_summary(summary: str, profile_text: str) -> str | None:
         try:
             if raw.strip().startswith("```"):
                 raw = "\n".join(raw.split("\n")[1:]).rsplit("```", 1)[0]
-            verdict = _json.loads(raw[raw.find("{"):raw.rfind("}") + 1])
+            return _json.loads(raw[raw.find("{"):raw.rfind("}") + 1])
         except Exception:
             continue  # unparseable verdict — try the next verifier
-        if verdict.get("ok") is True:
-            return None
-        if verdict.get("ok") is False and verdict.get("summary", "").strip():
-            return verdict["summary"].strip()
-        # ambiguous verdict — try the next verifier
     return None
+
+
+def _verify_summary(summary: str, profile_text: str) -> str | None:
+    """Semantic guard against prose fabrication in the summary.
+
+    Weak models, when told to rewrite the summary, sometimes invent a
+    background that fits the JD but not the candidate (e.g. a "data engineering"
+    summary for a frontend profile). A strong model judges it against the
+    profile and returns a corrected, grounded summary if it invents anything.
+    Best effort — never blocks the build.
+    """
+    if not summary.strip():
+        return None
+    system = (
+        "You are a strict fact-checker for resume summaries. Compare the SUMMARY "
+        "against the PROFILE. FLAG it if the summary mentions ANY domain, industry, "
+        "technology, or skill that does not clearly appear in the profile — even if "
+        "it sounds plausible. Examples of fabrication: claiming 'distributed systems' "
+        "or 'data engineering' for a frontend profile, or naming a language the "
+        "profile never lists. Be strict: when in doubt, flag it. "
+        "Reply with a JSON object only: "
+        '{"ok": true} only if EVERY claim is directly supported by the profile, or '
+        '{"ok": false, "summary": "<corrected summary of similar length, grounded '
+        "ONLY in the profile's actual experience and skills, no filler like 'proven "
+        "track record' or 'passionate'>\"} otherwise."
+    )
+    prompt = f"PROFILE:\n{profile_text}\n\nSUMMARY TO CHECK:\n{summary}"
+    verdict = _run_verifier(system, prompt)
+    if verdict and verdict.get("ok") is False and verdict.get("summary", "").strip():
+        return verdict["summary"].strip()
+    return None
+
+
+def _verify_bullets(experiences: list, profile_text: str) -> bool:
+    """Semantic guard against fabrication in experience bullets.
+
+    Flattens every bullet across all experiences into ONE verification call
+    (token-conscious), asks a strong model to rewrite any bullet that claims
+    work/skills/metrics not in the profile, and writes corrections back in
+    place. Mutates `experiences`. Returns True if anything changed.
+
+    Only applies the correction when the model returns a same-length array, so
+    a malformed response can't scramble the bullet↔experience mapping. Best
+    effort — never blocks the build.
+    """
+    import json as _json
+    flat: list[str] = []
+    index: list[tuple[int, int]] = []   # (experience_idx, bullet_idx)
+    for ei, exp in enumerate(experiences):
+        for bi, b in enumerate(exp.get("bullets", []) or []):
+            if b and b.strip():
+                flat.append(b)
+                index.append((ei, bi))
+    if not flat:
+        return False
+
+    system = (
+        "You are a strict fact-checker for resume bullet points. Each bullet must "
+        "describe only work, skills, tools, and metrics found in the PROFILE. "
+        "Rewrite any bullet that claims something the profile doesn't support "
+        "(invented tools, inflated scope, or metrics not in the profile) so it is "
+        "truthful and grounded, keeping it concise and starting with a strong verb. "
+        "Leave already-grounded bullets unchanged. "
+        "Reply with a JSON object only: "
+        '{"ok": true} if every bullet is already grounded, or '
+        '{"ok": false, "bullets": [<the full list, same length and order, with '
+        'unsupported bullets rewritten>]} otherwise.'
+    )
+    prompt = (
+        f"PROFILE:\n{profile_text}\n\n"
+        f"BULLETS (JSON array, keep this exact length and order):\n"
+        f"{_json.dumps(flat, ensure_ascii=False)}"
+    )
+    verdict = _run_verifier(system, prompt)
+    if not verdict or verdict.get("ok") is not False:
+        return False
+    corrected = verdict.get("bullets")
+    if not isinstance(corrected, list) or len(corrected) != len(flat):
+        return False  # length mismatch — don't risk scrambling the mapping
+
+    changed = False
+    for pos, (ei, bi) in enumerate(index):
+        new_b = corrected[pos]
+        if isinstance(new_b, str) and new_b.strip() and new_b.strip() != flat[pos]:
+            experiences[ei]["bullets"][bi] = new_b.strip()
+            changed = True
+    return changed
+
+
+def _verify_competencies(content: dict, profile_text: str) -> bool:
+    """Semantic guard against fabricated Core Competencies.
+
+    Weak models stuff JD keywords into the competencies list regardless of the
+    profile (e.g. 'Distributed Systems, Java, Apache Iceberg' on a frontend
+    profile). A strong model drops any competency not supported by the profile
+    and returns a grounded list. Mutates `content["core_competencies"]`.
+    Returns True if changed. Best effort — never blocks the build.
+    """
+    comps = [c for c in content.get("core_competencies", []) if c and c.strip()]
+    if not comps:
+        return False
+    import json as _json
+    system = (
+        "You are a strict fact-checker for a resume's Core Competencies list. "
+        "Every competency must be a skill or technology the PROFILE actually "
+        "demonstrates. Remove any competency the profile does not support (do not "
+        "invent replacements). Keep 6-8 of the strongest supported items. "
+        "Reply with a JSON object only: "
+        '{"ok": true} if every competency is grounded, or '
+        '{"ok": false, "core_competencies": [<grounded list, profile-supported only>]} otherwise.'
+    )
+    prompt = (
+        f"PROFILE:\n{profile_text}\n\n"
+        f"CORE COMPETENCIES:\n{_json.dumps(comps, ensure_ascii=False)}"
+    )
+    verdict = _run_verifier(system, prompt)
+    if not verdict or verdict.get("ok") is not False:
+        return False
+    fixed = verdict.get("core_competencies")
+    if isinstance(fixed, list) and fixed and all(isinstance(c, str) for c in fixed):
+        cleaned = [c.strip() for c in fixed if c.strip()]
+        if cleaned and cleaned != comps:
+            content["core_competencies"] = cleaned
+            return True
+    return False
 
 
 def _restore_env(key: str, value: str | None) -> None:
@@ -449,6 +545,14 @@ def _build_document(job_id: str, doc_type: str) -> None:
             if fixed_summary:
                 print(f"[resume-check] {job_id}: summary rewritten (fabrication guard)")
                 content["summary"] = fixed_summary
+
+            # Same guard for experience bullets (one batched call for all bullets).
+            if _verify_bullets(content.get("experiences", []), profile_text):
+                print(f"[resume-check] {job_id}: bullet(s) rewritten (fabrication guard)")
+
+            # And for Core Competencies (weak models stuff JD keywords here).
+            if _verify_competencies(content, profile_text):
+                print(f"[resume-check] {job_id}: competencies pruned (fabrication guard)")
 
             latex_content = render_resume_latex(content, profile_text)
             company_folder = _sanitize_folder_name(content.get("company", company), folder_fallback)
