@@ -55,11 +55,11 @@ Before each bullet ask: *"Can I point to specific evidence in profile.md?"* If "
 
 **Work authorization:** if `profile.md` confirms US authorization, include a line like "Authorized to work in the US · No sponsorship required".
 
-**Bullet selection** — generate all candidate bullets, keep only those meeting ALL three: (1) maps to a JD requirement, (2) has a concrete outcome/metric/named deliverable, (3) shows ownership ("Led"/"Owned" > "Supported"/"Contributed"). Max 8/role; cut the weakest. Sort highest-impact/most-specific-numbers first. Test: *"Would a recruiter think 'this person already does this job'?"* If no, rewrite or cut.
+**Bullet selection** — generate all candidate bullets, keep only those meeting ALL three: (1) maps to a JD requirement, (2) has a concrete outcome/metric/named deliverable, (3) shows ownership ("Led"/"Owned" > "Supported"/"Contributed"). Sort highest-impact/most-specific-numbers first. Test: *"Would a recruiter think 'this person already does this job'?"* If no, rewrite or cut.
 
 **Key projects:** mini case studies, not labels — what the product was, the candidate's role, the challenge/scope, the measurable outcome.
 
-**Redundancy:** a concept appearing in summary + competencies + bullets reads as padding — keep the strongest instance. Core Competencies = 6–8 items max (ATS keyword matching only).
+**Redundancy:** a concept appearing in summary + competencies + bullets reads as padding — keep the strongest instance. Core Competencies are for ATS keyword matching only.
 
 **Education:** always use full US-standard degree names from `profile.md` — never abbreviate (ATS/Workday parses against fixed enumerations).
 
@@ -75,7 +75,3 @@ Before each bullet ask: *"Can I point to specific evidence in profile.md?"* If "
 Metrics include baseline/timeframe where the profile supports it. One idea per bullet (split any bullet with multiple "and"s). Read each bullet aloud — if it sounds like a template, rewrite it.
 
 **Role emphasis** (infer from JD): Product/PO → prioritization, roadmap, backlog, stakeholder alignment. Analyst → KPIs, metrics, reporting. Solution Engineer → enablement, discovery, integrations. Engineering-heavy → architecture, scalability (only where the profile supports it).
-
-## Layout
-
-Prefer one page, but readability wins — let it flow to two pages rather than cram or cut genuinely relevant experience. You control density by how much you write: if light, expand key projects rather than pad; if slightly long, trim filler and weak bullets first, then cap competencies at 6.
