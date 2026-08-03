@@ -51,8 +51,7 @@ def _compile_latex(tex_path: Path) -> Path:
 
     pdf_path = tex_path.with_suffix(".pdf")
     if not pdf_path.exists():
-        err_snippet = result.stdout[-1000:] if result.stdout else result.stderr[-500:]
-        raise RuntimeError(f"pdflatex failed. Log tail:\n{err_snippet}")
+        raise RuntimeError(f"pdflatex failed.{_latex_error_detail(tex_path, result)}")
 
     # Clean up build artifacts
     for pattern in ["*.aux", "*.log", "*.out", "*.toc", "*.fls", "*.fdb_latexmk", "*.synctex.gz"]:
@@ -65,8 +64,35 @@ def _compile_latex(tex_path: Path) -> Path:
     return pdf_path
 
 
+def _latex_error_detail(tex_path: Path, result) -> str:
+    """Build an actionable error message from the pdflatex .log file.
+
+    pdflatex writes the real diagnostic (`! LaTeX Error: ...` / `! Undefined
+    control sequence` etc.) into the .log, then keeps going in nonstopmode — so
+    the tail of stdout is usually just the closing prompt, not the cause. Pull
+    the actual error lines (plus a few following lines, which show the offending
+    source) instead.
+    """
+    log_path = tex_path.with_suffix(".log")
+    try:
+        log = log_path.read_text(encoding="utf-8", errors="replace")
+    except Exception:
+        tail = (result.stdout or result.stderr or "")[-800:]
+        return f" Log tail:\n{tail}" if tail else " No log available."
+
+    lines = log.splitlines()
+    blocks: list[str] = []
+    for i, line in enumerate(lines):
+        if line.startswith("!"):
+            blocks.append("\n".join(lines[i:i + 4]).rstrip())
+    if blocks:
+        return f" Errors:\n" + "\n\n".join(blocks[:5])
+    return f" Log tail:\n{log[-800:]}"
+
+
 def _sanitize_latex(text: str) -> str:
-    """Strip invisible/problematic Unicode that pdflatex can't handle."""
+    """Strip invisible Unicode and repair the one unescapable-character mistake
+    weak models make, without altering correct LaTeX from strong models."""
     # Zero-width and other invisible characters that sneak in from scraped content
     _STRIP = (
         "​",  # zero-width space
@@ -79,6 +105,15 @@ def _sanitize_latex(text: str) -> str:
     )
     for ch in _STRIP:
         text = text.replace(ch, "")
+
+    # Escape stray ampersands. The resume template forbids tables/columns and
+    # uses \hfill for alignment, so a bare `&` is never valid syntax here — it's
+    # a literal ampersand a weak model failed to escape (e.g. "Backend & Cloud"),
+    # which aborts pdflatex with "Misplaced alignment tab character &". Only
+    # touch `&` that isn't already escaped, so correct `\&` from a strong model
+    # is left untouched. `%`, `#`, `_` are deliberately NOT escaped: they have
+    # legitimate uses (comments, macro params, URLs) that fixing would corrupt.
+    text = re.sub(r"(?<!\\)&", r"\\&", text)
     return text
 
 
