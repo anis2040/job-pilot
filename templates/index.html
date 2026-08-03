@@ -348,6 +348,7 @@
   <div class="filter-group">
     <span class="filter-label">Sort</span>
     <select class="filter-select" id="filter-sort" aria-label="Sort jobs" onchange="applyFiltersAndSort();captureRecent()">
+      <option value="match">Best match</option>
       <option value="posted">Posted date</option>
       <option value="newest">Recently fetched</option>
       <option value="oldest">Oldest fetched</option>
@@ -534,7 +535,11 @@
     const out = [];
     const m = job.match;
     if (m && m.missing && m.missing.length) {
-      out.push(`<span class="chip-missing" title="In the job, not in your profile: ${escapeHtml(m.missing.join(", "))}">${m.missing.length} to learn</span>`);
+      // Name the actual gaps inline (up to 3) so the chip is self-explanatory,
+      // not a dead-end count. Full list in the tooltip.
+      const shown = m.missing.slice(0, 3).join(", ");
+      const more = m.missing.length > 3 ? ` +${m.missing.length - 3}` : "";
+      out.push(`<span class="chip-missing" title="Skills this job asks for that aren't in your profile: ${escapeHtml(m.missing.join(", "))}">Missing: ${escapeHtml(shown)}${more}</span>`);
     }
     if (job.resume_status === "done") out.push(`<span class="chip-ready">📄 CV ready</span>`);
     if (job.cl_status === "done") out.push(`<span class="chip-ready">✉ Letter ready</span>`);
@@ -719,7 +724,7 @@
     document.querySelectorAll(".filter-chip.active").forEach(c => { c.classList.remove("active"); c.setAttribute("aria-pressed", "false"); });
     document.getElementById("filter-source").value = "";
     document.getElementById("filter-posted").value = "";
-    document.getElementById("filter-sort").value = "posted";
+    document.getElementById("filter-sort").value = "match";
     document.getElementById("search-input").value = "";
     applyFiltersAndSort();
   }
@@ -770,7 +775,7 @@
   }
 
   function _isEmptyState(s) {
-    return !s.q && !(s.remote && s.remote.length) && !s.source && !s.posted && (s.sort === "posted");
+    return !s.q && !(s.remote && s.remote.length) && !s.source && !s.posted && (s.sort === "match");
   }
 
   // Record a non-empty state into the recent ring buffer (deduped, last 6).
@@ -861,6 +866,13 @@
     }
 
     filtered = [...filtered].sort((a, b) => {
+      if (sort === "match") {
+        // Highest match first; jobs with no score (no description) sink to the bottom.
+        const sa = (a.match && typeof a.match.score === "number") ? a.match.score : -1;
+        const sb = (b.match && typeof b.match.score === "number") ? b.match.score : -1;
+        if (sb !== sa) return sb - sa;
+        return (b.posted_at || "").localeCompare(a.posted_at || "");  // tie-break: newer posting
+      }
       if (sort === "posted") {
         // Jobs with a known posting date first, newest posting first
         const ta = a.posted_at ? Date.parse(a.posted_at) : -Infinity;
@@ -884,7 +896,7 @@
     }
 
     // Show/hide clear button
-    const hasFilters = q || activeRemote.length || srcFilter || !isNaN(postedDays) || sort !== "posted";
+    const hasFilters = q || activeRemote.length || srcFilter || !isNaN(postedDays) || sort !== "match";
     const clearBtn = document.getElementById("filter-clear");
     if (clearBtn) clearBtn.style.display = hasFilters ? "" : "none";
 
