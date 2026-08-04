@@ -32,7 +32,7 @@ export function useFocusTrap(
       container.removeEventListener('keydown', keydown);
       previouslyFocused?.focus();
     };
-  }, [active, onEscape]);
+  }, [active, containerRef, onEscape]);
 }
 
 export function useClickOutside(

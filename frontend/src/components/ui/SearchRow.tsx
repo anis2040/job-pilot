@@ -1,12 +1,10 @@
 import { useId, useState } from 'react';
-import type { SearchEntry } from '../../api/types';
+import { addUniqueLocation, sameLocation, type SearchRowEntry } from './searchRowModel';
 
-export interface SearchRowEntry {
-  query: string;
-  locations: string[];
-  remote: boolean;
-  sources: string[];
-}
+// Compatibility for stale Vite HMR modules that imported model helpers here.
+// eslint-disable-next-line react-refresh/only-export-components
+export { groupSearchEntries, expandSearchRows } from './searchRowModel';
+export type { SearchRowEntry } from './searchRowModel';
 
 interface SearchRowProps {
   entry: SearchRowEntry;
@@ -31,16 +29,6 @@ const LOCATION_SUGGESTIONS = [
   'Morocco',
   'Remote Europe',
 ];
-
-function sameLocation(a: string, b: string) {
-  return a.trim().toLowerCase() === b.trim().toLowerCase();
-}
-
-function addUniqueLocation(list: string[], raw: string) {
-  const next = raw.trim().replace(/,$/, '');
-  if (!next || list.some(item => sameLocation(item, next))) return list;
-  return [...list, next];
-}
 
 export function SearchRow({ entry, sources, onRemove, onChange }: SearchRowProps) {
   const [locationInput, setLocationInput] = useState('');
@@ -170,30 +158,4 @@ export function SearchRow({ entry, sources, onRemove, onChange }: SearchRowProps
       </div>
     </div>
   );
-}
-
-// Converts flat SearchEntry[] (one per source) to grouped rows
-export function groupSearchEntries(entries: SearchEntry[]): SearchRowEntry[] {
-  const groups: Record<string, SearchRowEntry> = {};
-  for (const e of entries) {
-    const key = `${e.query}||${e.remote ?? true}`;
-    if (!groups[key]) groups[key] = { query: e.query, locations: [], remote: e.remote !== false, sources: [] };
-    if (!groups[key].sources.includes(e.source)) groups[key].sources.push(e.source);
-    groups[key].locations = addUniqueLocation(groups[key].locations, e.location || 'United States');
-  }
-  return Object.values(groups);
-}
-
-// Expands grouped rows back to flat SearchEntry[]
-export function expandSearchRows(rows: SearchRowEntry[]): SearchEntry[] {
-  const result: SearchEntry[] = [];
-  for (const row of rows) {
-    if (!row.query || !row.sources.length || !row.locations.length) continue;
-    for (const location of row.locations) {
-      for (const src of row.sources) {
-        result.push({ name: `${src} - ${row.query}`, source: src, query: row.query, location, max_pages: 3, remote: row.remote });
-      }
-    }
-  }
-  return result;
 }

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useProfile } from '../../hooks/useProfile';
 import { profiles as profilesApi } from '../../api/client';
-import { useToast } from '../../components/ui/Toast';
+import { useToast } from '../../components/ui/useToast';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { PromptDialog } from '../../components/ui/PromptDialog';
 import { Topbar } from '../../components/layout/Topbar';

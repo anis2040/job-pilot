@@ -17,7 +17,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { ToastProvider } from '@/components/ui/Toast'
-import { ProfileProvider } from '@/hooks/useProfile'
+import { ProfileProvider } from '@/hooks/ProfileProvider'
 
 // ── Mock API ──────────────────────────────────────────────────────────────────
 
@@ -46,7 +46,7 @@ vi.mock('@/api/client', () => ({
     get: vi.fn().mockResolvedValue({ sources: ['LinkedIn', 'Jobicy'], remote_types: [], remote_css: {}, job_statuses: [], default_blacklist: [] }),
     sources: vi.fn().mockResolvedValue(['LinkedIn', 'Jobicy']),
   },
-  jobs: { list: vi.fn().mockResolvedValue([]), get: vi.fn(), setStatus: vi.fn(), similar: vi.fn().mockResolvedValue([]), description: vi.fn(), clear: vi.fn() },
+  jobs: { list: vi.fn().mockResolvedValue([]), counts: vi.fn().mockResolvedValue({ pending: 0, applied: 0, skipped: 0 }), get: vi.fn(), setStatus: vi.fn(), similar: vi.fn().mockResolvedValue([]), description: vi.fn(), clear: vi.fn() },
   documents: { buildResume: vi.fn(), resumeStatus: vi.fn(), buildCoverLetter: vi.fn(), coverLetterStatus: vi.fn() },
   fetcher: { trigger: vi.fn(), status: vi.fn().mockResolvedValue({ status: 'idle', message: '' }) },
   config: { get: vi.fn().mockResolvedValue({ searches: [], title_filter: [], blacklist: [], company_blacklist: [] }), save: vi.fn() },

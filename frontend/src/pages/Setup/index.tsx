@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { setup as setupApi, fetcher as fetcherApi } from '../../api/client';
 import { useProfile } from '../../hooks/useProfile';
-import { useToast } from '../../components/ui/Toast';
+import { useToast } from '../../components/ui/useToast';
 import type { SetupStatus } from '../../api/types';
 import {
   buildProfileMd, DEFAULT_FORM, EMPTY_EXP, EMPTY_EDU,

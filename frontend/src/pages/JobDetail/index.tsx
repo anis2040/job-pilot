@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import { jobs as jobsApi, documents } from '../../api/client';
-import { useToast } from '../../components/ui/Toast';
+import { useToast } from '../../components/ui/useToast';
 import { useDocumentStatus } from '../../hooks/useDocumentStatus';
 import { Icon } from '../../components/ui/Icon';
 import { Spinner } from '../../components/ui/Spinner';

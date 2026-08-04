@@ -1,16 +1,15 @@
-import { createContext, useContext, useState, useCallback, useRef, type ReactNode } from 'react';
+import { useState, useCallback, useRef, type ReactNode } from 'react';
+import { ToastContext } from './toastContext';
+
+// Compatibility for stale Vite HMR modules that imported the hook from here.
+// eslint-disable-next-line react-refresh/only-export-components
+export { useToast } from './useToast';
 
 interface ToastMessage {
   id: number;
   text: string;
   type: 'ok' | 'err';
 }
-
-interface ToastContextValue {
-  showToast: (msg: string, type?: 'ok' | 'err') => void;
-}
-
-const ToastContext = createContext<ToastContextValue>({ showToast: () => {} });
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toast, setToast] = useState<ToastMessage | null>(null);
@@ -37,8 +36,4 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       )}
     </ToastContext.Provider>
   );
-}
-
-export function useToast() {
-  return useContext(ToastContext);
 }

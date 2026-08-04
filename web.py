@@ -601,6 +601,12 @@ def api_jobs():
     return jsonify([_serialize_job(row, task_statuses, cl_task_statuses, profile, profile_vec) for row in rows])
 
 
+@app.route("/api/job-counts")
+def api_job_counts():
+    counts = stats()
+    return jsonify({"pending": counts.get("pending", 0), "applied": counts.get("applied", 0), "skipped": counts.get("skipped", 0)})
+
+
 @app.route("/api/resume/<job_id>", methods=["POST"])
 def api_build_resume(job_id):
     row = get_job(job_id)

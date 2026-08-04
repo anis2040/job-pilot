@@ -1,5 +1,5 @@
 import type {
-  Job, JobDetail, Profile, SearchConfig, AiSettings,
+  Job, JobCounts, JobDetail, Profile, SearchConfig, AiSettings,
   SetupStatus, DocumentStatus, FetchStatus, AppConstants,
 } from './types';
 
@@ -21,8 +21,21 @@ async function post<T>(url: string, body?: unknown): Promise<T> {
 
 // ── Jobs ─────────────────────────────────────────────────────────────────────
 
+const jobListRequests = new Map<string, Promise<Job[]>>();
+
+function listJobs(status: string): Promise<Job[]> {
+  const existing = jobListRequests.get(status);
+  if (existing) return existing;
+
+  const request = get<Job[]>(`/api/jobs?status=${encodeURIComponent(status)}`)
+    .finally(() => jobListRequests.delete(status));
+  jobListRequests.set(status, request);
+  return request;
+}
+
 export const jobs = {
-  list: (status: string) => get<Job[]>(`/api/jobs?status=${status}`),
+  list: listJobs,
+  counts: () => get<JobCounts>('/api/job-counts'),
   get: (jobId: string) => get<JobDetail>(`/api/job/${jobId}`),
   description: (jobId: string) => get<{ description: string; remote: string; match: unknown }>(`/api/job/${jobId}/description`),
   similar: (jobId: string) => get<Job[]>(`/api/jobs/similar/${jobId}`),

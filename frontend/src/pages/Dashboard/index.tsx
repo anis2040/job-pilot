@@ -4,12 +4,14 @@ import { useNavigate } from 'react-router-dom';
 import { jobs as jobsApi, documents, config as configApi, fetcher as fetcherApi, constants } from '../../api/client';
 import { useProfile } from '../../hooks/useProfile';
 import { consumeProfileFetchSignal } from '../../hooks/profileFetchSignal';
-import { useToast } from '../../components/ui/Toast';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { useToast } from '../../components/ui/useToast';
 import { AppShell } from '../../components/layout/AppShell';
 import { Icon } from '../../components/ui/Icon';
 import { TagInput } from '../../components/ui/TagInput';
 import { useDocumentStatus } from '../../hooks/useDocumentStatus';
-import { SearchRow, groupSearchEntries, expandSearchRows, type SearchRowEntry } from '../../components/ui/SearchRow';
+import { SearchRow } from '../../components/ui/SearchRow';
+import { groupSearchEntries, expandSearchRows, type SearchRowEntry } from '../../components/ui/searchRowModel';
 import { formatDescription, isLongDescription } from '../../utils/descriptionRenderer';
 import { safeUrl } from '../../utils/format';
 import { applyFilters, filtersToKey, DEFAULT_FILTERS } from '../../utils/filters';
@@ -164,7 +166,7 @@ function DetailPanel({ jobId, initialJob, onClose, onJobUpdated }: { jobId: stri
         } catch { /* non-fatal */ }
       }
     }).catch(() => {});
-  }, [jobId]);
+  }, [jobId, onJobUpdated]);
 
   const setStatus = async (status: 'applied' | 'skipped' | 'pending') => {
     try {
@@ -318,7 +320,9 @@ function SettingsModal({ open, onClose, onSaved, allSources }: { open: boolean; 
   const [rows, setRows] = useState<SearchRowEntry[]>([]);
   const [saving, setSaving] = useState(false);
   const backdropRef = useRef<HTMLDivElement>(null);
-  const originalCfgRef = useRef<SearchConfig | null>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  useFocusTrap(modalRef, open, onClose);
 
   useEffect(() => {
     if (open) {
@@ -326,11 +330,10 @@ function SettingsModal({ open, onClose, onSaved, allSources }: { open: boolean; 
         .then(data => {
           setCfg(data);
           setRows(groupSearchEntries(data.searches || []));
-          originalCfgRef.current = data;
         })
         .catch(() => showToast('Could not load settings', 'err'));
     }
-  }, [open]);
+  }, [open, showToast]);
 
   const handleSave = async () => {
     const searches = expandSearchRows(rows);
@@ -339,18 +342,6 @@ function SettingsModal({ open, onClose, onSaved, allSources }: { open: boolean; 
       return;
     }
     const next = { ...cfg, searches };
-    const orig = originalCfgRef.current;
-    const cfgChanged = !orig
-      || JSON.stringify(searches.map(s => ({ source: s.source, query: s.query, location: s.location, remote: s.remote })).sort((a,b) => (a.source+a.query).localeCompare(b.source+b.query)))
-        !== JSON.stringify((orig.searches || []).map(s => ({ source: s.source, query: s.query, location: s.location, remote: s.remote })).sort((a,b) => (a.source+a.query).localeCompare(b.source+b.query)))
-      || JSON.stringify([...next.title_filter].sort()) !== JSON.stringify([...orig.title_filter].sort())
-      || JSON.stringify([...next.blacklist].sort()) !== JSON.stringify([...orig.blacklist].sort())
-      || JSON.stringify([...next.company_blacklist].sort()) !== JSON.stringify([...orig.company_blacklist].sort());
-    if (!cfgChanged) {
-      showToast('No changes to save');
-      onClose();
-      return;
-    }
     setSaving(true);
     try {
       await configApi.save(next);
@@ -367,10 +358,20 @@ function SettingsModal({ open, onClose, onSaved, allSources }: { open: boolean; 
   if (!open) return null;
 
   return (
-    <div ref={backdropRef} className="modal-backdrop open" onClick={e => { if (e.target === backdropRef.current) onClose(); }}>
-      <div className="modal">
+    <div
+      ref={backdropRef}
+      className="modal-backdrop open"
+      onClick={e => { if (e.target === backdropRef.current) onClose(); }}
+    >
+      <div
+        className="modal"
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="fetch-settings-title"
+      >
         <div className="modal-header">
-          <h2>⚙ Fetch Settings</h2>
+          <h2 id="fetch-settings-title">⚙ Fetch Settings</h2>
           <button className="modal-close" onClick={onClose} aria-label="Close"><Icon name="x" size={18} /></button>
         </div>
         <div className="modal-body">
@@ -448,17 +449,19 @@ export default function DashboardPage() {
     try {
       const data = await jobsApi.list(tab);
       setAllJobs(data);
+      setCounts(current => ({ ...current, [tab]: data.length }));
       setLoadError(false);
+      return data;
     } catch (e) {
       console.error('[Dashboard] loadJobs failed:', e);
       setLoadError(true);
+      return null;
     }
   }, [tab]);
 
   const loadCounts = useCallback(async () => {
     try {
-      const [p, a, s] = await Promise.all([jobsApi.list('pending'), jobsApi.list('applied'), jobsApi.list('skipped')]);
-      setCounts({ pending: p.length, applied: a.length, skipped: s.length });
+      setCounts(await jobsApi.counts());
     } catch { /* counts are best-effort; job-load error is surfaced separately */ }
   }, []);
 

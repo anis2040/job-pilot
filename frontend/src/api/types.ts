@@ -40,6 +40,12 @@ export interface JobDetail extends Job {
   status_updated_at: string | null;
 }
 
+export interface JobCounts {
+  pending: number;
+  applied: number;
+  skipped: number;
+}
+
 export interface Profile {
   slug: string;
   name: string;

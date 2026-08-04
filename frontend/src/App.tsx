@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ToastProvider } from './components/ui/Toast';
-import { ProfileProvider } from './hooks/useProfile';
+import { ProfileProvider } from './hooks/ProfileProvider';
 import DashboardPage from './pages/Dashboard';
 import JobDetailPage from './pages/JobDetail';
 import SetupPage from './pages/Setup';

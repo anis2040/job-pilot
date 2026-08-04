@@ -67,6 +67,12 @@ export const handlers = [
     return HttpResponse.json(db.jobs.filter(j => j.status === status))
   }),
 
+  http.get('/api/job-counts', () => HttpResponse.json({
+    pending: db.jobs.filter(j => j.status === 'pending').length,
+    applied: db.jobs.filter(j => j.status === 'applied').length,
+    skipped: db.jobs.filter(j => j.status === 'skipped').length,
+  })),
+
   http.get('/api/job/:jobId', ({ params }) => {
     const detail = db.jobDetails[params.jobId as string]
     if (!detail) return HttpResponse.json({ error: 'Job not found' }, { status: 404 })

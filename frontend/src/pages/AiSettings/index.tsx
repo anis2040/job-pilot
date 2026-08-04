@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { aiSettings as aiSettingsApi, setup } from '../../api/client';
-import { useToast } from '../../components/ui/Toast';
+import { useToast } from '../../components/ui/useToast';
 import { Icon } from '../../components/ui/Icon';
 import { BackButton } from '../../components/layout/BackButton';
 import { fmtK } from '../../utils/format';
