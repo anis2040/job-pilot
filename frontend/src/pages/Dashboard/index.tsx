@@ -741,7 +741,7 @@ export default function DashboardPage() {
         </div>
 
         {selectedJobId && isWide && (
-          <aside className="detail-panel" aria-live="polite">
+          <aside key={selectedJobId} className="detail-panel" aria-live="polite">
             <DetailPanel jobId={selectedJobId} onClose={() => setSelectedJobId(null)} />
           </aside>
         )}

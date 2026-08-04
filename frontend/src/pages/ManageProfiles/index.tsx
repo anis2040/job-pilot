@@ -44,7 +44,7 @@ export default function ManageProfilesPage() {
     return (
       <>
         <Topbar backTo="/" backLabel="Home" title="Manage Profiles" />
-        <main className="manage-profiles-page" id="main-content">
+        <main className="manage-profiles-page page-enter" id="main-content">
           <div className="empty-state">
             <div className="empty-state-icon">👤</div>
             <div className="empty-state-title">No profiles yet</div>

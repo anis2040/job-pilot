@@ -345,7 +345,7 @@ export default function SetupPage() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
 
   return (
-    <main className="setup-page" id="main-content">
+    <main className="setup-page page-enter" id="main-content">
       <div className="setup-header">
         <h1>Welcome to <strong>JobPilot AI</strong></h1>
         <p>Let's get you set up in a few steps.</p>

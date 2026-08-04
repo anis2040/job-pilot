@@ -206,8 +206,9 @@
 @media (min-width: 1200px) {
   .split-wrap { flex-direction: row; align-items: start; }
   .jobs-col { flex: 5; min-width: 0; }
-  .detail-panel { flex: 6; position: sticky; top: 72px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-lg); max-height: calc(100vh - 96px); overflow: hidden; display: flex; flex-direction: column; }
+  .detail-panel { flex: 6; position: sticky; top: 72px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-lg); max-height: calc(100vh - 96px); overflow: hidden; display: flex; flex-direction: column; animation: panelSlideIn 450ms var(--ease-out) both; }
 }
+@keyframes panelSlideIn { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
 
 /* ── Job list ── */
 .jobs-list {
@@ -228,7 +229,19 @@
   border-bottom: 1px solid var(--border-faint);
   transition: background var(--dur-fast) var(--ease-standard);
   cursor: pointer;
+  animation: fadeSlideIn var(--dur-base) var(--ease-out) both;
 }
+.job-row:nth-child(1)  { animation-delay:  0ms; }
+.job-row:nth-child(2)  { animation-delay: 30ms; }
+.job-row:nth-child(3)  { animation-delay: 60ms; }
+.job-row:nth-child(4)  { animation-delay: 90ms; }
+.job-row:nth-child(5)  { animation-delay:120ms; }
+.job-row:nth-child(6)  { animation-delay:150ms; }
+.job-row:nth-child(7)  { animation-delay:180ms; }
+.job-row:nth-child(8)  { animation-delay:210ms; }
+.job-row:nth-child(9)  { animation-delay:240ms; }
+.job-row:nth-child(10) { animation-delay:270ms; }
+.job-row:nth-child(n+11) { animation-delay:300ms; }
 .job-row:last-child { border-bottom: none; }
 .job-row:hover { background: var(--bg-raised); }
 .job-row.selected { background: var(--bg-active); box-shadow: inset 3px 0 0 var(--blue); }
@@ -478,6 +491,7 @@ select option { background: var(--bg-surface); }
 
 /* ── Profile settings layout ── */
 .layout { display: flex; max-width: 960px; margin: 0 auto; padding: 32px 24px; gap: 40px; }
+.page-enter { animation: fadeSlideIn var(--dur-base) var(--ease-out) both; }
 .sidenav { width: 200px; flex-shrink: 0; }
 .sidenav-section { font-size: 0.7rem; font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: .06em; padding: 8px 12px 4px; }
 .sidenav-item { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3); border-radius: var(--radius); color: var(--text-soft); font-size: var(--text-md); cursor: pointer; transition: all var(--dur-fast) var(--ease-standard); border: none; background: none; width: 100%; text-align: left; }

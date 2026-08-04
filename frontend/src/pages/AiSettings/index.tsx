@@ -196,7 +196,7 @@ export default function AiSettingsPage() {
         <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 700, color: 'var(--text-white)' }}>⚡ AI Settings</h1>
       </header>
 
-      <main className="page" id="main-content">
+      <main className="page page-enter" id="main-content">
         <div className="page-header">
           <h2>AI Model Settings</h2>
           <p>Click a provider card to switch. Configure API keys and models per provider below.</p>

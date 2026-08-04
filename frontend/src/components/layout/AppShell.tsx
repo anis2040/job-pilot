@@ -61,7 +61,9 @@ export function AppShell({ children, showFetchButton, onFetch, fetchRunning }: A
           <ProfileDropdown />
         </div>
       </header>
-      {children}
+      <main className="page-enter" id="main-content">
+        {children}
+      </main>
     </>
   );
 }

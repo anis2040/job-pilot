@@ -371,7 +371,7 @@ export default function ProfileSettingsPage() {
         avatarColor={profile?.color}
         avatarInitials={profile?.initials}
       />
-      <div className="layout">
+      <div className="layout page-enter">
         <nav className="sidenav">
           <div className="sidenav-section">Profile</div>
           {(['profile', 'search'] as Section[]).map(s => (

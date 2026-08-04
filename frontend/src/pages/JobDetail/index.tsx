@@ -260,11 +260,12 @@ function SimilarJobs({ jobId }: { jobId: string }) {
         </div>
       </div>
       <div className="similar-slider" ref={sliderRef}>
-        {similar.map(j => (
+        {similar.map((j, i) => (
           <a
             key={j.job_id}
             className="similar-card-item"
             href="#"
+            style={{ animationDelay: `${i * 60}ms` }}
             onClick={e => { e.preventDefault(); navigate(`/job/${j.job_id}`); }}
           >
             <div className="similar-title">{j.title}</div>
