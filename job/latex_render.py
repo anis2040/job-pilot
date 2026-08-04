@@ -254,6 +254,68 @@ def _norm(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", (s or "").lower()).strip()
 
 
+# ── Deterministic content cleanup ─────────────────────────────────────────────
+#
+# SKILL.md states two rules the model is asked to self-apply: ban em-dashes (an
+# AI tell) and order bullets metrics-first. Strong models comply; weak ones don't.
+# Enforcing both in code guarantees the behavior regardless of model — the exact
+# kind of deterministic work that shouldn't depend on model intelligence.
+
+# Em-dash (always) and en-dash / '--' runs only when space-surrounded, so date
+# ranges like "2020-2024" or "2020–2024" inside prose are left untouched.
+_DASH_RE = re.compile(r"\s*—\s*|\s+–\s+|\s+--+\s+")
+_NUM_RE = re.compile(r"\d")
+
+
+def _strip_ai_tells(text: str) -> str:
+    """Replace em/en-dashes (and spaced '--' runs) with a comma in prose content.
+
+    The prompt bans em-dashes; weak models emit them anyway. Applied only to prose
+    fields (summary, bullets, competencies, project descriptions), never to dates.
+    Collapses any doubled comma or whitespace the substitution creates.
+    """
+    if not text:
+        return text
+    out = _DASH_RE.sub(", ", text)
+    out = re.sub(r",\s*,", ", ", out)   # ", ," → ", "
+    out = re.sub(r"\s{2,}", " ", out)   # collapse runs of spaces
+    return out.strip()
+
+
+def _sort_bullets_metrics_first(bullets: list) -> list:
+    """Stable-partition bullets so those containing a number lead.
+
+    The prompt asks for metrics-first ordering; weak models often ignore it. A
+    stable partition enforces it while preserving the model's relative order within
+    each group, so it's minimally disruptive.
+    """
+    numbered = [b for b in bullets if _NUM_RE.search(b or "")]
+    plain = [b for b in bullets if not _NUM_RE.search(b or "")]
+    return numbered + plain
+
+
+def clean_content(content: dict) -> dict:
+    """Apply deterministic post-generation cleanup to resume content, in place.
+
+    Enforces two SKILL.md rules weak models violate: strip em-dashes from prose,
+    and order each role's bullets metrics-first. Returns the same dict. Runs after
+    the fabrication guard so it also catches anything the verifier introduced.
+    """
+    if content.get("summary"):
+        content["summary"] = _strip_ai_tells(content["summary"])
+    if content.get("core_competencies"):
+        content["core_competencies"] = [
+            _strip_ai_tells(c) for c in content["core_competencies"] if c and c.strip()
+        ]
+    for exp in content.get("experiences", []):
+        bullets = [_strip_ai_tells(b) for b in exp.get("bullets", []) if b and b.strip()]
+        exp["bullets"] = _sort_bullets_metrics_first(bullets)
+        for p in exp.get("projects", []) or []:
+            if p.get("description"):
+                p["description"] = _strip_ai_tells(p["description"])
+    return content
+
+
 def ground_competencies(competencies: list, profile: dict, backfill_to: int = 6) -> tuple[list, list]:
     """Deterministically drop competencies not supported by the structured
     profile, then backfill from the profile's real competency list so the

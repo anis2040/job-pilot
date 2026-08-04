@@ -262,3 +262,62 @@ def test_ground_competencies_all_supported():
 
 def test_ground_competencies_empty():
     assert ground_competencies([], {"competencies": []}) == ([], [])
+
+
+# ── clean_content (deterministic post-generation cleanup) ─────────────────────
+
+from job.latex_render import clean_content, _strip_ai_tells, _sort_bullets_metrics_first
+
+
+@pytest.mark.parametrize("raw,expected", [
+    ("Owned backlog — decomposed epics", "Owned backlog, decomposed epics"),
+    ("delivered X -- reducing time", "delivered X, reducing time"),
+    ("scope – the point", "scope, the point"),
+    ("Plain sentence with no dash", "Plain sentence with no dash"),
+    ("", ""),
+])
+def test_strip_ai_tells(raw, expected):
+    assert _strip_ai_tells(raw) == expected
+
+
+def test_strip_ai_tells_preserves_date_ranges():
+    # A hyphenated range with no surrounding spaces must survive untouched.
+    assert _strip_ai_tells("Oct 2020-Aug 2025 delivery") == "Oct 2020-Aug 2025 delivery"
+
+
+def test_strip_ai_tells_collapses_double_comma():
+    # Dash adjacent to an existing comma shouldn't produce ", ,".
+    assert _strip_ai_tells("Built API, — scaling it") == "Built API, scaling it"
+
+
+def test_sort_bullets_metrics_first():
+    bullets = ["Led a team", "Increased velocity by 30%", "Owned backlog", "Reduced time 35%"]
+    out = _sort_bullets_metrics_first(bullets)
+    assert out == ["Increased velocity by 30%", "Reduced time 35%", "Led a team", "Owned backlog"]
+
+
+def test_sort_bullets_stable_within_groups():
+    # Relative order preserved inside the numbered and plain groups.
+    bullets = ["A 1", "B", "C 2", "D"]
+    assert _sort_bullets_metrics_first(bullets) == ["A 1", "C 2", "B", "D"]
+
+
+def test_clean_content_full():
+    content = {
+        "company": "Acme",
+        "summary": "Five years — shipping platforms.",
+        "core_competencies": ["Backlog — prioritization", "Roadmaps"],
+        "experiences": [{
+            "title": "PO", "employer": "X", "location": "Y", "dates": "2020 - 2024",
+            "bullets": ["Owned backlog", "Increased velocity by 30%"],
+            "projects": [{"name": "P", "description": "Built it — fast."}],
+        }],
+        "education": [{"degree": "BSc", "institution": "U", "year": "2020"}],
+    }
+    clean_content(content)
+    assert "—" not in content["summary"]
+    assert content["core_competencies"][0] == "Backlog, prioritization"
+    # metrics-first: the numbered bullet leads
+    assert content["experiences"][0]["bullets"][0] == "Increased velocity by 30%"
+    assert "—" not in content["experiences"][0]["projects"][0]["description"]
+

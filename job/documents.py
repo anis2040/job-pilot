@@ -549,6 +549,12 @@ def _build_document(job_id: str, doc_type: str) -> None:
             if fixed:
                 print(f"[resume-check] {job_id}: rewritten by fabrication guard: {', '.join(fixed)}")
 
+            # Deterministic cleanup (free, guaranteed): strip em-dashes the model
+            # was told to avoid, order bullets metrics-first. Runs last so it also
+            # normalizes anything the fabrication guard rewrote.
+            from .latex_render import clean_content
+            clean_content(content)
+
             latex_content = render_resume_latex(content, profile_text)
             company_folder = _sanitize_folder_name(content.get("company", company), folder_fallback)
 
