@@ -349,26 +349,6 @@ function SettingsModal({ open, onClose, onSaved, allSources }: { open: boolean; 
   );
 }
 
-// ── PanelSlot — wraps DetailPanel with a slide-out animation on close ─────────
-
-function PanelSlot({ job, onClose }: { job: Job; onClose: () => void }) {
-  const [closing, setClosing] = useState(false);
-
-  const handleClose = () => {
-    setClosing(true);
-    setTimeout(onClose, 500);
-  };
-
-  return (
-    <aside
-      className={`detail-panel${closing ? ' closing' : ''}`}
-      aria-live="polite"
-    >
-      <DetailPanel jobId={job.job_id} initialJob={job} onClose={handleClose} />
-    </aside>
-  );
-}
-
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
 type Tab = 'pending' | 'applied' | 'skipped';
@@ -449,9 +429,7 @@ export default function DashboardPage() {
     [allJobs]
   );
 
-  const closePanel = useCallback(() => {
-    setTimeout(() => setSelectedJobId(null), 500);
-  }, []);
+  const closePanel = useCallback(() => setSelectedJobId(null), []);
 
   const handleStatusChange = async (jobId: string, status: string) => {
     // Optimistic update: drop the row and adjust counts immediately so the UI
@@ -724,7 +702,7 @@ export default function DashboardPage() {
 
       {/* Split view */}
       <div className="split-wrap">
-        <div className={`jobs-col${selectedJobId && isWide ? ' panel-open' : ''}`}>
+        <div className="jobs-col">
           {loading ? (
             <div className="jobs-skeleton">
               {Array.from({ length: 8 }).map((_, i) => (
@@ -779,12 +757,12 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {isWide && (() => {
-          const selectedJob = selectedJobId ? allJobs.find(j => j.job_id === selectedJobId) : null;
+        {selectedJobId && isWide && (() => {
+          const selectedJob = allJobs.find(j => j.job_id === selectedJobId);
           return selectedJob ? (
-            <PanelSlot key={selectedJobId} job={selectedJob}
-              onClose={() => setSelectedJobId(null)}
-            />
+            <aside key={selectedJobId} className="detail-panel" aria-live="polite">
+              <DetailPanel jobId={selectedJobId} initialJob={selectedJob} onClose={closePanel} />
+            </aside>
           ) : null;
         })()}
       </div>
