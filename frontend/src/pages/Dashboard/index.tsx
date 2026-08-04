@@ -451,6 +451,11 @@ export default function DashboardPage() {
     [allJobs]
   );
 
+  const closePanel = useCallback(() => {
+    setPanelClosing(true);
+    setTimeout(() => { setSelectedJobId(null); setPanelClosing(false); }, 500);
+  }, []);
+
   const handleStatusChange = async (jobId: string, status: string) => {
     // Optimistic update: drop the row and adjust counts immediately so the UI
     // responds instantly, then persist in the background.
@@ -762,8 +767,10 @@ export default function DashboardPage() {
                 {pagedJobs.map(job => (
                   <JobRow key={job.job_id} job={job} selected={selectedJobId === job.job_id}
                     onClick={() => {
-                      if (isWide) setSelectedJobId(selectedJobId === job.job_id ? null : job.job_id);
-                      else navigate(`/job/${job.job_id}`);
+                      if (isWide) {
+                        if (selectedJobId === job.job_id) closePanel();
+                        else setSelectedJobId(job.job_id);
+                      } else navigate(`/job/${job.job_id}`);
                     }}
                     onStatusChange={handleStatusChange}
                   />
