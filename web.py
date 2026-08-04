@@ -119,6 +119,92 @@ def _write_config_yaml(path: Path, data: dict) -> None:
         yaml.dump(data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
 
+_DEFAULT_WORK_STYLES = (RemoteType.REMOTE, RemoteType.HYBRID)
+
+
+def _norm_config_value(value) -> str:
+    return str(value or "").strip().lower()
+
+
+def _norm_config_set(values) -> set[str]:
+    if not isinstance(values, list):
+        return set()
+    return {_norm_config_value(v) for v in values if _norm_config_value(v)}
+
+
+def _work_styles_for_search(search: dict) -> set[str]:
+    styles = search.get("work_styles")
+    if isinstance(styles, list):
+        valid = {str(s) for s in styles if str(s) in RemoteType.ALL}
+        if valid:
+            return valid
+    return {RemoteType.HYBRID, RemoteType.ONSITE} if search.get("remote") is False else set(_DEFAULT_WORK_STYLES)
+
+
+def _companies_covered(old_search: dict, new_search: dict) -> bool:
+    old_companies = _norm_config_set(old_search.get("companies"))
+    new_companies = _norm_config_set(new_search.get("companies"))
+    if not old_companies:
+        return True
+    if not new_companies:
+        return False
+    return new_companies.issubset(old_companies)
+
+
+def _max_pages(search: dict) -> int:
+    try:
+        return int(search.get("max_pages") or 3)
+    except (TypeError, ValueError):
+        return 3
+
+
+def _search_covers(old_search: dict, new_search: dict) -> bool:
+    if _norm_config_value(old_search.get("source")) != _norm_config_value(new_search.get("source")):
+        return False
+    if _norm_config_value(old_search.get("query")) != _norm_config_value(new_search.get("query")):
+        return False
+    if _norm_config_value(old_search.get("location")) != _norm_config_value(new_search.get("location")):
+        return False
+    if _max_pages(old_search) < _max_pages(new_search):
+        return False
+    if not _work_styles_for_search(new_search).issubset(_work_styles_for_search(old_search)):
+        return False
+    return _companies_covered(old_search, new_search)
+
+
+def _allowed_terms_covered(old_values, new_values) -> bool:
+    old_set = _norm_config_set(old_values)
+    new_set = _norm_config_set(new_values)
+    if not old_set:
+        return True
+    if not new_set:
+        return False
+    return new_set.issubset(old_set)
+
+
+def _exclusions_covered(old_values, new_values) -> bool:
+    # Adding exclusions is narrowing and can be handled locally; removing one
+    # can reveal jobs that were skipped during fetch, so it needs a scrape.
+    return _norm_config_set(old_values).issubset(_norm_config_set(new_values))
+
+
+def _config_fetch_required(old_config: dict, new_config: dict) -> bool:
+    old_searches = old_config.get("searches") if isinstance(old_config.get("searches"), list) else []
+    new_searches = new_config.get("searches") if isinstance(new_config.get("searches"), list) else []
+    if not old_searches:
+        return True
+    if not _allowed_terms_covered(old_config.get("title_filter"), new_config.get("title_filter")):
+        return True
+    if not _exclusions_covered(old_config.get("blacklist"), new_config.get("blacklist")):
+        return True
+    if not _exclusions_covered(old_config.get("company_blacklist"), new_config.get("company_blacklist")):
+        return True
+    return any(
+        not any(_search_covers(old_search, new_search) for old_search in old_searches)
+        for new_search in new_searches
+    )
+
+
 def _save_api_key(env_key: str, provider: str):
     data = request.get_json() or {}
     key = (data.get("key") or "").strip()
@@ -526,12 +612,12 @@ def api_profile_config_save(slug):
     if not isinstance(data.get("searches"), list) or not data["searches"]:
         return jsonify({"error": "At least one search entry required"}), 400
     config_p = profile_dir / "config.yaml"
+    old_config = _read_config_yaml(config_p) if config_p.exists() else {}
+    fetch_required = _config_fetch_required(old_config, data)
     _write_config_yaml(config_p, data)
-    # If active profile, clear and re-fetch
     if slug == get_active_slug():
-        clear_all_jobs()
         clear_task_state()
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "fetch_required": fetch_required})
 
 
 @app.route("/job/<job_id>")
@@ -557,11 +643,12 @@ def api_job_description(job_id):
     description = r.get("description") or ""
     remote = r.get("remote") or ""
 
-    if not description:
-        from job.fetcher import fetch_description as _fetch_desc
+    from job.fetcher import fetch_description as _fetch_desc, should_fetch_description
+    if should_fetch_description(job_id, description):
         from job.db import update_description
-        description = _fetch_desc(job_id, r.get("url") or "")
-        if description:
+        fetched_description = _fetch_desc(job_id, r.get("url") or "")
+        if fetched_description and len(fetched_description) > len(description):
+            description = fetched_description
             update_description(job_id, description)
     remote = _maybe_update_remote_from_text(
         job_id,
@@ -694,9 +781,11 @@ def api_config_save():
             return jsonify({"error": f"Search entry missing fields: {required - s.keys()}"}), 400
     config_p = _config_path()
     config_p.parent.mkdir(parents=True, exist_ok=True)
+    old_config = _read_config_yaml(config_p) if config_p.exists() else {}
+    fetch_required = _config_fetch_required(old_config, data)
     _write_config_yaml(config_p, data)
     clear_task_state()
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "fetch_required": fetch_required})
 
 
 @app.route("/api/ai-settings", methods=["GET"])
@@ -1005,11 +1094,21 @@ Profile:
         config_p = _config_path()
         existing = _read_config_yaml(config_p) if config_p.exists() else {}
 
-        primary_title = titles[0]
+        work_styles = ['Remote', 'Hybrid', 'On-site'] if not remote else ['Remote', 'Hybrid']
         searches = [
-            {"name": f"{src} - {primary_title}", "source": src,
-             "query": primary_title, "location": location, "max_pages": mp, "remote": remote}
-            for src, mp in SOURCES
+            {
+                "group_id": f"search-{i + 1}",
+                "name": f"{src} - {title}",
+                "source": src,
+                "query": title,
+                "location": location,
+                "max_pages": mp,
+                "remote": remote,
+                "work_styles": work_styles,
+            }
+            for i, (title, (src, mp)) in enumerate(
+                (title, src_mp) for title in titles for src_mp in SOURCES
+            )
         ]
 
         new_config = {
@@ -1018,9 +1117,6 @@ Profile:
             "blacklist": existing.get("blacklist", DEFAULT_BLACKLIST),
             "company_blacklist": existing.get("company_blacklist", []),
         }
-
-        clear_all_jobs()
-        clear_task_state()
 
         config_p.parent.mkdir(parents=True, exist_ok=True)
         _write_config_yaml(config_p, new_config)

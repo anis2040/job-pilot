@@ -432,24 +432,65 @@ function Step3({ onBack }: { onBack: () => void }) {
   const { refetch } = useProfile();
   const [fetching, setFetching] = useState(false);
   const [fetchMsg, setFetchMsg] = useState('');
+  const [suggesting, setSuggesting] = useState(true);
+  const [suggestError, setSuggestError] = useState('');
+  const [suggested, setSuggested] = useState<{ titles: string[]; location: string } | null>(null);
+
+  useEffect(() => {
+    setupApi.suggestConfig()
+      .then((res: { ok: boolean; title_filter?: string[]; location?: string; error?: string }) => {
+        if (res.ok) {
+          setSuggested({ titles: res.title_filter ?? [], location: res.location ?? '' });
+        } else {
+          setSuggestError(res.error || 'Could not generate config');
+        }
+      })
+      .catch(() => setSuggestError('Could not generate search config'))
+      .finally(() => setSuggesting(false));
+  }, []);
 
   const handleFetch = async () => {
     setFetching(true);
     setFetchMsg('Starting fetch…');
-    await fetcherApi.trigger();
-    setFetchMsg('Fetch started! Redirecting…');
-    await refetch();
-    setTimeout(() => navigate('/'), 1500);
+    try {
+      await fetcherApi.trigger();
+      setFetchMsg('Fetch started! Redirecting…');
+      await refetch();
+      setTimeout(() => navigate('/'), 1500);
+    } catch {
+      setFetchMsg('Failed to start fetch — go to dashboard and try manually.');
+      setFetching(false);
+    }
   };
 
   return (
     <div id="step-3" className="card" style={{ textAlign: 'center' }}>
       <div style={{ fontSize: '3rem', marginBottom: 12 }}>🎉</div>
       <h2>You're all set!</h2>
-      <p className="subtitle">Your profile is saved. Ready to find your next role.</p>
-      <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 24 }}>
-        <button className="btn btn-primary" onClick={handleFetch} disabled={fetching}>
-          {fetching ? 'Starting…' : '⚡ Quick Fetch Jobs'}
+      <p className="subtitle">Your profile is saved. Here's what we'll search for:</p>
+
+      <div style={{ margin: '20px 0', textAlign: 'left', background: 'var(--bg-raised)', borderRadius: 'var(--radius)', padding: '14px 16px', border: '1px solid var(--border-faint)' }}>
+        {suggesting && (
+          <p style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>⏳ Generating search config from your profile…</p>
+        )}
+        {suggestError && (
+          <p style={{ color: 'var(--red)', fontSize: 'var(--text-sm)' }}>⚠ {suggestError} — you can configure searches manually in Settings.</p>
+        )}
+        {suggested && (
+          <>
+            <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-soft)', marginBottom: 6 }}>
+              <strong style={{ color: 'var(--text)' }}>Titles:</strong> {suggested.titles.join(', ')}
+            </p>
+            <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-soft)' }}>
+              <strong style={{ color: 'var(--text)' }}>Location:</strong> {suggested.location}
+            </p>
+          </>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 8 }}>
+        <button className="btn btn-primary" onClick={handleFetch} disabled={fetching || suggesting}>
+          {fetching ? 'Starting…' : '⚡ Fetch Jobs Now'}
         </button>
         <button className="btn btn-ghost" onClick={() => { refetch(); navigate('/'); }}>
           Go to Dashboard →
