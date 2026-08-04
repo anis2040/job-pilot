@@ -11,12 +11,9 @@ SHARED_HEADERS = {
     "Accept": "application/json",
 }
 
-# Description length caps. Search-list fetchers store a preview (LIST_DESC_LIMIT)
-# because the list payload's description is often a snippet; sources that expose
-# the full text — either via an on-demand describe() or because their API returns
-# the complete description inline — use FULL_DESC_LIMIT.
-LIST_DESC_LIMIT = 2000
-FULL_DESC_LIMIT = 4000
+# Description length cap. 0 means uncapped — store the full text.
+LIST_DESC_LIMIT = 0
+FULL_DESC_LIMIT = 0
 
 
 def clip_description(text: str, limit: int = LIST_DESC_LIMIT) -> str:

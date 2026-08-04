@@ -41,23 +41,19 @@ def test_empty_safe():
 
 # ── clip_description ────────────────────────────────────────────────────────────
 
-def test_clip_description_defaults_to_list_limit():
-    long = "x" * (LIST_DESC_LIMIT + 500)
-    assert len(clip_description(long)) == LIST_DESC_LIMIT
+def test_clip_description_defaults_to_uncapped():
+    long = "x" * 9000
+    assert clip_description(long) == long  # LIST_DESC_LIMIT=0 means no cap
 
 
-def test_clip_description_respects_explicit_limit():
-    long = "y" * (FULL_DESC_LIMIT + 500)
-    assert len(clip_description(long, FULL_DESC_LIMIT)) == FULL_DESC_LIMIT
+def test_clip_description_explicit_limit_zero_is_uncapped():
+    long = "y" * 9000
+    assert clip_description(long, 0) == long
 
 
-def test_clip_description_shorter_than_limit_is_unchanged():
-    assert clip_description("short text") == "short text"
-
-
-def test_clip_description_limit_zero_means_no_cap():
+def test_clip_description_explicit_limit_caps():
     long = "z" * 9000
-    assert clip_description(long, 0) == long  # full text preserved (e.g. Jobicy)
+    assert len(clip_description(long, 500)) == 500
 
 
 def test_clip_description_empty_and_none_safe():

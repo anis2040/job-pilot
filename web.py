@@ -650,6 +650,7 @@ def api_config_save():
     config_p = _config_path()
     config_p.parent.mkdir(parents=True, exist_ok=True)
     _write_config_yaml(config_p, data)
+    clear_task_state()
     return jsonify({"ok": True})
 
 
@@ -854,8 +855,8 @@ def api_jobs_clear():
 
 @app.route("/api/fetch", methods=["POST"])
 def api_fetch():
-    trigger_fetch()
-    return jsonify({"status": "running"})
+    started = trigger_fetch()
+    return jsonify({"status": "running", "started": started})
 
 
 @app.route("/api/fetch-status")
