@@ -1,5 +1,5 @@
 """Tests for job.fetcher_utils.strip_tags — HTML→clean-text for all providers."""
-from job.fetcher_utils import strip_tags
+from job.fetcher_utils import strip_tags, clip_description, LIST_DESC_LIMIT, FULL_DESC_LIMIT
 
 
 def test_unescapes_entities():
@@ -37,3 +37,29 @@ def test_idempotent_on_clean_text():
 def test_empty_safe():
     assert strip_tags("") == ""
     assert strip_tags(None) == ""
+
+
+# ── clip_description ────────────────────────────────────────────────────────────
+
+def test_clip_description_defaults_to_list_limit():
+    long = "x" * (LIST_DESC_LIMIT + 500)
+    assert len(clip_description(long)) == LIST_DESC_LIMIT
+
+
+def test_clip_description_respects_explicit_limit():
+    long = "y" * (FULL_DESC_LIMIT + 500)
+    assert len(clip_description(long, FULL_DESC_LIMIT)) == FULL_DESC_LIMIT
+
+
+def test_clip_description_shorter_than_limit_is_unchanged():
+    assert clip_description("short text") == "short text"
+
+
+def test_clip_description_limit_zero_means_no_cap():
+    long = "z" * 9000
+    assert clip_description(long, 0) == long  # full text preserved (e.g. Jobicy)
+
+
+def test_clip_description_empty_and_none_safe():
+    assert clip_description("") == ""
+    assert clip_description(None) == ""

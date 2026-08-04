@@ -3,7 +3,7 @@ import time
 import httpx
 
 from .config import SearchConfig
-from .fetcher_utils import SHARED_HEADERS, http_get, infer_remote, strip_tags
+from .fetcher_utils import SHARED_HEADERS, http_get, infer_remote, strip_tags, clip_description, FULL_DESC_LIMIT
 from .models import RawJob, RemoteType
 from .utils import parse_experience, location_matches
 
@@ -113,4 +113,4 @@ def fetch_description(job_url: str) -> str:
         return ""
     # Greenhouse `content` is HTML-escaped HTML; unescape then strip tags.
     import html
-    return strip_tags(html.unescape(content))[:4000]
+    return clip_description(strip_tags(html.unescape(content)), FULL_DESC_LIMIT)

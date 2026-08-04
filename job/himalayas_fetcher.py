@@ -1,7 +1,7 @@
 import httpx
 
 from .config import SearchConfig
-from .fetcher_utils import http_get, strip_tags, infer_remote, parse_employment_type, parse_salary
+from .fetcher_utils import http_get, strip_tags, infer_remote, parse_employment_type, parse_salary, clip_description
 from .models import RawJob, RemoteType
 from .utils import parse_experience, location_matches
 
@@ -11,7 +11,7 @@ def fetch_himalayas(search: SearchConfig) -> list[RawJob]:
     results: list[RawJob] = []
     limit = 50
     offset = 0
-    pages = search.max_pages if hasattr(search, "max_pages") else 3
+    pages = search.max_pages
 
     for _ in range(pages):
         try:
@@ -61,7 +61,7 @@ def fetch_himalayas(search: SearchConfig) -> list[RawJob]:
                 location=location,
                 remote=remote,
                 experience=experience,
-                description=description[:2000],
+                description=clip_description(description),
                 posted_at=str(item["pubDate"]) if item.get("pubDate") else None,
                 employment_type=employment_type,
                 salary_range=salary,
