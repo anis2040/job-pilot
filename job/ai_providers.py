@@ -385,7 +385,8 @@ def _build_with_sdk(system_text: str, user_prompt: str, stage_fn=None, on_delta=
     # detailed cache view; this records the totals for the usage counter).
     _log_tokens("anthropic", model, input=total_input, output=output_toks,
                 total=total_input + output_toks)
-    return response.content[0].text
+    text_blocks = [b for b in response.content if getattr(b, "type", None) == "text"]
+    return text_blocks[0].text
 
 
 def _build_with_claude_cli(system_text: str, user_prompt: str, cwd: str, stage_fn=None) -> str:
