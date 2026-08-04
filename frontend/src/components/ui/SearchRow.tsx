@@ -1,5 +1,5 @@
-import { useId, useState } from 'react';
-import { addUniqueLocation, sameLocation, type SearchRowEntry } from './searchRowModel';
+import { useState } from 'react';
+import { addUniqueLocation, addUniqueTitle, sameLocation, WORK_STYLES, type SearchRowEntry, type WorkStyle } from './searchRowModel';
 
 // Compatibility for stale Vite HMR modules that imported model helpers here.
 // eslint-disable-next-line react-refresh/only-export-components
@@ -30,9 +30,15 @@ const LOCATION_SUGGESTIONS = [
   'Remote Europe',
 ];
 
+const WORK_STYLE_LABELS: Record<WorkStyle, string> = {
+  Remote: 'Remote-first roles',
+  Hybrid: 'Office and remote mix',
+  'On-site': 'Office-based roles',
+};
+
 export function SearchRow({ entry, sources, onRemove, onChange }: SearchRowProps) {
-  const [locationInput, setLocationInput] = useState('');
-  const datalistId = useId();
+  const [titleInput, setTitleInput] = useState('');
+  const [customLocationInput, setCustomLocationInput] = useState('');
 
   const toggleSource = (src: string) => {
     const next = entry.sources.includes(src)
@@ -46,25 +52,70 @@ export function SearchRow({ entry, sources, onRemove, onChange }: SearchRowProps
     onChange({ ...entry, sources: allChecked ? [] : [...sources] });
   };
 
-  const commitLocation = (raw = locationInput) => {
+  const commitTitle = (raw = titleInput) => {
+    const next = addUniqueTitle(entry.titles, raw);
+    if (next !== entry.titles) onChange({ ...entry, titles: next });
+    setTitleInput('');
+  };
+
+  const removeTitle = (title: string) => {
+    const target = title.trim().toLowerCase();
+    onChange({ ...entry, titles: entry.titles.filter(item => item.trim().toLowerCase() !== target) });
+  };
+
+  const commitLocation = (raw = customLocationInput) => {
     const next = addUniqueLocation(entry.locations, raw);
     if (next !== entry.locations) onChange({ ...entry, locations: next });
-    setLocationInput('');
+    setCustomLocationInput('');
   };
 
   const removeLocation = (location: string) => {
     onChange({ ...entry, locations: entry.locations.filter(item => !sameLocation(item, location)) });
   };
 
+  const toggleWorkStyle = (style: WorkStyle) => {
+    const selected = entry.workStyles.includes(style);
+    const next = selected
+      ? entry.workStyles.filter(item => item !== style)
+      : [...entry.workStyles, style];
+    if (!next.length) return;
+    onChange({ ...entry, workStyles: next });
+  };
+
   return (
     <div className="search-row">
-      <div className="search-row-fields search-row-fields-top">
-        <input
-          type="text"
-          placeholder="e.g. Product Manager"
-          value={entry.query}
-          onChange={e => onChange({ ...entry, query: e.target.value })}
-        />
+      <div className="search-row-head">
+        <div className="search-row-panel search-row-title-panel">
+          <div className="search-row-label">Job titles</div>
+          <input
+            type="text"
+            placeholder="Add a job title"
+            value={titleInput}
+            onChange={e => setTitleInput(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' || e.key === ',') {
+                e.preventDefault();
+                commitTitle();
+              }
+            }}
+            onBlur={() => { if (titleInput.trim()) commitTitle(); }}
+          />
+          <div className="search-title-tags">
+            {entry.titles.map(title => (
+              <button
+                key={title}
+                type="button"
+                className="search-chip title-chip"
+                onClick={() => removeTitle(title)}
+                aria-label={`Remove ${title}`}
+              >
+                {title}
+                <span aria-hidden="true">✕</span>
+              </button>
+            ))}
+            {!entry.titles.length && <span className="search-row-hint">Add at least one title.</span>}
+          </div>
+        </div>
         <button className="btn-icon" type="button" title="Remove" onClick={onRemove}>✕</button>
       </div>
 
@@ -72,26 +123,33 @@ export function SearchRow({ entry, sources, onRemove, onChange }: SearchRowProps
         <div className="search-row-panel">
           <div className="search-row-label">Countries / locations</div>
           <div className="search-location-add">
+            <select
+              aria-label="Add country or location"
+              value=""
+              onChange={e => {
+                if (e.target.value) commitLocation(e.target.value);
+              }}
+            >
+              <option value="">Add country or location</option>
+              {LOCATION_SUGGESTIONS.map(option => (
+                <option key={option} value={option} disabled={entry.locations.some(location => sameLocation(location, option))}>
+                  {option}
+                </option>
+              ))}
+            </select>
             <input
               type="text"
-              list={datalistId}
-              placeholder="Add a country or location"
-              value={locationInput}
-              onChange={e => setLocationInput(e.target.value)}
+              placeholder="Custom location"
+              value={customLocationInput}
+              onChange={e => setCustomLocationInput(e.target.value)}
               onKeyDown={e => {
                 if (e.key === 'Enter' || e.key === ',') {
                   e.preventDefault();
                   commitLocation();
                 }
               }}
-              onBlur={() => { if (locationInput.trim()) commitLocation(); }}
+              onBlur={() => { if (customLocationInput.trim()) commitLocation(); }}
             />
-            <datalist id={datalistId}>
-              {LOCATION_SUGGESTIONS.map(option => <option key={option} value={option} />)}
-            </datalist>
-            <button className="btn btn-ghost btn-sm" type="button" onClick={() => commitLocation()} disabled={!locationInput.trim()}>
-              Add
-            </button>
           </div>
           <div className="search-location-tags">
             {entry.locations.map(location => (
@@ -112,25 +170,22 @@ export function SearchRow({ entry, sources, onRemove, onChange }: SearchRowProps
 
         <div className="search-row-panel search-row-panel-compact">
           <div className="search-row-label">Work style</div>
-          <div className="remote-choice-group" role="group" aria-label="Work style preference">
-            <button
-              type="button"
-              className={`remote-choice${entry.remote ? ' active' : ''}`}
-              aria-pressed={entry.remote}
-              onClick={() => onChange({ ...entry, remote: true })}
-            >
-              <strong>Remote-friendly</strong>
-              <span>Include remote-first results</span>
-            </button>
-            <button
-              type="button"
-              className={`remote-choice${!entry.remote ? ' active' : ''}`}
-              aria-pressed={!entry.remote}
-              onClick={() => onChange({ ...entry, remote: false })}
-            >
-              <strong>Location-based</strong>
-              <span>Focus on local on-site or hybrid roles</span>
-            </button>
+          <div className="remote-choice-group" role="group" aria-label="Work style preferences">
+            {WORK_STYLES.map(style => {
+              const checked = entry.workStyles.includes(style);
+              return (
+                <button
+                  key={style}
+                  type="button"
+                  className={`remote-choice${checked ? ' active' : ''}`}
+                  aria-pressed={checked}
+                  onClick={() => toggleWorkStyle(style)}
+                >
+                  <strong>{style}</strong>
+                  <span>{WORK_STYLE_LABELS[style]}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>

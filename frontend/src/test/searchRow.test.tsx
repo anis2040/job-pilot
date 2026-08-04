@@ -13,43 +13,43 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { SearchRow } from '@/components/ui/SearchRow'
+import type { SearchRowEntry } from '@/components/ui/searchRowModel'
 
 const SOURCES = ['LinkedIn', 'Jobicy', 'Himalayas']
 
-const defaultEntry = {
-  query: 'Product Manager',
+const defaultEntry: SearchRowEntry = {
+  titles: ['Product Manager'],
   locations: ['United States'],
-  remote: true,
+  workStyles: ['Remote', 'Hybrid'],
   sources: ['LinkedIn', 'Jobicy'],
 }
 
 describe('SearchRow — user configuring a search', () => {
   it('shows the current query and location values', () => {
     render(<SearchRow entry={defaultEntry} sources={SOURCES} onChange={vi.fn()} onRemove={vi.fn()} />)
-    expect(screen.getByDisplayValue('Product Manager')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /remove product manager/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /remove united states/i })).toBeInTheDocument()
   })
 
-  it('user changes the job title query', () => {
+  it('user adds another job title', async () => {
     const onChange = vi.fn()
     render(<SearchRow entry={defaultEntry} sources={SOURCES} onChange={onChange} onRemove={vi.fn()} />)
-    fireEvent.change(screen.getByPlaceholderText('e.g. Product Manager'), { target: { value: 'Engineering Manager' } })
-    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ query: 'Engineering Manager' }))
+    await userEvent.type(screen.getByPlaceholderText('Add a job title'), 'Engineering Manager{enter}')
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ titles: ['Product Manager', 'Engineering Manager'] }))
   })
 
-  it('user adds another location', async () => {
+  it('selecting a country adds it immediately', async () => {
     const onChange = vi.fn()
     render(<SearchRow entry={defaultEntry} sources={SOURCES} onChange={onChange} onRemove={vi.fn()} />)
-    await userEvent.type(screen.getByPlaceholderText('Add a country or location'), 'United Kingdom')
-    await userEvent.click(screen.getByRole('button', { name: 'Add' }))
-    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ locations: ['United States', 'United Kingdom'] }))
+    await userEvent.selectOptions(screen.getByLabelText('Add country or location'), 'Germany')
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ locations: ['United States', 'Germany'] }))
   })
 
-  it('user switches to location-based mode', async () => {
+  it('user can select multiple work styles including hybrid', async () => {
     const onChange = vi.fn()
-    render(<SearchRow entry={defaultEntry} sources={SOURCES} onChange={onChange} onRemove={vi.fn()} />)
-    await userEvent.click(screen.getByRole('button', { name: /location-based/i }))
-    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ remote: false }))
+    render(<SearchRow entry={{ ...defaultEntry, workStyles: ['Remote'] }} sources={SOURCES} onChange={onChange} onRemove={vi.fn()} />)
+    await userEvent.click(screen.getByRole('button', { name: /hybrid/i }))
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ workStyles: ['Remote', 'Hybrid'] }))
   })
 
   it('checked sources are shown as checked', () => {

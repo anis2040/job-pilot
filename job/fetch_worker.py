@@ -27,6 +27,13 @@ def _should_include_job(job, config) -> tuple[bool, str | None]:
     return True, None
 
 
+def _matches_work_styles(job, search) -> bool:
+    styles = getattr(search, "work_styles", None) or []
+    if not styles:
+        return True
+    return (job.remote or "") in styles
+
+
 def _run_fetch() -> None:
     try:
         init_db()
@@ -42,6 +49,8 @@ def _run_fetch() -> None:
 
             for job in jobs:
                 if already_seen(job.job_id):
+                    continue
+                if not _matches_work_styles(job, search):
                     continue
                 include, kw = _should_include_job(job, config)
                 if not include:

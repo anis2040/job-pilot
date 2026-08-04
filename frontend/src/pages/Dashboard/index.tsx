@@ -11,7 +11,7 @@ import { Icon } from '../../components/ui/Icon';
 import { TagInput } from '../../components/ui/TagInput';
 import { useDocumentStatus } from '../../hooks/useDocumentStatus';
 import { SearchRow } from '../../components/ui/SearchRow';
-import { groupSearchEntries, expandSearchRows, type SearchRowEntry } from '../../components/ui/searchRowModel';
+import { createSearchRow, deriveTitleFilters, groupSearchEntries, expandSearchRows, type SearchRowEntry } from '../../components/ui/searchRowModel';
 import { formatDescription, isLongDescription } from '../../utils/descriptionRenderer';
 import { safeUrl } from '../../utils/format';
 import { applyFilters, filtersToKey, DEFAULT_FILTERS } from '../../utils/filters';
@@ -341,7 +341,7 @@ function SettingsModal({ open, onClose, onSaved, allSources }: { open: boolean; 
       showToast('Add at least one search source', 'err');
       return;
     }
-    const next = { ...cfg, searches };
+    const next = { ...cfg, searches, title_filter: deriveTitleFilters(rows) };
     setSaving(true);
     try {
       await configApi.save(next);
@@ -384,18 +384,14 @@ function SettingsModal({ open, onClose, onSaved, allSources }: { open: boolean; 
                 onRemove={() => setRows(rows.filter((_, j) => j !== i))}
               />
             ))}
-            <button className="btn-add" onClick={() => setRows([...rows, { query: '', locations: ['United States'], remote: true, sources: [...allSources] }])}>+ Add search</button>
+            <button className="btn-add" onClick={() => setRows([...rows, createSearchRow(allSources)])}>+ Add search</button>
           </div>
           <div className="settings-section">
-            <h3>Title Filter <small>(keep jobs matching at least one)</small></h3>
-            <TagInput value={cfg.title_filter} onChange={v => setCfg(c => ({ ...c, title_filter: v }))} placeholder="add keyword, Enter" />
-          </div>
-          <div className="settings-section">
-            <h3>Blacklist <small>(drop jobs containing these words)</small></h3>
+            <h3>Exclude keywords <small>(drop jobs containing these words)</small></h3>
             <TagInput value={cfg.blacklist} onChange={v => setCfg(c => ({ ...c, blacklist: v }))} placeholder="add keyword, Enter" />
           </div>
           <div className="settings-section">
-            <h3>Company Blacklist</h3>
+            <h3>Exclude companies</h3>
             <TagInput value={cfg.company_blacklist} onChange={v => setCfg(c => ({ ...c, company_blacklist: v }))} placeholder="add company, Enter" />
           </div>
         </div>

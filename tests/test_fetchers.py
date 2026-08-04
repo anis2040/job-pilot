@@ -3,9 +3,12 @@
 All tests run fully offline — no network calls. Each fetcher's HTTP layer is
 monkeypatched with a minimal FakeResponse carrying a realistic fixture payload.
 """
+from types import SimpleNamespace
+
 import pytest
 
 from job.config import SearchConfig
+from job.fetch_worker import _matches_work_styles
 from job.fetcher import fetch_search, SOURCES
 from job.models import RemoteType, DEFAULT_BLACKLIST, JOB_STATUSES
 from job.fetcher_utils import infer_remote
@@ -54,6 +57,16 @@ def test_job_statuses():
     assert "pending" in JOB_STATUSES
     assert "applied" in JOB_STATUSES
     assert "skipped" in JOB_STATUSES
+
+
+def test_work_style_filter_allows_selected_styles():
+    search = SimpleNamespace(work_styles=[RemoteType.HYBRID])
+    assert _matches_work_styles(SimpleNamespace(remote=RemoteType.HYBRID), search) is True
+    assert _matches_work_styles(SimpleNamespace(remote=RemoteType.REMOTE), search) is False
+
+
+def test_work_style_filter_is_disabled_for_old_configs():
+    assert _matches_work_styles(SimpleNamespace(remote=RemoteType.ONSITE), SimpleNamespace()) is True
 
 
 # ── infer_remote ──────────────────────────────────────────────────────────────

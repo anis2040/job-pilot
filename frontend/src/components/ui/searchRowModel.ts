@@ -1,42 +1,111 @@
 import type { SearchEntry } from '../../api/types';
 
+export type WorkStyle = 'Remote' | 'Hybrid' | 'On-site';
+
+export const WORK_STYLES: WorkStyle[] = ['Remote', 'Hybrid', 'On-site'];
+
 export interface SearchRowEntry {
-  query: string;
+  id?: string;
+  titles: string[];
   locations: string[];
-  remote: boolean;
+  workStyles: WorkStyle[];
   sources: string[];
 }
 
+export function createSearchRow(sources: string[] = []): SearchRowEntry {
+  return {
+    titles: [],
+    locations: ['United States'],
+    workStyles: ['Remote', 'Hybrid'],
+    sources: [...sources],
+  };
+}
+
+function normalizeKey(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function addUniqueValue(list: string[], raw: string) {
+  const next = raw.trim().replace(/,$/, '');
+  if (!next || list.some(item => normalizeKey(item) === normalizeKey(next))) return list;
+  return [...list, next];
+}
+
+function normalizeWorkStyles(styles: unknown, remote?: boolean): WorkStyle[] {
+  if (Array.isArray(styles)) {
+    const valid = styles.filter((style): style is WorkStyle => WORK_STYLES.includes(style as WorkStyle));
+    if (valid.length) return Array.from(new Set(valid));
+  }
+
+  return remote === false ? ['Hybrid', 'On-site'] : ['Remote', 'Hybrid'];
+}
+
+function workStyleKey(styles: WorkStyle[]) {
+  return WORK_STYLES.filter(style => styles.includes(style)).join('|');
+}
+
 export function sameLocation(a: string, b: string) {
-  return a.trim().toLowerCase() === b.trim().toLowerCase();
+  return normalizeKey(a) === normalizeKey(b);
 }
 
 export function addUniqueLocation(list: string[], raw: string) {
-  const next = raw.trim().replace(/,$/, '');
-  if (!next || list.some(item => sameLocation(item, next))) return list;
-  return [...list, next];
+  return addUniqueValue(list, raw);
+}
+
+export function addUniqueTitle(list: string[], raw: string) {
+  return addUniqueValue(list, raw);
+}
+
+export function deriveTitleFilters(rows: SearchRowEntry[]) {
+  return rows.reduce<string[]>((titles, row) => {
+    for (const title of row.titles) {
+      const next = title.trim().toLowerCase();
+      if (next && !titles.includes(next)) titles.push(next);
+    }
+    return titles;
+  }, []);
 }
 
 export function groupSearchEntries(entries: SearchEntry[]): SearchRowEntry[] {
   const groups: Record<string, SearchRowEntry> = {};
   for (const e of entries) {
-    const key = `${e.query}||${e.remote ?? true}`;
-    if (!groups[key]) groups[key] = { query: e.query, locations: [], remote: e.remote !== false, sources: [] };
+    const workStyles = normalizeWorkStyles(e.work_styles, e.remote);
+    const key = e.group_id || `${e.query}||${workStyleKey(workStyles)}`;
+    if (!groups[key]) groups[key] = { id: e.group_id, titles: [], locations: [], workStyles, sources: [] };
+    groups[key].titles = addUniqueTitle(groups[key].titles, e.query);
     if (!groups[key].sources.includes(e.source)) groups[key].sources.push(e.source);
     groups[key].locations = addUniqueLocation(groups[key].locations, e.location || 'United States');
+    for (const style of workStyles) {
+      if (!groups[key].workStyles.includes(style)) groups[key].workStyles.push(style);
+    }
   }
   return Object.values(groups);
 }
 
 export function expandSearchRows(rows: SearchRowEntry[]): SearchEntry[] {
   const result: SearchEntry[] = [];
-  for (const row of rows) {
-    if (!row.query || !row.sources.length || !row.locations.length) continue;
-    for (const location of row.locations) {
-      for (const src of row.sources) {
-        result.push({ name: `${src} - ${row.query}`, source: src, query: row.query, location, max_pages: 3, remote: row.remote });
+  rows.forEach((row, rowIndex) => {
+    const titles = row.titles.map(title => title.trim()).filter(Boolean);
+    const workStyles = normalizeWorkStyles(row.workStyles, true);
+    const remote = workStyles.includes('Remote') && !workStyles.includes('On-site');
+    const groupId = row.id || `search-${rowIndex + 1}`;
+    if (!titles.length || !row.sources.length || !row.locations.length) return;
+    for (const title of titles) {
+      for (const location of row.locations) {
+        for (const src of row.sources) {
+          result.push({
+            group_id: groupId,
+            name: `${src} - ${title}`,
+            source: src,
+            query: title,
+            location,
+            max_pages: 3,
+            remote,
+            work_styles: workStyles,
+          });
+        }
       }
     }
-  }
+  });
   return result;
 }

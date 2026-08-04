@@ -56,12 +56,14 @@ export interface Profile {
 }
 
 export interface SearchEntry {
+  group_id?: string;
   name: string;
   source: string;
   query: string;
   location: string;
   max_pages: number;
   remote: boolean;
+  work_styles?: ('Remote' | 'Hybrid' | 'On-site')[];
 }
 
 export interface SearchConfig {

@@ -933,8 +933,27 @@ a.btn {
   margin-top: var(--space-3);
 }
 
-.search-row-fields-top {
+.search-row-fields-top,
+.search-row-head {
   align-items: center;
+}
+
+.search-row-head {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.search-row-head .btn-icon {
+  flex: 0 0 auto;
+  margin-top: 8px;
+}
+
+.search-row-title-panel {
+  flex: 1 1 auto;
+}
+
+.search-row-title-panel input {
+  margin-top: 8px;
 }
 
 .search-row-label {
@@ -958,20 +977,25 @@ a.btn {
   align-items: center;
   gap: 8px;
   margin-top: 8px;
+  flex-wrap: wrap;
 }
 
-.search-location-add input {
-  flex: 1;
+.search-location-add input,
+.search-location-add select {
+  flex: 1 1 180px;
+  min-width: 0;
 }
 
-.search-location-tags {
+.search-location-tags,
+.search-title-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 10px;
 }
 
-.search-chip.location-chip {
+.search-chip.location-chip,
+.search-chip.title-chip {
   gap: 8px;
   background: var(--bg-hover);
   color: var(--text);

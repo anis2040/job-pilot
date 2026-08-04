@@ -12,6 +12,8 @@ class SearchConfig:
     remote: bool = True
     max_pages: int = 3
     companies: list = field(default_factory=list)
+    work_styles: list[str] = field(default_factory=list)
+    group_id: str | None = None
 
 
 @dataclass

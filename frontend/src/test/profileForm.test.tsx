@@ -229,18 +229,17 @@ describe('Profile form — search settings section', () => {
     await waitFor(() => {
       expect(screen.getByText('Search Settings')).toBeInTheDocument()
       // Should load and show the existing search query
-      expect(screen.getByDisplayValue('Product Manager')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /remove product manager/i })).toBeInTheDocument()
     })
   })
 
-  it('shows existing title filters as tags', async () => {
+  it('does not show a separate title filter control', async () => {
     renderProfileSettings()
     await waitFor(() => expect(screen.getByText('🔍 Search Settings')).toBeInTheDocument())
     fireEvent.click(screen.getByText('🔍 Search Settings'))
 
     await waitFor(() => {
-      expect(screen.getByText('product manager')).toBeInTheDocument()
-      expect(screen.getByText('pm')).toBeInTheDocument()
+      expect(screen.queryByText(/Title Filter/i)).not.toBeInTheDocument()
     })
   })
 
@@ -265,7 +264,7 @@ describe('Profile form — search settings section', () => {
 
     await waitFor(() => {
       expect(profilesApi.saveConfig).toHaveBeenCalledWith('anis', expect.objectContaining({
-        title_filter: expect.arrayContaining(['product manager', 'pm']),
+        title_filter: ['product manager'],
         blacklist: expect.arrayContaining(['junior', 'intern']),
       }))
     })

@@ -7,7 +7,7 @@ import { Topbar } from '../../components/layout/Topbar';
 import { TagInput } from '../../components/ui/TagInput';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { SearchRow } from '../../components/ui/SearchRow';
-import { groupSearchEntries, expandSearchRows, type SearchRowEntry } from '../../components/ui/searchRowModel';
+import { createSearchRow, deriveTitleFilters, groupSearchEntries, expandSearchRows, type SearchRowEntry } from '../../components/ui/searchRowModel';
 import type { SearchConfig } from '../../api/types';
 import { buildProfileMd, parseProfileMd, DEFAULT_FORM, EMPTY_EXP, EMPTY_EDU } from '../../utils/profileForm';
 import type { ProfileFormData, ExpEntry, EduEntry } from '../../utils/profileForm';
@@ -273,7 +273,6 @@ function SearchSection({ slug }: { slug: string }) {
   const { showToast } = useToast();
   const [allSources, setAllSources] = useState<string[]>([]);
   const [rows, setRows] = useState<SearchRowEntry[]>([]);
-  const [titleFilter, setTitleFilter] = useState<string[]>([]);
   const [blacklist, setBlacklist] = useState<string[]>([]);
   const [companyBlacklist, setCompanyBlacklist] = useState<string[]>([]);
 
@@ -281,7 +280,6 @@ function SearchSection({ slug }: { slug: string }) {
     constants.sources().then(setAllSources);
     profilesApi.getConfig(slug).then((cfg: SearchConfig) => {
       setRows(groupSearchEntries(cfg.searches || []));
-      setTitleFilter(cfg.title_filter || []);
       setBlacklist(cfg.blacklist || []);
       setCompanyBlacklist(cfg.company_blacklist || []);
     });
@@ -290,7 +288,7 @@ function SearchSection({ slug }: { slug: string }) {
   const handleSave = async () => {
     const cfg: SearchConfig = {
       searches: expandSearchRows(rows),
-      title_filter: titleFilter,
+      title_filter: deriveTitleFilters(rows),
       blacklist,
       company_blacklist: companyBlacklist,
     };
@@ -316,23 +314,19 @@ function SearchSection({ slug }: { slug: string }) {
               />
             ))}
           </div>
-          <button className="btn-add-row" onClick={() => setRows([...rows, { query: '', locations: ['United States'], remote: true, sources: [...allSources] }])}>+ Add search</button>
+          <button className="btn-add-row" onClick={() => setRows([...rows, createSearchRow(allSources)])}>+ Add search</button>
         </div>
       </div>
 
       <div className="settings-card">
-        <div className="settings-card-header"><div><h3>Filters</h3><p>Title filter, blacklist, company blacklist</p></div></div>
+        <div className="settings-card-header"><div><h3>Exclusions</h3><p>Keywords and companies to leave out</p></div></div>
         <div className="settings-card-body is-expanded">
           <div className="field">
-            <label>Title Filter <span className="label-hint">(keep jobs matching at least one)</span></label>
-            <TagInput value={titleFilter} onChange={setTitleFilter} placeholder="add keyword, Enter" />
-          </div>
-          <div className="field">
-            <label>Blacklist <span className="label-hint">(drop jobs containing these words)</span></label>
+            <label>Exclude keywords <span className="label-hint">(drop jobs containing these words)</span></label>
             <TagInput value={blacklist} onChange={setBlacklist} placeholder="add keyword, Enter" />
           </div>
           <div className="field">
-            <label>Company Blacklist</label>
+            <label>Exclude companies</label>
             <TagInput value={companyBlacklist} onChange={setCompanyBlacklist} placeholder="add company, Enter" />
           </div>
         </div>

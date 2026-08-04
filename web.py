@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from flask import Flask, render_template, jsonify, request, send_file, abort, redirect, url_for, make_response
 
 from job.db import init_db, get_pending_deduped, get_jobs_by_status, update_status, get_job, get_similar_jobs, stats, last_fetch_at, clear_all_jobs
-from job.web_api import trigger_resume, get_task_status, trigger_cover_letter, get_cl_task_status, trigger_fetch, get_fetch_status, clear_task_state, call_ai, call_ai_fast
+from job.web_api import trigger_resume, get_task_status, trigger_cover_letter, get_cl_task_status, trigger_fetch, get_fetch_status, clear_task_state, call_ai
 from job.web_api import (
     _get_groq_client, _get_anthropic_client, _get_gemini_client,
     _get_model, _list_models, _clear_model_cache, _build_with_groq, _build_with_sdk, _build_with_gemini,
@@ -1145,9 +1145,11 @@ Resume text:
 {raw_text[:8000]}"""
 
     try:
-        output = call_ai_fast(prompt)
+        output = _call_ai_with_timeout(prompt)
         data = extract_json_from_llm(output)
         return jsonify({"ok": True, "data": data})
+    except (subprocess.TimeoutExpired, futures.TimeoutError):
+        return jsonify({"error": "AI extraction timed out. Try again."}), 504
     except _json.JSONDecodeError:
         return jsonify({"error": f"AI returned unexpected output (not JSON). Raw: {output[:200]}"}), 500
     except Exception as e:
