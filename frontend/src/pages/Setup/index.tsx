@@ -5,8 +5,8 @@ import { useProfile } from '../../hooks/useProfile';
 import { useToast } from '../../components/ui/Toast';
 import type { SetupStatus } from '../../api/types';
 import {
-  buildProfileMd, DEFAULT_FORM, EMPTY_EXP,
-  type ProfileFormData,
+  buildProfileMd, DEFAULT_FORM, EMPTY_EXP, EMPTY_EDU,
+  type ProfileFormData, type ExpEntry, type EduEntry,
 } from '../../utils/profileForm';
 
 // ── Step indicator ─────────────────────────────────────────────────────────────
@@ -50,7 +50,10 @@ function Step1({ onNext }: { onNext: () => void }) {
   const [status, setStatus] = useState<SetupStatus | null>(null);
   const [provider, setProvider] = useState<ProviderChoice>(null);
   const [keyInput, setKeyInput] = useState('');
+  const [keyVisible, setKeyVisible] = useState(false);
   const [actionStatus, setActionStatus] = useState('');
+  const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [testing, setTesting] = useState(false);
   const [pdfStatus, setPdfStatus] = useState('');
   const [nodeInstallLog, setNodeInstallLog] = useState('');
 
@@ -69,16 +72,21 @@ function Step1({ onNext }: { onNext: () => void }) {
     if (!provider) return;
     setActionStatus('Installing…');
     const res = await setupApi.installCli(provider);
-    setActionStatus(res.output || (res.ok ? 'Done' : 'Failed'));
+    setActionStatus(res.output || (res.ok ? '✓ Installed' : '⚠ Failed'));
     if (res.ok) setStatus(s => s ? { ...s, has_claude: provider === 'claude' || s.has_claude, has_gemini: provider === 'gemini' || s.has_gemini } : s);
   };
 
   const handleSaveKey = async () => {
-    if (!provider || !keyInput.trim()) return;
+    if (!provider) return;
+    const trimmed = keyInput.trim();
+    if (!trimmed || trimmed.startsWith('•')) {
+      setActionStatus('✓ Using previously saved key');
+      return;
+    }
     setActionStatus('Saving…');
     let res: { ok: boolean };
-    if (provider === 'groq') res = await setupApi.saveGroqKey(keyInput.trim());
-    else if (provider === 'gemini') res = await setupApi.saveGeminiKey(keyInput.trim());
+    if (provider === 'groq') res = await setupApi.saveGroqKey(trimmed);
+    else if (provider === 'gemini') res = await setupApi.saveGeminiKey(trimmed);
     else res = { ok: false };
     setActionStatus(res.ok ? '✓ Key saved' : '⚠ Failed to save key');
     if (res.ok) setStatus(s => s ? { ...s, groq_key_set: provider === 'groq' || s.groq_key_set, gemini_key_set: provider === 'gemini' || s.gemini_key_set } : s);
@@ -87,8 +95,23 @@ function Step1({ onNext }: { onNext: () => void }) {
   const handleClaudeLogin = async () => {
     setActionStatus('Opening login…');
     const res = await setupApi.claudeLogin();
-    setActionStatus(res.ok ? '✓ Logged in' : '⚠ Failed');
+    setActionStatus(res.ok ? '✓ Browser opened — log in, then test the connection below' : '⚠ Failed');
     if (res.ok) setStatus(s => s ? { ...s, has_claude: true } : s);
+  };
+
+  const handleTest = async () => {
+    if (!provider) return;
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await setupApi.testProvider(provider) as { ok: boolean; model?: string; latency_ms?: number; error?: string };
+      if (res.ok) setTestResult({ ok: true, msg: `✓ Connected${res.model ? ` · ${res.model}` : ''}${res.latency_ms ? ` · ${res.latency_ms}ms` : ''}` });
+      else setTestResult({ ok: false, msg: `✗ ${res.error || 'Connection failed'}` });
+    } catch {
+      setTestResult({ ok: false, msg: '✗ Request failed' });
+    } finally {
+      setTesting(false);
+    }
   };
 
   const handleInstallPdflatex = async () => {
@@ -136,7 +159,15 @@ function Step1({ onNext }: { onNext: () => void }) {
         <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', marginBottom: 'var(--space-3)' }}>The AI generates your tailored resumes and cover letters.</p>
         <div className="provider-grid cols-3">
           {(['groq', 'claude', 'gemini'] as const).map(p => (
-            <div key={p} className={`provider-card${provider === p ? ' selected' : ''}`} onClick={() => { setProvider(p); setActionStatus(''); }}>
+            <div key={p} className={`provider-card${provider === p ? ' selected' : ''}`} onClick={() => {
+              setProvider(p);
+              setActionStatus('');
+              setTestResult(null);
+              setKeyVisible(false);
+              if (p === 'groq') setKeyInput(status?.groq_key || '');
+              else if (p === 'gemini') setKeyInput(status?.gemini_key || '');
+              else setKeyInput('');
+            }}>
               <h3>{p === 'groq' ? 'Groq' : p === 'claude' ? 'Claude' : 'Gemini'}</h3>
               <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
                 {p === 'groq' && 'Free tier, very fast (~5s). API key from console.groq.com — no credit card.'}
@@ -146,20 +177,61 @@ function Step1({ onNext }: { onNext: () => void }) {
             </div>
           ))}
         </div>
+
         {provider && (
-          <div id="provider-action" style={{ marginTop: 12 }}>
-            {provider === 'claude' ? (
-              <button className="btn btn-primary btn-sm" onClick={handleClaudeLogin}>Login with Claude</button>
-            ) : (
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <input type="password" placeholder={provider === 'groq' ? 'gsk_…' : 'AIza…'} value={keyInput} onChange={e => setKeyInput(e.target.value)} style={{ flex: 1 }} />
-                <button className="btn btn-primary btn-sm" onClick={handleSaveKey}>Save key</button>
-                <button className="btn btn-ghost btn-sm" onClick={handleInstallCli}>Install CLI</button>
+          <div id="provider-action" style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+            {/* Claude — login + optional install if CLI missing */}
+            {provider === 'claude' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {status && !status.has_claude && (
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <button className="btn btn-ghost btn-sm" onClick={handleInstallCli}>Install Claude CLI</button>
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-faint)' }}>npm install -g @anthropic-ai/claude-code</span>
+                  </div>
+                )}
+                <button className="btn btn-primary btn-sm" style={{ alignSelf: 'flex-start' }} onClick={handleClaudeLogin}>
+                  Open login in browser
+                </button>
               </div>
             )}
+
+            {/* Groq / Gemini — API key input */}
+            {(provider === 'groq' || provider === 'gemini') && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <input
+                    type={keyVisible ? 'text' : 'password'}
+                    placeholder={provider === 'groq' ? 'gsk_…' : 'AIza…'}
+                    value={keyInput}
+                    onChange={e => setKeyInput(e.target.value)}
+                    style={{ flex: 1 }}
+                  />
+                  <button className="btn btn-ghost btn-sm" type="button" title={keyVisible ? 'Hide key' : 'Show key'} style={{ padding: '5px 8px' }} onClick={() => setKeyVisible(v => !v)}>👁</button>
+                  <button className="btn btn-primary btn-sm" onClick={handleSaveKey}>Save key</button>
+                  {/* Gemini only: show install button if CLI is missing */}
+                  {provider === 'gemini' && status && !status.has_gemini && (
+                    <button className="btn btn-ghost btn-sm" onClick={handleInstallCli}>Install CLI</button>
+                  )}
+                </div>
+                <div className="hint">Your key is saved locally in .env and never shared.</div>
+              </div>
+            )}
+
+            {/* Test connection row — always shown once a provider is selected */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button className="btn btn-ghost btn-sm" onClick={handleTest} disabled={testing}>
+                {testing ? 'Testing…' : 'Test connection'}
+              </button>
+              {testResult && (
+                <span style={{ fontSize: 'var(--text-sm)', color: testResult.ok ? 'var(--green)' : 'var(--red)' }}>
+                  {testResult.msg}
+                </span>
+              )}
+            </div>
+
             {actionStatus && (
-              <div className={`alert ${actionStatus.startsWith('✓') ? 'alert-ok' : actionStatus === 'Opening login…' || actionStatus === 'Installing…' || actionStatus === 'Saving…' ? '' : 'alert-error'}`}
-                style={{ marginTop: 8 }}>
+              <div className={`alert ${actionStatus.startsWith('✓') ? 'alert-ok' : actionStatus.includes('…') ? '' : 'alert-error'}`}>
                 {actionStatus}
               </div>
             )}
@@ -193,6 +265,48 @@ function DynamicList({ items, onChange, placeholder }: { items: string[]; onChan
         ))}
       </div>
       <button className="btn-add-row" type="button" onClick={() => onChange([...items, ''])}>+ Add</button>
+    </div>
+  );
+}
+
+function ExpBlock({ exp, idx, onChange, onRemove }: { exp: ExpEntry; idx: number; onChange: (e: ExpEntry) => void; onRemove: () => void }) {
+  const set = (k: keyof ExpEntry, v: unknown) => onChange({ ...exp, [k]: v });
+  return (
+    <div className="exp-block">
+      <div className="exp-block-header">
+        <span>Role {idx + 1}</span>
+        <button className="btn-icon" type="button" onClick={onRemove}>✕</button>
+      </div>
+      <div className="field-row cols-2">
+        <div className="field"><label>Job Title</label><input placeholder="Product Owner" value={exp.title} onChange={e => set('title', e.target.value)} /></div>
+        <div className="field"><label>Company</label><input placeholder="Acme Corp" value={exp.company} onChange={e => set('company', e.target.value)} /></div>
+      </div>
+      <div className="field-row cols-3">
+        <div className="field"><label>Location</label><input placeholder="Berlin, Germany" value={exp.location} onChange={e => set('location', e.target.value)} /></div>
+        <div className="field"><label>Start Date</label><input placeholder="Jan 2022" value={exp.start} onChange={e => set('start', e.target.value)} /></div>
+        <div className="field"><label>End Date</label><input placeholder="Present" value={exp.end} onChange={e => set('end', e.target.value)} /></div>
+      </div>
+      <div className="sublabel">Key bullets</div>
+      <DynamicList items={exp.bullets} onChange={v => set('bullets', v)} placeholder="Led delivery of X, resulting in Y" />
+    </div>
+  );
+}
+
+function EduBlock({ edu, idx, onChange, onRemove }: { edu: EduEntry; idx: number; onChange: (e: EduEntry) => void; onRemove: () => void }) {
+  return (
+    <div className="exp-block">
+      <div className="exp-block-header">
+        <span>Degree {idx + 1}</span>
+        <button className="btn-icon" type="button" onClick={onRemove}>✕</button>
+      </div>
+      <div className="field-row cols-2">
+        <div className="field"><label>Full Degree Name</label><input placeholder="Master of Science in Computer Science" value={edu.degree} onChange={e => onChange({ ...edu, degree: e.target.value })} /></div>
+        <div className="field"><label>Institution</label><input placeholder="University Name" value={edu.school} onChange={e => onChange({ ...edu, school: e.target.value })} /></div>
+      </div>
+      <div className="field-row cols-2">
+        <div className="field"><label>Year</label><input placeholder="2024" value={edu.year} onChange={e => onChange({ ...edu, year: e.target.value })} /></div>
+        <div className="field"><label>Location</label><input placeholder="City, Country" value={edu.location} onChange={e => onChange({ ...edu, location: e.target.value })} /></div>
+      </div>
     </div>
   );
 }
@@ -278,18 +392,26 @@ function Step2({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
 
       <div className="sublabel" style={{ marginTop: 12 }}>Experience</div>
       {form.experience.map((exp, i) => (
-        <div key={i} className="exp-block">
-          <div className="exp-block-header">
-            <span>Role {i + 1}</span>
-            <button className="btn-icon" type="button" onClick={() => set('experience', form.experience.filter((_, j) => j !== i))}>✕</button>
-          </div>
-          <div className="field-row cols-2">
-            <div className="field"><label>Job Title</label><input placeholder="Product Owner" value={exp.title} onChange={e => { const n = [...form.experience]; n[i] = { ...exp, title: e.target.value }; set('experience', n); }} /></div>
-            <div className="field"><label>Company</label><input placeholder="Acme Corp" value={exp.company} onChange={e => { const n = [...form.experience]; n[i] = { ...exp, company: e.target.value }; set('experience', n); }} /></div>
-          </div>
-        </div>
+        <ExpBlock
+          key={i} exp={exp} idx={i}
+          onChange={v => { const n = [...form.experience]; n[i] = v; set('experience', n); }}
+          onRemove={() => set('experience', form.experience.filter((_, j) => j !== i))}
+        />
       ))}
       <button className="btn-add-row" type="button" onClick={() => set('experience', [...form.experience, EMPTY_EXP()])}>+ Add role</button>
+
+      <div className="sublabel" style={{ marginTop: 12 }}>Education</div>
+      {form.education.map((edu, i) => (
+        <EduBlock
+          key={i} edu={edu} idx={i}
+          onChange={v => { const n = [...form.education]; n[i] = v; set('education', n); }}
+          onRemove={() => set('education', form.education.filter((_, j) => j !== i))}
+        />
+      ))}
+      <button className="btn-add-row" type="button" onClick={() => set('education', [...form.education, EMPTY_EDU()])}>+ Add degree</button>
+
+      <div className="sublabel" style={{ marginTop: 12 }}>Certifications</div>
+      <DynamicList items={form.certifications} onChange={v => set('certifications', v)} placeholder="e.g. PMP, AWS Solutions Architect (2024)" />
 
       <div className="footer-nav" style={{ marginTop: 14 }}>
         <button className="btn btn-ghost" onClick={onBack}>← Back</button>

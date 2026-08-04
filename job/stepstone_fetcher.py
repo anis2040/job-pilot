@@ -4,7 +4,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from .config import SearchConfig
-from .fetcher_utils import infer_remote, strip_tags, jsonld_job_description, clip_description, FULL_DESC_LIMIT
+from .fetcher_utils import infer_remote, clip_description
 from .models import RawJob, RemoteType
 from .utils import parse_experience, location_matches
 
@@ -80,8 +80,10 @@ def fetch_stepstone(search: SearchConfig) -> list[RawJob]:
                 href = "https://www.stepstone.de" + href
             job_url = href or f"https://www.stepstone.de/stellenangebote--{job_id_raw}-inline.html"
 
-            description_el = card.select_one("[data-at='job-item-snippet'], p")
-            description = description_el.get_text(strip=True) if description_el else ""
+            description_el = card.select_one(
+                "[data-at='jobcard-content'], [data-at='job-item-snippet'], p"
+            )
+            description = description_el.get_text(" ", strip=True) if description_el else ""
 
             experience = parse_experience(title + " " + description)
             # A named StepStone location is an On-site signal; remote/hybrid keywords win.
@@ -107,34 +109,6 @@ def fetch_stepstone(search: SearchConfig) -> list[RawJob]:
 
 
 def fetch_description(job_url: str) -> str:
-    """Scrape the full description from a StepStone job detail page.
-
-    Prefers the schema.org JobPosting JSON-LD block (stable), then falls back
-    to CSS selectors against the rendered ad content.
-    """
-    if not job_url:
-        return ""
-    try:
-        resp = httpx.get(job_url, headers=_HEADERS, timeout=15, follow_redirects=True)
-        resp.raise_for_status()
-    except httpx.HTTPError:
-        return ""
-
-    soup = BeautifulSoup(resp.text, "lxml")
-
-    # 1. Structured data — most reliable
-    desc = jsonld_job_description(soup)
-    if desc:
-        return desc
-
-    # 2. CSS fallback
-    el = soup.select_one(
-        "[data-at='job-ad-content'], div.listing-content, "
-        "section[class*='job-ad'], article[class*='job-ad']"
-    )
-    if not el:
-        candidates = soup.select("section, article, div.content")
-        el = max(candidates, key=lambda e: len(e.get_text()), default=None) if candidates else None
-    if not el:
-        return ""
-    return clip_description(el.get_text("\n", strip=True), FULL_DESC_LIMIT)
+    """StepStone detail pages are blocked from scraper IPs (403/timeout).
+    Description is already captured from the listing snippet during fetch_stepstone."""
+    return ""

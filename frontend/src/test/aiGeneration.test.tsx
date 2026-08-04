@@ -31,6 +31,11 @@ function heroTitle(name: string) {
   return screen.getByRole('heading', { level: 1, name })
 }
 
+function setWideViewport() {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: 1400 })
+  window.dispatchEvent(new Event('resize'))
+}
+
 describe('Building a resume', () => {
   it('starts a build and shows the building state', async () => {
     openJob()
@@ -58,6 +63,61 @@ describe('Building a resume', () => {
       () => expect(screen.getByRole('link', { name: /Open CV/i })).toBeInTheDocument(),
       { timeout: 4000 }
     )
+  })
+
+  it('dashboard panel transitions from building to Open CV when the build completes', async () => {
+    setWideViewport()
+    seedJobs(
+      [buildJob({ job_id: 'jd1', title: 'Platform Engineer', status: 'pending' })],
+      [buildJobDetail({ job_id: 'jd1', title: 'Platform Engineer', status: 'pending' })]
+    )
+
+    renderApp('/')
+    await waitFor(() => expect(screen.getByText('Platform Engineer')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByText('Platform Engineer'))
+    await waitFor(() => expect(screen.getByRole('button', { name: /Build CV/i })).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: /Build CV/i }))
+    await waitFor(() => expect(screen.getByText(/Building CV/i)).toBeInTheDocument())
+
+    db.resumeStatus['jd1'] = { status: 'done', stage: '', pdf_url: '/pdf/jd1/resume.pdf', error: null, rate_limit: null }
+    db.jobDetails['jd1'] = { ...db.jobDetails['jd1'], resume_status: 'done', pdf_url: '/pdf/jd1/resume.pdf' }
+
+    await waitFor(
+      () => expect(screen.getByRole('link', { name: /Open CV/i })).toBeInTheDocument(),
+      { timeout: 4000 }
+    )
+  })
+
+  it('dashboard row shows a clickable CV link when the PDF is ready', async () => {
+    setWideViewport()
+    seedJobs([
+      buildJob({ job_id: 'jd1', title: 'Platform Engineer', status: 'pending', resume_status: 'done', pdf_url: '/pdf/jd1/resume.pdf' }),
+    ], [
+      buildJobDetail({ job_id: 'jd1', title: 'Platform Engineer', status: 'pending', resume_status: 'done', pdf_url: '/pdf/jd1/resume.pdf' }),
+    ])
+
+    renderApp('/')
+    const cvLink = await screen.findByRole('link', { name: 'CV' })
+
+    expect(cvLink).toHaveAttribute('href', '/pdf/jd1/resume.pdf')
+  })
+
+  it('dashboard panel title links to the source page', async () => {
+    setWideViewport()
+    seedJobs(
+      [buildJob({ job_id: 'jd1', title: 'Platform Engineer', status: 'pending', url: 'https://jobs.example.com/jd1' })],
+      [buildJobDetail({ job_id: 'jd1', title: 'Platform Engineer', status: 'pending', url: 'https://jobs.example.com/jd1' })]
+    )
+
+    renderApp('/')
+    await waitFor(() => expect(screen.getByText('Platform Engineer')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByText('Platform Engineer'))
+
+    const titleLink = await screen.findByRole('link', { name: 'Platform Engineer' })
+    expect(titleLink).toHaveAttribute('href', 'https://jobs.example.com/jd1')
   })
 })
 

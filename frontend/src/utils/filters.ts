@@ -4,14 +4,15 @@ export interface Filters {
   remote: string[];
   source: string;
   posted: string;
+  cv: string;
   sort: string;
   search: string;
 }
 
-export const DEFAULT_FILTERS: Filters = { remote: [], source: '', posted: '', sort: 'match', search: '' };
+export const DEFAULT_FILTERS: Filters = { remote: [], source: '', posted: '', cv: '', sort: 'match', search: '' };
 
 export function filtersToKey(f: Filters): string {
-  return JSON.stringify({ r: f.remote, s: f.source, p: f.posted, so: f.sort, q: f.search });
+  return JSON.stringify({ r: f.remote, s: f.source, p: f.posted, cv: f.cv, so: f.sort, q: f.search });
 }
 
 export function applyFilters(jobs: Job[], filters: Filters): Job[] {
@@ -36,6 +37,9 @@ export function applyFilters(jobs: Job[], filters: Filters): Job[] {
     const days = parseInt(filters.posted);
     const cutoff = Date.now() - days * 86400000;
     result = result.filter(j => j.posted_at && new Date(j.posted_at).getTime() >= cutoff);
+  }
+  if (filters.cv === 'created') {
+    result = result.filter(j => j.resume_status === 'done' && !!j.pdf_url);
   }
   const sorted = [...result];
   const sortFns: Record<string, (a: Job, b: Job) => number> = {

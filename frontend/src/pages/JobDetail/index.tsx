@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import { jobs as jobsApi, documents } from '../../api/client';
 import { useToast } from '../../components/ui/Toast';
 import { useDocumentStatus } from '../../hooks/useDocumentStatus';
 import { Icon } from '../../components/ui/Icon';
 import { Spinner } from '../../components/ui/Spinner';
 import { AppShell } from '../../components/layout/AppShell';
+import { BackButton } from '../../components/layout/BackButton';
 import { safeUrl, fmtDate } from '../../utils/format';
 import { formatDescription, isLongDescription } from '../../utils/descriptionRenderer';
+import { buildBackState } from '../../utils/backNavigation';
 import type { JobDetail, Job } from '../../api/types';
 
 // ── Job description with show-more ────────────────────────────────────────────
@@ -46,6 +48,8 @@ function DocSlot({ jobId, type, job, onRefresh }: {
   const [building, setBuilding] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const docStatus = useDocumentStatus(jobId, type, building || status === 'building');
+  const location = useLocation();
+  const backState = buildBackState(location);
 
   useEffect(() => {
     if (docStatus.status === 'done' || docStatus.status === 'error') {
@@ -108,7 +112,7 @@ function DocSlot({ jobId, type, job, onRefresh }: {
             {retry && ` · resets in ${retry}`}
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
-            <Link to="/ai-settings" className="btn btn-ghost btn-sm">Switch provider</Link>
+            <Link to="/ai-settings" state={backState} className="btn btn-ghost btn-sm">Switch provider</Link>
             <button className="btn btn-ghost btn-sm" onClick={handleBuild}>Retry</button>
           </div>
         </div>
@@ -197,11 +201,6 @@ function DetailsCard({ job }: { job: JobDetail }) {
           <span className="detail-row-value">{r.value}</span>
         </div>
       ))}
-      {job.url && (
-        <a href={safeUrl(job.url)} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm" style={{ marginTop: 4 }}>
-          View original posting <Icon name="external" size={13} />
-        </a>
-      )}
     </SidebarCard>
   );
 }
@@ -210,10 +209,10 @@ function TimelineCard({ job }: { job: JobDetail }) {
   const statusColors: Record<string, string> = { applied: 'green', skipped: 'red', pending: 'active' };
   const statusLabels: Record<string, string> = { applied: '✓ Applied', skipped: '✗ Skipped', pending: 'Pending review' };
   const items = [
-    job.posted_at     && { dot: '',       label: 'Posted by employer',  date: fmtDate(job.posted_at) },
-    job.first_seen_at && { dot: 'active', label: 'Found by scraper',    date: fmtDate(job.first_seen_at) },
+    job.posted_at     && { dot: '',       label: 'Posted by employer',  date: fmtDate(job.posted_at), icon: 'clock' as const },
+    job.first_seen_at && { dot: 'active', label: 'Found by scraper',    date: fmtDate(job.first_seen_at), icon: 'search' as const },
     job.status !== 'pending' && { dot: statusColors[job.status] || 'active', label: statusLabels[job.status] || job.status, date: '' },
-  ].filter(Boolean) as { dot: string; label: string; date: string }[];
+  ].filter(Boolean) as { dot: string; label: string; date: string; icon?: 'clock' | 'search' }[];
 
   return (
     <SidebarCard title="Timeline">
@@ -222,7 +221,10 @@ function TimelineCard({ job }: { job: JobDetail }) {
           <div key={i} className="timeline-item">
             <div className={`timeline-dot ${item.dot}`} />
             <div>
-              <div className="timeline-label">{item.label}</div>
+              <div className="timeline-label timeline-label-with-icon">
+                {item.icon && <Icon name={item.icon} size={13} />}
+                <span>{item.label}</span>
+              </div>
               {item.date && <div className="timeline-date">{item.date}</div>}
             </div>
           </div>
@@ -320,7 +322,7 @@ export default function JobDetailPage() {
   if (loading) return (
     <AppShell>
       <div className="detail-loading">
-        <Link to="/" className="detail-back"><Icon name="chevronLeft" size={16} /> Back</Link>
+        <BackButton fallbackTo="/" className="detail-back" />
         <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}><Spinner /></div>
       </div>
     </AppShell>
@@ -329,7 +331,7 @@ export default function JobDetailPage() {
   if (!job) return (
     <AppShell>
       <div className="detail-loading">
-        <Link to="/" className="detail-back"><Icon name="chevronLeft" size={16} /> Back</Link>
+        <BackButton fallbackTo="/" className="detail-back" />
         <p style={{ padding: '2rem', color: 'var(--text-muted)' }}>Job not found.</p>
       </div>
     </AppShell>
@@ -340,7 +342,7 @@ export default function JobDetailPage() {
   return (
     <AppShell>
       <div className="detail-header">
-        <Link to="/" className="detail-back"><Icon name="chevronLeft" size={16} /> Back</Link>
+        <BackButton fallbackTo="/" className="detail-back" />
         <span className="detail-header-title">{job.title}</span>
       </div>
 
@@ -348,7 +350,13 @@ export default function JobDetailPage() {
         <main className="detail-main" id="main-content">
           {/* Hero */}
           <div className="job-hero">
-            <h1 className="job-hero-title">{job.title}</h1>
+            <h1 className="job-hero-title">
+              {job.url ? (
+                <a href={safeUrl(job.url)} target="_blank" rel="noreferrer" className="job-hero-title-link">
+                  {job.title}
+                </a>
+              ) : job.title}
+            </h1>
             <div className="job-hero-company">{job.company}</div>
             <div className="job-hero-meta">
               {job.location && <span className="meta-pill"><Icon name="mapPin" size={13} /> {job.location}</span>}
@@ -357,8 +365,8 @@ export default function JobDetailPage() {
                   <Icon name="globe" size={13} /> {job.remote}
                 </span>
               )}
-              {job.source && <span className="meta-pill source-badge">{job.source}</span>}
-              {job.posted && <span className="meta-pill">{job.posted}</span>}
+              {job.source && <span className="meta-pill source-badge"><Icon name="external" size={13} /> {job.source}</span>}
+              {job.posted && <span className="meta-pill"><Icon name="clock" size={13} /> {job.posted}</span>}
             </div>
             <div className="job-hero-actions">
               {job.status === 'pending' ? (
@@ -373,11 +381,6 @@ export default function JobDetailPage() {
                   </span>
                   <button className="btn btn-ghost btn-sm" onClick={() => setStatus('pending')}>↩ Restore to pending</button>
                 </>
-              )}
-              {job.url && (
-                <a href={safeUrl(job.url)} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">
-                  View posting <Icon name="external" size={13} />
-                </a>
               )}
             </div>
           </div>

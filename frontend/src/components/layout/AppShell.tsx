@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useProfile } from '../../hooks/useProfile';
 import { Icon } from '../ui/Icon';
 import { ProfileDropdown } from './ProfileDropdown';
+import { buildBackState } from '../../utils/backNavigation';
 
 interface AppShellProps {
   children: ReactNode;
@@ -14,6 +15,7 @@ interface AppShellProps {
 export function AppShell({ children, showFetchButton, onFetch, fetchRunning }: AppShellProps) {
   const { active } = useProfile();
   const location = useLocation();
+  const backState = buildBackState(location);
 
   return (
     <>
@@ -40,6 +42,7 @@ export function AppShell({ children, showFetchButton, onFetch, fetchRunning }: A
 
           <Link
             to="/ai-settings"
+            state={backState}
             className={`header-icon-btn${location.pathname === '/ai-settings' ? ' active' : ''}`}
             title="AI Models"
             aria-label="AI Models"
@@ -50,6 +53,7 @@ export function AppShell({ children, showFetchButton, onFetch, fetchRunning }: A
           {active && (
             <Link
               to={`/profile-settings/${active.slug}`}
+              state={backState}
               className={`header-icon-btn${location.pathname.startsWith('/profile-settings') ? ' active' : ''}`}
               title="Settings"
               aria-label="Settings"

@@ -1,18 +1,21 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useProfile } from '../../hooks/useProfile';
 import { profiles as profilesApi } from '../../api/client';
 import { useToast } from '../../components/ui/Toast';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { PromptDialog } from '../../components/ui/PromptDialog';
 import { Topbar } from '../../components/layout/Topbar';
+import { buildBackState } from '../../utils/backNavigation';
 
 export default function ManageProfilesPage() {
   const { profiles, switchProfile, refetch } = useProfile();
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<{ slug: string; label: string } | null>(null);
+  const backState = buildBackState(location);
 
   const handleSwitch = async (slug: string) => {
     await switchProfile(slug);
@@ -64,7 +67,7 @@ export default function ManageProfilesPage() {
       <main className="manage-profiles-page" id="main-content">
         <div className="profiles-list">
           {profiles.map(p => (
-            <div key={p.slug} className="profile-row" onClick={() => navigate(`/profile-settings/${p.slug}`)}
+            <div key={p.slug} className="profile-row" onClick={() => navigate(`/profile-settings/${p.slug}`, { state: backState })}
               style={{ cursor: 'pointer' }}>
               <span className="avatar" style={{ background: p.color }}>{p.initials}</span>
               <div style={{ flex: 1, minWidth: 0 }}>

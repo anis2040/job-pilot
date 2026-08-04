@@ -1,10 +1,11 @@
 import { useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useProfile } from '../../hooks/useProfile';
 import { profiles as profilesApi } from '../../api/client';
 import { useClickOutside } from '../../hooks/useFocusTrap';
 import { markProfileNeedsFetch } from '../../hooks/profileFetchSignal';
 import { Icon } from '../ui/Icon';
+import { buildBackState } from '../../utils/backNavigation';
 
 export function ProfileDropdown() {
   const { active, profiles, switchProfile, refetch } = useProfile();
@@ -12,6 +13,8 @@ export function ProfileDropdown() {
   const ref = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const location = useLocation();
+  const backState = buildBackState(location);
 
   useClickOutside(ref, () => setOpen(false), open);
 
@@ -84,7 +87,7 @@ export function ProfileDropdown() {
             <Icon name="plus" size={14} />
             <span>Add new profile</span>
           </button>
-          <Link role="menuitem" to="/manage-profiles" className="profile-menu-item" onClick={() => setOpen(false)}>
+          <Link role="menuitem" to="/manage-profiles" state={backState} className="profile-menu-item" onClick={() => setOpen(false)}>
             <Icon name="user" size={14} />
             <span>Manage profiles</span>
           </Link>

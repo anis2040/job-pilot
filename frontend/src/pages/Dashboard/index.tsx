@@ -8,7 +8,8 @@ import { useToast } from '../../components/ui/Toast';
 import { AppShell } from '../../components/layout/AppShell';
 import { Icon } from '../../components/ui/Icon';
 import { TagInput } from '../../components/ui/TagInput';
-import { SearchRow, groupSearchEntries, expandSearchRows } from '../../components/ui/SearchRow';
+import { useDocumentStatus } from '../../hooks/useDocumentStatus';
+import { SearchRow, groupSearchEntries, expandSearchRows, type SearchRowEntry } from '../../components/ui/SearchRow';
 import { formatDescription, isLongDescription } from '../../utils/descriptionRenderer';
 import { safeUrl } from '../../utils/format';
 import { applyFilters, filtersToKey, DEFAULT_FILTERS } from '../../utils/filters';
@@ -19,6 +20,15 @@ const PAGE_SIZE = 25;
 const SPLIT_MIN = 1200;
 const LS_SAVED = 'jobpilot_saved_searches';
 const LS_RECENT = 'jobpilot_recent_searches';
+type PanelState = 'closed' | 'opening' | 'open';
+
+function normalizeFilters(value?: Partial<Filters> | null): Filters {
+  return {
+    ...DEFAULT_FILTERS,
+    ...value,
+    remote: Array.isArray(value?.remote) ? value.remote : DEFAULT_FILTERS.remote,
+  };
+}
 
 // ── useWindowWidth ────────────────────────────────────────────────────────────
 
@@ -89,7 +99,18 @@ function JobRow({ job, selected, onClick, onStatusChange }: {
           <button className="btn-row-action restore" title="Restore to pending" onClick={() => onStatusChange(job.job_id, 'pending')}>↩</button>
         )}
         {job.resume_status === 'building' && <span className="spinner spinner-xs spinner-resume" />}
-        {job.resume_status === 'done' && <span title="CV ready" style={{ color: 'var(--green)', fontSize: '0.75rem' }}>CV</span>}
+        {job.resume_status === 'done' && job.pdf_url && (
+          <a
+            href={safeUrl(job.pdf_url)}
+            target="_blank"
+            rel="noreferrer"
+            title="Open CV"
+            style={{ color: 'var(--green)', fontSize: '0.75rem', textDecoration: 'none' }}
+            onClick={e => e.stopPropagation()}
+          >
+            CV
+          </a>
+        )}
         {job.cl_status === 'building' && <span className="spinner spinner-xs spinner-cl" />}
         {job.cl_status === 'done' && <span title="Cover letter ready" style={{ color: 'var(--blue-light)', fontSize: '0.75rem' }}>CL</span>}
       </div>
@@ -122,18 +143,20 @@ function Pagination({ page, total, pageSize, onChange }: { page: number; total: 
 
 // ── Detail panel (split view) ─────────────────────────────────────────────────
 
-function DetailPanel({ jobId, initialJob, onClose }: { jobId: string; initialJob: Job; onClose: () => void }) {
+function DetailPanel({ jobId, initialJob, onClose, onJobUpdated }: { jobId: string; initialJob: Job; onClose: () => void; onJobUpdated: (job: JobDetail) => void }) {
   const [job, setJob] = useState<JobDetail>({ ...initialJob, description: '', employment_type: '', salary_range: '', status_updated_at: '' });
   const [descExpanded, setDescExpanded] = useState(false);
   const [buildingResume, setBuildingResume] = useState(false);
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const resumeDoc = useDocumentStatus(jobId, 'resume', buildingResume || job.resume_status === 'building');
 
   useEffect(() => {
     if (!jobId) return;
     setDescExpanded(false);
     jobsApi.get(jobId).then(async (data) => {
       setJob(data);
+      onJobUpdated(data);
       if (!data.description) {
         try {
           const desc = await jobsApi.description(jobId);
@@ -148,6 +171,7 @@ function DetailPanel({ jobId, initialJob, onClose }: { jobId: string; initialJob
       await jobsApi.setStatus(jobId, status);
       const updated = await jobsApi.get(jobId);
       setJob(updated);
+      onJobUpdated(updated);
     } catch {
       showToast('Could not update job status — please try again', 'err');
     }
@@ -156,17 +180,42 @@ function DetailPanel({ jobId, initialJob, onClose }: { jobId: string; initialJob
   const handleBuildResume = async () => {
     if (buildingResume) return;              // guard against duplicate submission
     setBuildingResume(true);
+    setJob(current => ({ ...current, resume_status: 'building', resume_error: null }));
     try {
       await documents.buildResume(jobId);
       showToast('Building CV…');
-      const updated = await jobsApi.get(jobId);
-      setJob(updated);
     } catch {
+      setJob(current => ({ ...current, resume_status: 'idle' }));
       showToast('Failed to start CV build', 'err');
-    } finally {
       setBuildingResume(false);
     }
   };
+
+  useEffect(() => {
+    if (!resumeDoc.status || resumeDoc.status === 'idle') return;
+
+    if (resumeDoc.status === 'building') {
+      setJob(current => ({ ...current, resume_status: 'building' }));
+      return;
+    }
+
+    if (resumeDoc.status === 'done' || resumeDoc.status === 'error') {
+      setBuildingResume(false);
+      jobsApi.get(jobId)
+        .then(updated => {
+          setJob(updated);
+          onJobUpdated(updated);
+        })
+        .catch(() => {
+          setJob(current => ({
+            ...current,
+            resume_status: resumeDoc.status,
+            pdf_url: resumeDoc.pdfUrl ?? current.pdf_url,
+            resume_error: resumeDoc.error ?? current.resume_error,
+          }));
+        });
+    }
+  }, [jobId, onJobUpdated, resumeDoc.error, resumeDoc.pdfUrl, resumeDoc.status]);
 
   if (!job) return <div className="detail-panel-loading"><span className="spinner" /></div>;
 
@@ -184,7 +233,13 @@ function DetailPanel({ jobId, initialJob, onClose }: { jobId: string; initialJob
         </button>
       </div>
       <div className="panel-hero">
-        <h2 className="panel-title">{job.title}</h2>
+        <h2 className="panel-title">
+          {job.url ? (
+            <a href={safeUrl(job.url)} target="_blank" rel="noreferrer" className="panel-title-link">
+              {job.title}
+            </a>
+          ) : job.title}
+        </h2>
         <div className="panel-company">{job.company}</div>
         <div className="panel-meta">
           {job.location && <span>{job.location}</span>}
@@ -218,6 +273,9 @@ function DetailPanel({ jobId, initialJob, onClose }: { jobId: string; initialJob
         {(job.resume_status === 'building' || buildingResume) && <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}><span className="spinner spinner-xs spinner-resume" /> Building CV…</span>}
         {job.resume_status === 'done' && job.pdf_url && (
           <a href={safeUrl(job.pdf_url)} target="_blank" rel="noreferrer" className="btn btn-success btn-sm">📄 Open CV</a>
+        )}
+        {job.resume_status === 'error' && (
+          <span style={{ fontSize: 'var(--text-sm)', color: 'var(--red)' }}>{job.resume_error || 'CV build failed'}</span>
         )}
       </div>
       {job.match && (
@@ -257,7 +315,7 @@ function DetailPanel({ jobId, initialJob, onClose }: { jobId: string; initialJob
 function SettingsModal({ open, onClose, onSaved, allSources }: { open: boolean; onClose: () => void; onSaved: () => void; allSources: string[] }) {
   const { showToast } = useToast();
   const [cfg, setCfg] = useState<SearchConfig>({ searches: [], title_filter: [], blacklist: [], company_blacklist: [] });
-  const [rows, setRows] = useState<{ query: string; location: string; remote: boolean; sources: string[] }[]>([]);
+  const [rows, setRows] = useState<SearchRowEntry[]>([]);
   const [saving, setSaving] = useState(false);
   const backdropRef = useRef<HTMLDivElement>(null);
   const originalCfgRef = useRef<SearchConfig | null>(null);
@@ -325,7 +383,7 @@ function SettingsModal({ open, onClose, onSaved, allSources }: { open: boolean; 
                 onRemove={() => setRows(rows.filter((_, j) => j !== i))}
               />
             ))}
-            <button className="btn-add" onClick={() => setRows([...rows, { query: '', location: 'United States', remote: true, sources: allSources }])}>+ Add search</button>
+            <button className="btn-add" onClick={() => setRows([...rows, { query: '', locations: ['United States'], remote: true, sources: [...allSources] }])}>+ Add search</button>
           </div>
           <div className="settings-section">
             <h3>Title Filter <small>(keep jobs matching at least one)</small></h3>
@@ -362,15 +420,18 @@ export default function DashboardPage() {
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [page, setPage] = useState(1);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [renderedPanelJobId, setRenderedPanelJobId] = useState<string | null>(null);
+  const [renderedPanelJob, setRenderedPanelJob] = useState<Job | null>(null);
+  const [panelState, setPanelState] = useState<PanelState>('closed');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [fetchRunning, setFetchRunning] = useState(false);
   const [fetchMessage, setFetchMessage] = useState('');
   const [appConstants, setAppConstants] = useState<AppConstants | null>(null);
   const [savedSearches, setSavedSearches] = useState<Filters[]>(() => {
-    try { return JSON.parse(localStorage.getItem(LS_SAVED) || '[]'); } catch { return []; }
+    try { return JSON.parse(localStorage.getItem(LS_SAVED) || '[]').map((item: Partial<Filters>) => normalizeFilters(item)); } catch { return []; }
   });
   const [recentSearches, setRecentSearches] = useState<Filters[]>(() => {
-    try { return JSON.parse(localStorage.getItem(LS_RECENT) || '[]'); } catch { return []; }
+    try { return JSON.parse(localStorage.getItem(LS_RECENT) || '[]').map((item: Partial<Filters>) => normalizeFilters(item)); } catch { return []; }
   });
   const { showToast } = useToast();
   const { active: activeProfile } = useProfile();
@@ -419,7 +480,11 @@ export default function DashboardPage() {
 
   const filteredJobs = useMemo(() => applyFilters(allJobs, filters), [allJobs, filters]);
   const pagedJobs = filteredJobs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const hasFilters = filters.remote.length > 0 || filters.source || filters.posted || filters.search;
+  const hasFilters = filters.remote.length > 0 || filters.source || filters.posted || filters.cv || filters.search;
+  const selectedJob = useMemo(
+    () => (selectedJobId ? allJobs.find(job => job.job_id === selectedJobId) ?? null : null),
+    [allJobs, selectedJobId]
+  );
 
   // Source options come from the labels actually present on loaded jobs, so the
   // option value matches each job's `source` exactly (the /api/sources list uses
@@ -429,7 +494,47 @@ export default function DashboardPage() {
     [allJobs]
   );
 
-  const closePanel = useCallback(() => setSelectedJobId(null), []);
+  const closePanel = useCallback(() => {
+    setSelectedJobId(null);
+    setRenderedPanelJobId(null);
+    setRenderedPanelJob(null);
+    setPanelState('closed');
+  }, []);
+
+  useEffect(() => {
+    if (!isWide) {
+      setRenderedPanelJobId(null);
+      setRenderedPanelJob(null);
+      setPanelState('closed');
+      return;
+    }
+
+    if (selectedJobId && selectedJob) {
+      setRenderedPanelJobId(selectedJobId);
+      setRenderedPanelJob(selectedJob);
+      setPanelState(current => {
+        if (renderedPanelJobId === selectedJobId) return current;
+        return 'opening';
+      });
+      return;
+    }
+
+    if (!selectedJobId && renderedPanelJobId) {
+      setRenderedPanelJobId(null);
+      setRenderedPanelJob(null);
+      setPanelState('closed');
+    }
+  }, [isWide, renderedPanelJobId, selectedJob, selectedJobId]);
+
+  const handlePanelAnimationEnd = useCallback((event: React.AnimationEvent<HTMLElement>) => {
+    if (event.target !== event.currentTarget) return;
+
+    if (panelState === 'opening') {
+      setPanelState('open');
+      return;
+    }
+
+  }, [panelState]);
 
   const handleStatusChange = async (jobId: string, status: string) => {
     // Optimistic update: drop the row and adjust counts immediately so the UI
@@ -444,7 +549,7 @@ export default function DashboardPage() {
       if (status in next) next[status as keyof typeof next] += 1;
       return next;
     });
-    if (selectedJobId === jobId) setSelectedJobId(null);
+    if (selectedJobId === jobId) closePanel();
 
     try {
       await jobsApi.setStatus(jobId, status);
@@ -455,6 +560,21 @@ export default function DashboardPage() {
       showToast('Could not update job status — please try again', 'err');
     }
   };
+
+  const handleJobUpdated = useCallback((updated: Job | JobDetail) => {
+    setAllJobs(current => current.map(job => job.job_id === updated.job_id ? {
+      ...job,
+      status: updated.status,
+      resume_status: updated.resume_status,
+      resume_stage: updated.resume_stage,
+      pdf_url: updated.pdf_url,
+      resume_error: updated.resume_error,
+      cl_status: updated.cl_status,
+      cl_stage: updated.cl_stage,
+      cl_pdf_url: updated.cl_pdf_url,
+      cl_error: updated.cl_error,
+    } : job));
+  }, []);
 
   const handleFetch = async () => {
     setFetchRunning(true);
@@ -534,14 +654,19 @@ export default function DashboardPage() {
   };
 
   const captureRecent = (f: Filters) => {
-    if (!f.search && !f.source && !f.posted && !f.remote.length) return;
+    if (!f.search && !f.source && !f.posted && !f.cv && !f.remote.length) return;
     const key = filtersToKey(f);
     const next = [f, ...recentSearches.filter(s => filtersToKey(s) !== key)].slice(0, 5);
     setRecentSearches(next);
     localStorage.setItem(LS_RECENT, JSON.stringify(next));
   };
 
-  const applyChip = (f: Filters) => { setFilters(f); setPage(1); captureRecent(f); };
+  const applyChip = (f: Filters) => {
+    const next = normalizeFilters(f);
+    setFilters(next);
+    setPage(1);
+    captureRecent(next);
+  };
 
   const removeSaved = (f: Filters) => {
     const next = savedSearches.filter(s => filtersToKey(s) !== filtersToKey(f));
@@ -551,7 +676,7 @@ export default function DashboardPage() {
 
   const isSaved = hasFilters && savedSearches.some(s => filtersToKey(s) === filtersToKey(filters));
 
-  const searchLabel = (f: Filters) => [f.search, f.source, f.remote.join('+'), f.posted ? `${f.posted}d` : ''].filter(Boolean).join(' · ') || 'Search';
+  const searchLabel = (f: Filters) => [f.search, f.source, f.remote.join('+'), f.posted ? `${f.posted}d` : '', f.cv === 'created' ? 'CV ready' : ''].filter(Boolean).join(' · ') || 'Search';
 
   const showChips = savedSearches.length > 0 || recentSearches.length > 0;
 
@@ -645,6 +770,15 @@ export default function DashboardPage() {
             <option value="1">Past 24 hours</option>
             <option value="7">Past week</option>
             <option value="30">Past month</option>
+          </select>
+        </div>
+        <div className="filter-divider" />
+        <div className="filter-group">
+          <span className="filter-label">CV</span>
+          <select className="filter-select" value={filters.cv} aria-label="Filter by CV status"
+            onChange={e => { setFilter('cv', e.target.value); captureRecent({ ...filters, cv: e.target.value }); }}>
+            <option value="">All jobs</option>
+            <option value="created">CV created</option>
           </select>
         </div>
         <div className="filter-divider" />
@@ -757,14 +891,16 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {selectedJobId && isWide && (() => {
-          const selectedJob = allJobs.find(j => j.job_id === selectedJobId);
-          return selectedJob ? (
-            <aside key={selectedJobId} className="detail-panel" aria-live="polite">
-              <DetailPanel jobId={selectedJobId} initialJob={selectedJob} onClose={closePanel} />
-            </aside>
-          ) : null;
-        })()}
+        {isWide && renderedPanelJobId && renderedPanelJob && (
+          <aside
+            key={renderedPanelJobId}
+            className={`detail-panel detail-panel-${panelState}`}
+            aria-live="polite"
+            onAnimationEnd={handlePanelAnimationEnd}
+          >
+          <DetailPanel jobId={renderedPanelJobId} initialJob={renderedPanelJob} onClose={closePanel} onJobUpdated={handleJobUpdated} />
+        </aside>
+      )}
       </div>
 
       {createPortal(

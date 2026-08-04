@@ -654,3 +654,43 @@ def call_ai(prompt: str, system: str = "") -> str:
         user_prompt=prompt,
         cwd=str(_skill_path()),
     )
+
+
+def call_ai_fast(prompt: str, system: str = "") -> str:
+    """Like call_ai but only uses API-based providers (Groq, Anthropic SDK, Gemini SDK).
+    Skips CLI subprocesses (claude, gemini CLI) which have 30-60s cold-start overhead.
+    Falls back to call_ai if no API provider is configured."""
+    sys_text = system or "Return only the requested output as valid JSON. No explanation."
+
+    preferred = os.environ.get("PREFERRED_PROVIDER", "").strip().lower()
+
+    def _try_groq():
+        if _get_groq_client() is not None:
+            return _build_with_groq(sys_text, prompt)
+        return None
+
+    def _try_anthropic():
+        if _get_anthropic_client() is not None:
+            return _build_with_sdk(sys_text, prompt)
+        return None
+
+    def _try_gemini_sdk():
+        if _get_gemini_client() is not None:
+            return _build_with_gemini_sdk(sys_text, prompt)
+        return None
+
+    _order = {
+        "groq":      [_try_groq, _try_anthropic, _try_gemini_sdk],
+        "anthropic": [_try_anthropic, _try_groq, _try_gemini_sdk],
+        "gemini":    [_try_gemini_sdk, _try_groq, _try_anthropic],
+        "claude":    [_try_anthropic, _try_groq, _try_gemini_sdk],
+    }
+    fns = _order.get(preferred, [_try_groq, _try_anthropic, _try_gemini_sdk])
+
+    for fn in fns:
+        result = fn()
+        if result is not None:
+            return result
+
+    # No API provider available — fall back to full call_ai (may use CLI)
+    return call_ai(prompt, system)

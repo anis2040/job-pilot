@@ -399,6 +399,8 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
+  }
+  .detail-panel.detail-panel-opening {
     animation: panelSlideIn var(--dur-slow) var(--ease-out) both;
   }
 }
@@ -727,6 +729,14 @@
   line-height: var(--leading-tight);
   margin-bottom: 4px;
 }
+.panel-title-link {
+  color: inherit;
+  text-decoration: none;
+  transition: color var(--dur-fast) var(--ease-standard);
+}
+.panel-title-link:hover {
+  color: var(--blue-light);
+}
 .panel-company {
   font-size: var(--text-md);
   color: var(--text-soft);
@@ -787,6 +797,11 @@
   z-index: calc(var(--z-sticky) - 1);
 }
 .detail-back {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -847,6 +862,14 @@
   color: var(--text-white);
   line-height: var(--leading-tight);
   margin-bottom: var(--space-2);
+}
+.job-hero-title-link {
+  color: inherit;
+  text-decoration: none;
+  transition: color var(--dur-fast) var(--ease-standard);
+}
+.job-hero-title-link:hover {
+  color: var(--blue-light);
 }
 .job-hero-company {
   font-size: var(--text-xl);
@@ -2244,6 +2267,11 @@ select option {
   font-size: var(--text-sm);
   color: var(--text-soft);
   line-height: 1.4;
+}
+.timeline-label-with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 .timeline-date {
   font-size: var(--text-xs);

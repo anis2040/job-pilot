@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { aiSettings as aiSettingsApi, setup } from '../../api/client';
 import { useToast } from '../../components/ui/Toast';
 import { Icon } from '../../components/ui/Icon';
+import { BackButton } from '../../components/layout/BackButton';
 import { fmtK } from '../../utils/format';
 import type { AiSettings, ProviderInfo } from '../../api/types';
 
@@ -43,7 +43,7 @@ function ProviderCard({
 }: {
   pid: string; info: ProviderInfo; isPreferred: boolean;
   onSelect: (pid: string) => void;
-  onSaveKey: (pid: string, key: string) => void;
+  onSaveKey: (pid: string, key: string) => Promise<boolean>;
   onSaveModel: (pid: string, model: string) => void;
   onTest: (pid: string) => void;
 }) {
@@ -53,6 +53,55 @@ function ProviderCard({
   const [showKey, setShowKey] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [testing, setTesting] = useState(false);
+  const [savingKey, setSavingKey] = useState(false);
+  const [keyAlert, setKeyAlert] = useState<{ kind: 'ok' | 'err' | 'neutral'; text: string } | null>(null);
+  const [keyAlertFading, setKeyAlertFading] = useState(false);
+
+  useEffect(() => {
+    setKeyVal(info.key || (info.key_set ? '••••••••••••••••' : ''));
+  }, [info.key, info.key_set]);
+
+  useEffect(() => {
+    setKeyAlert(null);
+    setKeyAlertFading(false);
+  }, [pid]);
+
+  useEffect(() => {
+    if (!keyAlert || keyAlert.kind === 'neutral') {
+      setKeyAlertFading(false);
+      return;
+    }
+    setKeyAlertFading(false);
+    const fadeTimer = window.setTimeout(() => setKeyAlertFading(true), 2200);
+    const clearTimer = window.setTimeout(() => {
+      setKeyAlert(null);
+      setKeyAlertFading(false);
+    }, 2600);
+    return () => {
+      window.clearTimeout(fadeTimer);
+      window.clearTimeout(clearTimer);
+    };
+  }, [keyAlert]);
+
+  useEffect(() => {
+    if (isPreferred) setExpanded(true);
+  }, [isPreferred]);
+
+  const persistKey = async (raw: string) => {
+    const next = raw.trim();
+    if (!next || next === '••••••••••••••••' || savingKey) return;
+    if (next === info.key) return;
+    setSavingKey(true);
+    setKeyAlert({ kind: 'neutral', text: 'Saving key…' });
+    try {
+      const ok = await onSaveKey(pid, next);
+      setKeyAlert(ok
+        ? { kind: 'ok', text: 'Key saved' }
+        : { kind: 'err', text: 'Failed to save key' });
+    } finally {
+      setSavingKey(false);
+    }
+  };
 
   const handleTest = async () => {
     setTesting(true);
@@ -92,15 +141,46 @@ function ProviderCard({
                     value={keyVal}
                     placeholder={meta.placeholder}
                     autoComplete="off"
-                    onChange={e => setKeyVal(e.target.value)}
+                    onChange={e => {
+                      setKeyVal(e.target.value);
+                      if (keyAlert && keyAlert.kind !== 'neutral') {
+                        setKeyAlert(null);
+                        setKeyAlertFading(false);
+                      }
+                    }}
+                    onPaste={e => {
+                      const pasted = e.clipboardData.getData('text');
+                      setKeyVal(pasted);
+                      queueMicrotask(() => { void persistKey(pasted); });
+                    }}
+                    onBlur={() => { void persistKey(keyVal); }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        void persistKey(keyVal);
+                      }
+                    }}
                     onClick={e => e.stopPropagation()}
                   />
                   <button className="btn btn-ghost btn-sm" type="button" onClick={e => { e.stopPropagation(); setShowKey(s => !s); }}>
                     {showKey ? '🙈' : '👁'}
                   </button>
-                  <button className="btn btn-primary btn-sm" onClick={e => { e.stopPropagation(); onSaveKey(pid, keyVal); }}>
-                    Save
-                  </button>
+                </div>
+                <div className="sub text-xs" style={{ marginTop: 6 }}>
+                  Paste to save instantly, or type and click away.
+                </div>
+                <div
+                  className={`alert-slot${keyAlert ? ' is-visible' : ''}${keyAlertFading ? ' is-fading' : ''}`}
+                  aria-live="polite"
+                >
+                  {keyAlert && (
+                    <div
+                      className={`alert${keyAlert.kind === 'ok' ? ' alert-ok' : keyAlert.kind === 'err' ? ' alert-error' : ''}${keyAlertFading ? ' is-fading' : ''}`}
+                      role="status"
+                    >
+                      {keyAlert.text}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="model-row">
@@ -155,14 +235,17 @@ export default function AiSettingsPage() {
 
   const handleSaveKey = async (pid: string, key: string) => {
     const saveFn = KEY_SAVE[pid];
-    if (!saveFn) return;
+    if (!saveFn) return false;
     try {
       const res = await saveFn(key);
       if (res.ok) {
-        showToast('Key saved');
         setData(await aiSettingsApi.get());
-      } else showToast('Failed to save key', 'err');
-    } catch { showToast('Failed to save key', 'err'); }
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
   };
 
   const handleSaveModel = async (pid: string, model: string) => {
@@ -194,7 +277,7 @@ export default function AiSettingsPage() {
   return (
     <>
       <header style={{ padding: 'var(--space-4) var(--space-8)', borderBottom: '1px solid var(--border-faint)', display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
-        <Link to="/" style={{ color: 'var(--blue-light)', textDecoration: 'none', fontSize: 'var(--text-base)' }}>← Back</Link>
+        <BackButton fallbackTo="/" fallbackLabel="Home" className="topbar-back" style={{ color: 'var(--blue-light)' }} />
         <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 700, color: 'var(--text-white)' }}>⚡ AI Settings</h1>
       </header>
 

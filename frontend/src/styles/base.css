@@ -84,7 +84,7 @@
   /* Motion — durations */
   --dur-fast: 120ms; /* hover/press micro-feedback (color, bg, opacity) */
   --dur-base: 200ms; /* standard transitions (most UI state changes) */
-  --dur-slow: 1320ms; /* larger moves: panels, modals, layout shifts */
+  --dur-slow: 1000ms; /* larger moves: panels, modals, layout shifts */
   --dur-spin: 650ms; /* spinner rotation period */
   --dur-shimmer: 1400ms; /* skeleton shimmer loop period */
 
@@ -276,8 +276,24 @@ body {
 .modal {
   animation: modalIn var(--dur-slow) var(--ease-out) both;
 }
-@keyframes backdropIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes modalIn { from { opacity: 0; transform: translateY(12px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes backdropIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
 .modal-backdrop.open .modal {
   transform: none;
   opacity: 1;
@@ -651,12 +667,49 @@ a.btn {
 }
 
 /* ── Alert ────────────────────────────────────────────────────────────────── */
+@keyframes alert-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .alert {
   padding: 11px 16px;
   border-radius: var(--radius);
   font-size: var(--text-base);
   margin-top: 10px;
   line-height: var(--leading-normal);
+  opacity: 1;
+  transform: translateY(0);
+  transform-origin: top center;
+  animation: alert-in 220ms var(--ease-out);
+  transition:
+    opacity 320ms var(--ease-in-out),
+    transform 320ms var(--ease-in-out);
+}
+.alert.is-fading {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.985);
+}
+.alert-slot {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition:
+    max-height 320ms var(--ease-in-out),
+    opacity 220ms var(--ease-in-out);
+}
+.alert-slot.is-visible {
+  max-height: 96px;
+  opacity: 1;
+}
+.alert-slot > .alert {
+  margin-bottom: 0;
 }
 .alert-error {
   background: var(--red-bg);
@@ -667,6 +720,16 @@ a.btn {
   background: var(--green-bg);
   color: var(--green);
   border: 1px solid var(--green-border);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alert {
+    animation: none;
+    transition: none;
+  }
+  .alert-slot {
+    transition: none;
+  }
 }
 
 /* ── Utility ──────────────────────────────────────────────────────────────── */
@@ -807,32 +870,28 @@ a.btn {
   gap: 6px;
   flex-wrap: wrap;
   align-items: center;
-  margin-top: 4px;
+  margin-top: 8px;
 }
 
-.source-cb {
+.source-chip {
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
   font-size: var(--text-xs);
   color: var(--text-soft);
   cursor: pointer;
-  padding: 3px 9px;
+  background: var(--bg-sunken);
+  padding: 7px 12px;
   border-radius: var(--radius-full);
   border: 1px solid var(--border);
   transition: all var(--dur-fast) var(--ease-standard);
   user-select: none;
 }
-.source-cb:hover {
+.source-chip:hover {
   border-color: var(--blue);
   color: var(--text);
 }
-.source-cb input[type="checkbox"] {
-  accent-color: var(--blue);
-  width: 12px;
-  height: 12px;
-}
-.source-cb.checked {
+.source-chip.checked {
   background: var(--bg-hover);
   border-color: var(--blue);
   color: var(--blue-light);
@@ -844,25 +903,129 @@ a.btn {
   background: none;
   border: none;
   cursor: pointer;
-  padding: 3px 6px;
-  margin-left: 4px;
+  padding: 0;
 }
 .source-all-btn:hover {
   text-decoration: underline;
 }
 
-.toggle-remote {
+.search-row-grid {
+  display: flex;
+  gap: var(--space-3);
+  align-items: stretch;
+  margin-top: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.search-row-panel {
+  flex: 1 1 260px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px;
+}
+
+.search-row-panel-compact {
+  flex: 1 1 220px;
+}
+
+.search-row-panel-sources {
+  margin-top: var(--space-3);
+}
+
+.search-row-fields-top {
+  align-items: center;
+}
+
+.search-row-label {
+  display: block;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.search-sources-head {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 4px;
-  font-size: var(--text-sm);
-  cursor: pointer;
+  justify-content: space-between;
+  gap: var(--space-2);
 }
-.toggle-remote input[type="checkbox"] {
-  accent-color: var(--blue);
-  width: 14px;
-  height: 14px;
+
+.search-location-add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.search-location-add input {
+  flex: 1;
+}
+
+.search-location-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.search-chip.location-chip {
+  gap: 8px;
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.search-row-hint {
+  font-size: var(--text-sm);
+  color: var(--text-faint);
+}
+
+.remote-choice-group {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.remote-choice {
+  flex: 1 1 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-page);
+  color: var(--text-soft);
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-standard), background var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
+}
+
+.remote-choice:hover {
+  border-color: var(--blue);
+  color: var(--text);
+}
+
+.remote-choice strong {
+  font-size: var(--text-sm);
+}
+
+.remote-choice span {
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+}
+
+.remote-choice.active {
+  border-color: var(--blue);
+  background: var(--blue-dim);
+  color: var(--blue-light);
+}
+
+.remote-choice.active span {
+  color: var(--text-soft);
 }
 
 /* ── Form fields ──────────────────────────────────────────────────────────── */
@@ -1029,6 +1192,11 @@ a.btn {
   background: var(--bg-surface);
 }
 .topbar-back {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
   color: var(--text-muted);
   text-decoration: none;
   font-size: var(--text-base);

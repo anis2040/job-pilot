@@ -6,7 +6,7 @@ import { useToast } from '../../components/ui/Toast';
 import { Topbar } from '../../components/layout/Topbar';
 import { TagInput } from '../../components/ui/TagInput';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
-import { SearchRow, groupSearchEntries, expandSearchRows } from '../../components/ui/SearchRow';
+import { SearchRow, groupSearchEntries, expandSearchRows, type SearchRowEntry } from '../../components/ui/SearchRow';
 import type { SearchConfig } from '../../api/types';
 import { buildProfileMd, parseProfileMd, DEFAULT_FORM, EMPTY_EXP, EMPTY_EDU } from '../../utils/profileForm';
 import type { ProfileFormData, ExpEntry, EduEntry } from '../../utils/profileForm';
@@ -146,12 +146,18 @@ function ProfileFormSection({ slug }: { slug: string }) {
   const { showToast } = useToast();
   const [form, setForm] = useState<ProfileFormData>(DEFAULT_FORM());
   const [autofillStatus, setAutofillStatus] = useState('');
+  const [loadedProfile, setLoadedProfile] = useState(false);
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     profilesApi.getMarkdown(slug).then(({ content }) => {
-      if (content) setForm(parseProfileMd(content));
+      if (content) {
+        setForm(parseProfileMd(content));
+        setLoadedProfile(true);
+      } else {
+        setLoadedProfile(false);
+      }
     });
   }, [slug]);
 
@@ -197,6 +203,7 @@ function ProfileFormSection({ slug }: { slug: string }) {
           📎 Autofill from resume
           <input ref={fileRef} type="file" accept=".pdf,.docx,.txt" style={{ display: 'none' }} onChange={handleAutofill} />
         </label>
+        {loadedProfile && <span className="status-ok" style={{ fontSize: 'var(--text-sm)' }}>✓ Saved profile loaded</span>}
         {autofillStatus && <span style={{ fontSize: 'var(--text-sm)', marginLeft: 8 }}>{autofillStatus}</span>}
       </div>
 
@@ -264,7 +271,7 @@ function ProfileFormSection({ slug }: { slug: string }) {
 function SearchSection({ slug }: { slug: string }) {
   const { showToast } = useToast();
   const [allSources, setAllSources] = useState<string[]>([]);
-  const [rows, setRows] = useState<{ query: string; location: string; remote: boolean; sources: string[] }[]>([]);
+  const [rows, setRows] = useState<SearchRowEntry[]>([]);
   const [titleFilter, setTitleFilter] = useState<string[]>([]);
   const [blacklist, setBlacklist] = useState<string[]>([]);
   const [companyBlacklist, setCompanyBlacklist] = useState<string[]>([]);
@@ -308,7 +315,7 @@ function SearchSection({ slug }: { slug: string }) {
               />
             ))}
           </div>
-          <button className="btn-add-row" onClick={() => setRows([...rows, { query: '', location: 'United States', remote: true, sources: allSources }])}>+ Add search</button>
+          <button className="btn-add-row" onClick={() => setRows([...rows, { query: '', locations: ['United States'], remote: true, sources: [...allSources] }])}>+ Add search</button>
         </div>
       </div>
 

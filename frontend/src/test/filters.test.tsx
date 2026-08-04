@@ -17,10 +17,10 @@ function jobRowTitles() {
 }
 
 const SAMPLE = () => [
-  buildJob({ job_id: 'j1', title: 'React Developer',  company: 'Alpha Tech',  remote: 'Remote',  source: 'LinkedIn',  status: 'pending', posted_at: new Date(Date.now() - 12 * 3600000).toISOString() }),
+  buildJob({ job_id: 'j1', title: 'React Developer',  company: 'Alpha Tech',  remote: 'Remote',  source: 'LinkedIn',  status: 'pending', posted_at: new Date(Date.now() - 12 * 3600000).toISOString(), resume_status: 'done', pdf_url: '/pdf/j1/resume.pdf' }),
   buildJob({ job_id: 'j2', title: 'Vue Designer',     company: 'Beta Studio', remote: 'Hybrid',  source: 'Jobicy',    status: 'pending', posted_at: new Date(Date.now() - 5 * 86400000).toISOString() }),
   buildJob({ job_id: 'j3', title: 'Backend Engineer', company: 'Gamma Corp',  remote: 'On-site', source: 'Himalayas', status: 'pending', posted_at: new Date(Date.now() - 15 * 86400000).toISOString() }),
-  buildJob({ job_id: 'j4', title: 'DevOps Engineer',  company: 'Alpha Tech',  remote: 'Remote',  source: 'LinkedIn',  status: 'pending', posted_at: new Date(Date.now() - 2 * 86400000).toISOString(), match: buildMatch({ score: 72, semantic_score: 72 }) }),
+  buildJob({ job_id: 'j4', title: 'DevOps Engineer',  company: 'Alpha Tech',  remote: 'Remote',  source: 'LinkedIn',  status: 'pending', posted_at: new Date(Date.now() - 2 * 86400000).toISOString(), match: buildMatch({ score: 72, semantic_score: 72 }), resume_status: 'done', pdf_url: '/pdf/j4/resume.pdf' }),
   buildJob({ job_id: 'j5', title: 'Product Manager',  company: 'Delta Inc',   remote: 'Hybrid',  source: 'LinkedIn',  status: 'pending', posted_at: new Date(Date.now() - 8 * 86400000).toISOString(), match: buildMatch({ score: 88, semantic_score: 88 }) }),
 ]
 
@@ -123,6 +123,23 @@ describe('Source and posted-date filters', () => {
       const t = jobRowTitles()
       expect(t).toContain('React Developer') // 12h old
       expect(t).not.toContain('Vue Designer') // 5d old
+    })
+  })
+})
+
+describe('CV filter', () => {
+  it('shows only jobs with a created CV', async () => {
+    renderApp('/')
+    await waitFor(() => expect(document.querySelectorAll('.job-row')).toHaveLength(5))
+
+    fireEvent.change(screen.getByLabelText('Filter by CV status'), { target: { value: 'created' } })
+
+    await waitFor(() => {
+      const t = jobRowTitles()
+      expect(t).toEqual(expect.arrayContaining(['React Developer', 'DevOps Engineer']))
+      expect(t).not.toContain('Vue Designer')
+      expect(t).not.toContain('Backend Engineer')
+      expect(t).not.toContain('Product Manager')
     })
   })
 })

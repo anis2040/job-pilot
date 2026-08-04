@@ -89,6 +89,7 @@ export const setup = {
   saveGroqKey: (key: string) => post<{ ok: boolean }>('/api/setup/save-groq-key', { key }),
   saveGeminiKey: (key: string) => post<{ ok: boolean }>('/api/setup/save-gemini-key', { key }),
   saveAnthropicKey: (key: string) => post<{ ok: boolean }>('/api/setup/save-anthropic-key', { key }),
+  testProvider: (provider: string) => post<{ ok: boolean; model?: string; latency_ms?: number; error?: string }>('/api/ai-settings/test', { provider }),
   parseResume: async (file: File) => {
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 90000);

@@ -137,6 +137,8 @@ describe('Profile form — saving data', () => {
     renderProfileSettings()
 
     await waitFor(() => {
+      expect(screen.getByText('✓ Saved profile loaded')).toBeInTheDocument()
+      expect((screen.getByPlaceholderText('Jane Smith') as HTMLInputElement).value).toBe('Anis Helaoui')
       expect((screen.getByPlaceholderText('jane@example.com') as HTMLInputElement).value).toBe('anis@example.com')
       // Phone has a unique placeholder
       expect((screen.getByPlaceholderText('+1 555 000 0000') as HTMLInputElement).value).toBe('+216 99 000 000')
@@ -199,6 +201,7 @@ describe('Profile form — saving data', () => {
     renderProfileSettings()
 
     await waitFor(() => {
+      expect((screen.getByPlaceholderText('Jane Smith') as HTMLInputElement).value).toBe('Anis Helaoui')
       expect((screen.getByPlaceholderText('jane@example.com') as HTMLInputElement).value).toBe('anis@test.com')
     })
   })

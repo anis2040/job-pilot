@@ -1,5 +1,4 @@
-import { Link } from 'react-router-dom';
-import { Icon } from '../ui/Icon';
+import { BackButton } from './BackButton';
 
 interface TopbarProps {
   backTo: string;
@@ -12,9 +11,7 @@ interface TopbarProps {
 export function Topbar({ backTo, backLabel = 'Back', title, avatarColor, avatarInitials }: TopbarProps) {
   return (
     <div className="topbar">
-      <Link to={backTo} className="topbar-back">
-        <Icon name="chevronLeft" size={16} /> {backLabel}
-      </Link>
+      <BackButton fallbackTo={backTo} fallbackLabel={backLabel} className="topbar-back" />
       {avatarColor && avatarInitials && (
         <div className="topbar-avatar" style={{ background: avatarColor }}>
           {avatarInitials}

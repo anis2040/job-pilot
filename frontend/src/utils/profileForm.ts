@@ -117,6 +117,10 @@ export function parseProfileMd(md: string): ProfileFormData {
 
   for (const raw of lines) {
     const line = raw.trimEnd();
+    if (!d.name && line.startsWith('# ')) {
+      d.name = line.slice(2).replace(/\s+[—-]\s+Full Profile\s*$/i, '').trim();
+      continue;
+    }
     if (line.startsWith('## Contact'))                { section = 'contact'; continue; }
     if (line.startsWith('## Professional Summary'))   { section = 'summary'; continue; }
     if (line.startsWith('## Core Competencies'))      { section = 'competencies'; continue; }

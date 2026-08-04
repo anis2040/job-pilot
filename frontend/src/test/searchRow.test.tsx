@@ -18,7 +18,7 @@ const SOURCES = ['LinkedIn', 'Jobicy', 'Himalayas']
 
 const defaultEntry = {
   query: 'Product Manager',
-  location: 'United States',
+  locations: ['United States'],
   remote: true,
   sources: ['LinkedIn', 'Jobicy'],
 }
@@ -27,7 +27,7 @@ describe('SearchRow — user configuring a search', () => {
   it('shows the current query and location values', () => {
     render(<SearchRow entry={defaultEntry} sources={SOURCES} onChange={vi.fn()} onRemove={vi.fn()} />)
     expect(screen.getByDisplayValue('Product Manager')).toBeInTheDocument()
-    expect(screen.getByDisplayValue('United States')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /remove united states/i })).toBeInTheDocument()
   })
 
   it('user changes the job title query', () => {
@@ -37,41 +37,40 @@ describe('SearchRow — user configuring a search', () => {
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ query: 'Engineering Manager' }))
   })
 
-  it('user changes the location', () => {
+  it('user adds another location', async () => {
     const onChange = vi.fn()
     render(<SearchRow entry={defaultEntry} sources={SOURCES} onChange={onChange} onRemove={vi.fn()} />)
-    fireEvent.change(screen.getByDisplayValue('United States'), { target: { value: 'United Kingdom' } })
-    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ location: 'United Kingdom' }))
+    await userEvent.type(screen.getByPlaceholderText('Add a country or location'), 'United Kingdom')
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }))
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ locations: ['United States', 'United Kingdom'] }))
   })
 
-  it('user unchecks the Remote toggle — remote becomes false', () => {
+  it('user switches to location-based mode', async () => {
     const onChange = vi.fn()
     render(<SearchRow entry={defaultEntry} sources={SOURCES} onChange={onChange} onRemove={vi.fn()} />)
-    fireEvent.click(screen.getByRole('checkbox', { name: /remote/i }))
+    await userEvent.click(screen.getByRole('button', { name: /location-based/i }))
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ remote: false }))
   })
 
   it('checked sources are shown as checked', () => {
     render(<SearchRow entry={{ ...defaultEntry, sources: ['LinkedIn'] }} sources={SOURCES} onChange={vi.fn()} onRemove={vi.fn()} />)
-    const linkedinCb = screen.getByRole('checkbox', { name: /linkedin/i, hidden: true })
-    const jobicyCb = screen.getByRole('checkbox', { name: /jobicy/i, hidden: true })
-    expect(linkedinCb).toBeChecked()
-    expect(jobicyCb).not.toBeChecked()
+    expect(screen.getByRole('button', { name: 'LinkedIn' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Jobicy' })).toHaveAttribute('aria-pressed', 'false')
   })
 
-  it('clicking an unchecked source adds it', () => {
+  it('clicking an unchecked source adds it', async () => {
     const onChange = vi.fn()
     render(<SearchRow entry={{ ...defaultEntry, sources: ['LinkedIn'] }} sources={SOURCES} onChange={onChange} onRemove={vi.fn()} />)
-    fireEvent.click(screen.getByText('Jobicy').closest('label')!)
+    await userEvent.click(screen.getByRole('button', { name: 'Jobicy' }))
     const updated = onChange.mock.calls[onChange.mock.calls.length - 1][0]
     expect(updated.sources).toContain('Jobicy')
     expect(updated.sources).toContain('LinkedIn')
   })
 
-  it('clicking a checked source removes it', () => {
+  it('clicking a checked source removes it', async () => {
     const onChange = vi.fn()
     render(<SearchRow entry={defaultEntry} sources={SOURCES} onChange={onChange} onRemove={vi.fn()} />)
-    fireEvent.click(screen.getByText('Jobicy').closest('label')!)
+    await userEvent.click(screen.getByRole('button', { name: 'Jobicy' }))
     const updated = onChange.mock.calls[onChange.mock.calls.length - 1][0]
     expect(updated.sources).not.toContain('Jobicy')
     expect(updated.sources).toContain('LinkedIn')
@@ -80,7 +79,7 @@ describe('SearchRow — user configuring a search', () => {
   it('all/none button when all checked — unchecks everything', () => {
     const onChange = vi.fn()
     render(<SearchRow entry={{ ...defaultEntry, sources: ['LinkedIn', 'Jobicy', 'Himalayas'] }} sources={SOURCES} onChange={onChange} onRemove={vi.fn()} />)
-    fireEvent.click(screen.getByText('all/none'))
+    fireEvent.click(screen.getByText('Clear all'))
     const updated = onChange.mock.calls[onChange.mock.calls.length - 1][0]
     expect(updated.sources).toHaveLength(0)
   })
@@ -88,7 +87,7 @@ describe('SearchRow — user configuring a search', () => {
   it('all/none button when none checked — checks everything', () => {
     const onChange = vi.fn()
     render(<SearchRow entry={{ ...defaultEntry, sources: [] }} sources={SOURCES} onChange={onChange} onRemove={vi.fn()} />)
-    fireEvent.click(screen.getByText('all/none'))
+    fireEvent.click(screen.getByText('Select all'))
     const updated = onChange.mock.calls[onChange.mock.calls.length - 1][0]
     expect(updated.sources).toEqual(expect.arrayContaining(SOURCES))
   })
