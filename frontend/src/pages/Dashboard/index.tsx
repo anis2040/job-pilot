@@ -261,6 +261,7 @@ function SettingsModal({ open, onClose, onSaved, allSources }: { open: boolean; 
   const [rows, setRows] = useState<{ query: string; location: string; remote: boolean; sources: string[] }[]>([]);
   const [saving, setSaving] = useState(false);
   const backdropRef = useRef<HTMLDivElement>(null);
+  const originalCfgRef = useRef<SearchConfig | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -268,6 +269,7 @@ function SettingsModal({ open, onClose, onSaved, allSources }: { open: boolean; 
         .then(data => {
           setCfg(data);
           setRows(groupSearchEntries(data.searches || []));
+          originalCfgRef.current = data;
         })
         .catch(() => showToast('Could not load settings', 'err'));
     }
@@ -279,13 +281,24 @@ function SettingsModal({ open, onClose, onSaved, allSources }: { open: boolean; 
       showToast('Add at least one search source', 'err');
       return;
     }
+    const next = { ...cfg, searches };
+    const orig = originalCfgRef.current;
+    const cfgChanged = !orig
+      || JSON.stringify(searches.map(s => ({ source: s.source, query: s.query, location: s.location, remote: s.remote })).sort((a,b) => (a.source+a.query).localeCompare(b.source+b.query)))
+        !== JSON.stringify((orig.searches || []).map(s => ({ source: s.source, query: s.query, location: s.location, remote: s.remote })).sort((a,b) => (a.source+a.query).localeCompare(b.source+b.query)))
+      || JSON.stringify([...next.title_filter].sort()) !== JSON.stringify([...orig.title_filter].sort())
+      || JSON.stringify([...next.blacklist].sort()) !== JSON.stringify([...orig.blacklist].sort())
+      || JSON.stringify([...next.company_blacklist].sort()) !== JSON.stringify([...orig.company_blacklist].sort());
+    if (!cfgChanged) {
+      showToast('No changes to save');
+      onClose();
+      return;
+    }
     setSaving(true);
     try {
-      await configApi.save({ ...cfg, searches });
+      await configApi.save(next);
       showToast('Settings saved');
       onClose();
-      // Old config's jobs are now stale — clear and re-fetch with new config
-      // (matches the original app: save → clear jobs → fetch).
       onSaved();
     } catch {
       showToast('Could not save settings', 'err');
