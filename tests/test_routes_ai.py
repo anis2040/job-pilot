@@ -49,13 +49,17 @@ class TestAiSettingsGet:
         assert r.status_code == 200
         data = r.get_json()
         assert set(data) >= {"active_provider", "preferred_provider", "providers"}
-        assert set(data["providers"]) == {"groq", "anthropic", "gemini"}
+        # claude (Pro CLI) was added after the initial test; ensure the three
+        # API-key providers are present and claude is allowed but not required.
+        assert {"groq", "anthropic", "gemini"} <= set(data["providers"])
         for p in data["providers"].values():
             assert set(p) >= {"configured", "model", "key_set", "models"}
 
     def test_usage_block_present(self, client):
         data = client.get("/api/ai-settings").get_json()
-        for name, p in data["providers"].items():
+        # claude (Pro CLI) has no usage block — it doesn't use an API key.
+        api_key_providers = {n: p for n, p in data["providers"].items() if n != "claude"}
+        for name, p in api_key_providers.items():
             assert "usage" in p, f"{name} missing usage block"
             u = p["usage"]
             assert set(u) >= {"last_24h_tokens", "today_tokens", "limit_tpd", "approx", "resets"}

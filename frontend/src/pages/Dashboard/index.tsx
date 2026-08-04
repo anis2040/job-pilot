@@ -364,6 +364,7 @@ export default function DashboardPage() {
   const isWide = useIsWide();
   const navigate = useNavigate();
   const fetchPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fetchRefreshInFlightRef = useRef(false);
   const handleFetchRef = useRef<() => void>(() => {});
 
   // Clean up any in-flight fetch poll on unmount (prevents setState-after-unmount)
@@ -371,9 +372,11 @@ export default function DashboardPage() {
 
   const loadJobs = useCallback(async () => {
     try {
-      setAllJobs(await jobsApi.list(tab));
+      const data = await jobsApi.list(tab);
+      setAllJobs(data);
       setLoadError(false);
-    } catch {
+    } catch (e) {
+      console.error('[Dashboard] loadJobs failed:', e);
       setLoadError(true);
     }
   }, [tab]);
@@ -453,6 +456,12 @@ export default function DashboardPage() {
       try {
         const s = await fetcherApi.status();
         if (s.message) setFetchMessage(s.message);
+        if (s.status === 'running' && !fetchRefreshInFlightRef.current) {
+          fetchRefreshInFlightRef.current = true;
+          Promise.all([loadJobs(), loadCounts()]).finally(() => {
+            fetchRefreshInFlightRef.current = false;
+          });
+        }
         if (s.status !== 'running') {
           if (fetchPollRef.current) clearInterval(fetchPollRef.current);
           fetchPollRef.current = null;

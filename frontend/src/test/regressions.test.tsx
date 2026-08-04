@@ -64,6 +64,36 @@ describe('Fetch jobs with progress (regression: field mismatch + leak)', () => {
     await waitFor(() => expect(screen.getByText(/Fetching LinkedIn/i)).toBeInTheDocument(), { timeout: 4000 })
   })
 
+  it('shows newly fetched jobs before the full fetch run finishes', async () => {
+    let polls = 0
+    server.use(
+      http.post('/api/fetch', () => {
+        db.fetchStatus = { status: 'running', message: 'Starting fetch…' }
+        return HttpResponse.json({ status: 'running' })
+      }),
+      http.get('/api/fetch-status', () => {
+        polls++
+        if (polls === 1) {
+          db.jobs = [buildJob({ job_id: 'stream-1', title: 'Streaming Job', status: 'pending' })]
+          db.fetchStatus = { status: 'running', message: 'Fetching Jobicy…' }
+          return HttpResponse.json(db.fetchStatus)
+        }
+        if (polls >= 3) {
+          db.fetchStatus = { status: 'done', message: 'Done' }
+          return HttpResponse.json(db.fetchStatus)
+        }
+        return HttpResponse.json({ status: 'running', message: 'Fetching LinkedIn…' })
+      })
+    )
+    seedJobs([])
+    renderApp('/')
+    await waitFor(() => expect(screen.getByText(/No pending jobs/i)).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: /Fetch jobs now/i }))
+
+    await waitFor(() => expect(screen.getByText('Streaming Job')).toBeInTheDocument(), { timeout: 2800 })
+  })
+
   it('surfaces an error if the fetch trigger fails', async () => {
     server.use(http.post('/api/fetch', () => HttpResponse.json({ error: 'nope' }, { status: 500 })))
     seedJobs([])

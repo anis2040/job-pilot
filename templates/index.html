@@ -881,6 +881,15 @@
   const _LS_SAVED = "jobpilot.savedSearches";
   const _LS_RECENT = "jobpilot.recentSearches";
   const _LS_LAST = "jobpilot.lastSearch";   // last active filter state, restored on load
+  // Version bump: clear stale filter state from before the source-filter fix.
+  // If the stored version doesn't match, wipe _LS_LAST so a stale source value
+  // can't silently hide all jobs on the next load.
+  const _LS_VER_KEY = "jobpilot.filterVersion";
+  const _LS_VER = "2";
+  if (localStorage.getItem(_LS_VER_KEY) !== _LS_VER) {
+    localStorage.removeItem(_LS_LAST);
+    localStorage.setItem(_LS_VER_KEY, _LS_VER);
+  }
 
   function _lsGet(key) {
     try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; }
@@ -909,6 +918,11 @@
       c.setAttribute("aria-pressed", on ? "true" : "false");
     });
     document.getElementById("filter-source").value = s.source || "";
+    // Guard: if the saved source value doesn't match any option (e.g. it was
+    // saved as a lowercase ID but the dropdown uses display labels, or the
+    // source no longer exists), clear it to avoid silently hiding all jobs.
+    const srcSel = document.getElementById("filter-source");
+    if (s.source && srcSel.value !== s.source) srcSel.value = "";
     document.getElementById("filter-posted").value = s.posted || "";
     document.getElementById("filter-sort").value = s.sort || "match";
   }
@@ -1034,7 +1048,7 @@
     );
 
     if (activeRemote.length) filtered = filtered.filter(j => activeRemote.includes(j.remote));
-    if (srcFilter) filtered = filtered.filter(j => j.source === srcFilter);
+    if (srcFilter) filtered = filtered.filter(j => j.source?.toLowerCase() === srcFilter.toLowerCase());
 
     // Posted-date range filter — only applies to jobs that report a posting date
     if (!isNaN(postedDays)) {
