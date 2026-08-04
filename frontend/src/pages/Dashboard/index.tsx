@@ -351,12 +351,11 @@ function SettingsModal({ open, onClose, onSaved, allSources }: { open: boolean; 
 
 // ── PanelSlot — wraps DetailPanel with a slide-out animation on close ─────────
 
-function PanelSlot({ job, onClose, onClosing }: { job: Job; onClose: () => void; onClosing: () => void }) {
+function PanelSlot({ job, onClose }: { job: Job; onClose: () => void }) {
   const [closing, setClosing] = useState(false);
 
   const handleClose = () => {
     setClosing(true);
-    onClosing();
     setTimeout(onClose, 500);
   };
 
@@ -381,7 +380,6 @@ export default function DashboardPage() {
   const [loadError, setLoadError] = useState(false);
   const [counts, setCounts] = useState({ pending: 0, applied: 0, skipped: 0 });
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
-  const [panelClosing, setPanelClosing] = useState(false);
   const [page, setPage] = useState(1);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -452,8 +450,7 @@ export default function DashboardPage() {
   );
 
   const closePanel = useCallback(() => {
-    setPanelClosing(true);
-    setTimeout(() => { setSelectedJobId(null); setPanelClosing(false); }, 500);
+    setTimeout(() => setSelectedJobId(null), 500);
   }, []);
 
   const handleStatusChange = async (jobId: string, status: string) => {
@@ -786,8 +783,7 @@ export default function DashboardPage() {
           const selectedJob = selectedJobId ? allJobs.find(j => j.job_id === selectedJobId) : null;
           return selectedJob ? (
             <PanelSlot key={selectedJobId} job={selectedJob}
-              onClose={() => { setSelectedJobId(null); setPanelClosing(false); }}
-              onClosing={() => setPanelClosing(true)}
+              onClose={() => setSelectedJobId(null)}
             />
           ) : null;
         })()}
