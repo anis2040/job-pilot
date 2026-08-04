@@ -122,8 +122,8 @@ function Pagination({ page, total, pageSize, onChange }: { page: number; total: 
 
 // ── Detail panel (split view) ─────────────────────────────────────────────────
 
-function DetailPanel({ jobId, onClose }: { jobId: string; onClose: () => void }) {
-  const [job, setJob] = useState<JobDetail | null>(null);
+function DetailPanel({ jobId, initialJob, onClose }: { jobId: string; initialJob: Job; onClose: () => void }) {
+  const [job, setJob] = useState<JobDetail>({ ...initialJob, description: '', employment_type: '', salary_range: '', status_updated_at: '' });
   const [descExpanded, setDescExpanded] = useState(false);
   const [buildingResume, setBuildingResume] = useState(false);
   const { showToast } = useToast();
@@ -134,14 +134,13 @@ function DetailPanel({ jobId, onClose }: { jobId: string; onClose: () => void })
     setDescExpanded(false);
     jobsApi.get(jobId).then(async (data) => {
       setJob(data);
-      // Lazily fetch description if not included in the job record
       if (!data.description) {
         try {
           const desc = await jobsApi.description(jobId);
           if (desc.description) setJob(j => j ? { ...j, description: desc.description } : j);
         } catch { /* non-fatal */ }
       }
-    }).catch(() => setJob(null));
+    }).catch(() => {});
   }, [jobId]);
 
   const setStatus = async (status: 'applied' | 'skipped' | 'pending') => {
@@ -754,11 +753,14 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {selectedJobId && isWide && (
-          <aside key={selectedJobId} className="detail-panel" aria-live="polite">
-            <DetailPanel jobId={selectedJobId} onClose={() => setSelectedJobId(null)} />
-          </aside>
-        )}
+        {selectedJobId && isWide && (() => {
+          const selectedJob = allJobs.find(j => j.job_id === selectedJobId);
+          return selectedJob ? (
+            <aside key={selectedJobId} className="detail-panel" aria-live="polite">
+              <DetailPanel jobId={selectedJobId} initialJob={selectedJob} onClose={() => setSelectedJobId(null)} />
+            </aside>
+          ) : null;
+        })()}
       </div>
 
       {createPortal(
