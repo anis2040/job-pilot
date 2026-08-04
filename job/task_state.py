@@ -12,6 +12,8 @@ def clear_task_state() -> None:
     with _lock:
         _task_status.clear()
         _cl_task_status.clear()
+        _fetch_status["status"] = "idle"
+        _fetch_status["message"] = ""
 
 
 def get_task_status(job_id: str) -> dict:
@@ -49,15 +51,17 @@ def trigger_cover_letter(job_id: str) -> None:
     t.start()
 
 
-def trigger_fetch() -> None:
+def trigger_fetch() -> bool:
+    """Start the fetch thread. Returns True if started, False if already running."""
     from .fetch_worker import _run_fetch
     with _lock:
         if _fetch_status.get("status") == "running":
-            return
+            return False
         _fetch_status["status"] = "running"
         _fetch_status["message"] = "Starting…"
     t = threading.Thread(target=_run_fetch, daemon=True)
     t.start()
+    return True
 
 
 def _set_stage(job_id: str, stage: str) -> None:

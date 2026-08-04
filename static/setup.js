@@ -76,24 +76,33 @@ function renderDoneStep() {
 
 async function quickFetchJobs() {
   const title = (document.getElementById("quick-title")?.value || "").trim();
-  const location = (document.getElementById("quick-location")?.value || "").trim();
+  const location = (
+    document.getElementById("quick-location")?.value || ""
+  ).trim();
   const remote = document.getElementById("quick-remote")?.checked ?? true;
   const alertEl = document.getElementById("quick-alert");
 
   if (!title) {
-    if (alertEl) alertEl.innerHTML = `<div class="alert alert-error" style="margin-bottom:10px">Please enter a job title.</div>`;
+    if (alertEl)
+      alertEl.innerHTML = `<div class="alert alert-error" style="margin-bottom:10px">Please enter a job title.</div>`;
     document.getElementById("quick-title")?.focus();
     return;
   }
   if (!location) {
-    if (alertEl) alertEl.innerHTML = `<div class="alert alert-error" style="margin-bottom:10px">Please enter a location.</div>`;
+    if (alertEl)
+      alertEl.innerHTML = `<div class="alert alert-error" style="margin-bottom:10px">Please enter a location.</div>`;
     document.getElementById("quick-location")?.focus();
     return;
   }
 
-  const constants = await fetch("/api/constants").then(r => r.json());
-  const searches = constants.sources.map(src => ({
-    name: `${src} - ${title}`, source: src, query: title, location, max_pages: 3, remote,
+  const constants = await fetch("/api/constants").then((r) => r.json());
+  const searches = constants.sources.map((src) => ({
+    name: `${src} - ${title}`,
+    source: src,
+    query: title,
+    location,
+    max_pages: 3,
+    remote,
   }));
 
   const config = {
@@ -112,7 +121,8 @@ async function quickFetchJobs() {
   if (data.ok) {
     window.location.href = "/?fetch=1";
   } else {
-    if (alertEl) alertEl.innerHTML = `<div class="alert alert-error" style="margin-bottom:10px">${data.error}</div>`;
+    if (alertEl)
+      alertEl.innerHTML = `<div class="alert alert-error" style="margin-bottom:10px">${data.error}</div>`;
   }
 }
 
@@ -132,7 +142,7 @@ async function configureSearches() {
       btn.className = "btn btn-success";
       btn.innerHTML = "Fetch jobs & open →";
       btn.disabled = false;
-      btn.onclick = () => window.location = "/?fetch=1";
+      btn.onclick = () => (window.location = "/?fetch=1");
     } else {
       statusEl.innerHTML = `<div class="alert alert-error">${data.error}</div>`;
       btn.disabled = false;
@@ -149,7 +159,7 @@ async function init() {
   const res = await fetch("/api/setup/status");
   status = await res.json();
   renderChecks();
-  renderPdfStep();     // show install button immediately if pdflatex missing
+  renderPdfStep(); // show install button immediately if pdflatex missing
   renderNodeWarning(); // show node warning immediately if node missing
 }
 
@@ -167,7 +177,11 @@ function renderChecks() {
   };
 
   // Python — always ok (server is running)
-  set("chk-python", true, `Installed (${isMac ? "macOS" : isWin ? "Windows" : "Linux"} detected)`);
+  set(
+    "chk-python",
+    true,
+    `Installed (${isMac ? "macOS" : isWin ? "Windows" : "Linux"} detected)`
+  );
 
   // Node
   if (status.has_node) {
@@ -188,7 +202,11 @@ function renderChecks() {
         : "https://nodejs.org/en/download";
       nodeBlock.innerHTML = `
         <div class="install-block" style="margin-top:8px">
-          <p>${isWin ? "Run in PowerShell (as Administrator), or" : "Run in Terminal, or"} <a href="${link}" target="_blank" style="color:#60a5fa">download the installer ↗</a>:</p>
+          <p>${
+            isWin
+              ? "Run in PowerShell (as Administrator), or"
+              : "Run in Terminal, or"
+          } <a href="${link}" target="_blank" style="color:#60a5fa">download the installer ↗</a>:</p>
           <code>${cmd}</code>
           <button class="btn btn-primary btn-sm" id="btn-install-node" onclick="installNode('${cmd}')">Install Node.js automatically</button>
           <div class="install-log" id="install-log-node"></div>
@@ -198,16 +216,27 @@ function renderChecks() {
 
   // AI CLI
   const hasAI = status.has_claude || status.has_gemini || status.groq_key_set;
-  const aiLabel = status.groq_key_set ? "Groq configured ⚡" :
-                  status.has_claude && status.has_gemini ? "Claude & Gemini both installed" :
-                  status.has_claude ? "Claude Code installed" :
-                  status.has_gemini ? "Gemini CLI installed" : "Not configured yet — choose one below";
+  const aiLabel = status.groq_key_set
+    ? "Groq configured ⚡"
+    : status.has_claude && status.has_gemini
+    ? "Claude & Gemini both installed"
+    : status.has_claude
+    ? "Claude Code installed"
+    : status.has_gemini
+    ? "Gemini CLI installed"
+    : "Not configured yet — choose one below";
   set("chk-ai", hasAI, aiLabel);
 
   // pdflatex
-  set("chk-pdf", status.has_pdflatex, status.has_pdflatex
-    ? "Installed"
-    : isWin ? "Not installed — MiKTeX needed (Step 3)" : "Not installed — BasicTeX needed (Step 3)");
+  set(
+    "chk-pdf",
+    status.has_pdflatex,
+    status.has_pdflatex
+      ? "Installed"
+      : isWin
+      ? "Not installed — MiKTeX needed (Step 3)"
+      : "Not installed — BasicTeX needed (Step 3)"
+  );
 
   document.getElementById("btn-next-1").disabled = false;
 }
@@ -235,11 +264,12 @@ async function installNode(cmd) {
 
 function goStep(n) {
   for (let i = 1; i <= 3; i++) {
-    document.getElementById(`step-${i}`).style.display = i === n ? "block" : "none";
+    document.getElementById(`step-${i}`).style.display =
+      i === n ? "block" : "none";
     const dot = document.getElementById(`dot-${i}`);
     dot.className = "step-dot" + (i < n ? " done" : i === n ? " active" : "");
     if (i < 3) {
-      const line = document.getElementById(`line-${i}-${i+1}`);
+      const line = document.getElementById(`line-${i}-${i + 1}`);
       if (line) line.className = "step-line" + (i < n ? " done" : "");
     }
   }
@@ -253,11 +283,18 @@ function goStep(n) {
 function renderNodeWarning() {
   const el = document.getElementById("node-warning");
   if (!el) return;
-  if (status.has_node) { el.innerHTML = ""; return; }
+  if (status.has_node) {
+    el.innerHTML = "";
+    return;
+  }
   const isWin = status.platform === "win32";
   el.innerHTML = `<div class="alert alert-error" style="margin-bottom:14px">
     ⚠ Node.js is not installed. The one-click install buttons below won't work until it is.
-    Go back to Step 1 to install it${isWin ? ", or download it from <a href='https://nodejs.org/en/download' target='_blank' style='color:#fca5a5'>nodejs.org ↗</a>" : ""}.
+    Go back to Step 1 to install it${
+      isWin
+        ? ", or download it from <a href='https://nodejs.org/en/download' target='_blank' style='color:#fca5a5'>nodejs.org ↗</a>"
+        : ""
+    }.
   </div>`;
 }
 
@@ -265,9 +302,15 @@ function selectProvider(p) {
   selectedProvider = p;
   providerReady = false;
   document.getElementById("btn-next-1").disabled = true;
-  document.getElementById("card-groq").classList.toggle("selected", p === "groq");
-  document.getElementById("card-claude").classList.toggle("selected", p === "claude");
-  document.getElementById("card-gemini").classList.toggle("selected", p === "gemini");
+  document
+    .getElementById("card-groq")
+    .classList.toggle("selected", p === "groq");
+  document
+    .getElementById("card-claude")
+    .classList.toggle("selected", p === "claude");
+  document
+    .getElementById("card-gemini")
+    .classList.toggle("selected", p === "gemini");
 
   const block = document.getElementById("provider-action");
   block.style.display = "block";
@@ -283,7 +326,9 @@ function selectProvider(p) {
       <div class="input-group" style="margin-top:0">
         <label>Groq API Key</label>
         <div class="input-row" style="display:flex;gap:6px;align-items:center">
-          <input type="password" id="groq-key-input" placeholder="gsk_..." value="${keySet ? (status.groq_key || '••••••••••••••••') : ''}" style="flex:1">
+          <input type="password" id="groq-key-input" placeholder="gsk_..." value="${
+            keySet ? status.groq_key || "••••••••••••••••" : ""
+          }" style="flex:1">
           <button class="btn btn-ghost btn-sm" type="button" id="eye-groq" title="Show/hide key" style="padding:5px 8px" onclick="toggleKeyVisibility('groq')">👁</button>
         </div>
         <div class="hint">Your key is saved locally in .env and never shared.</div>
@@ -296,12 +341,12 @@ function selectProvider(p) {
       </div>
     </div>`;
     if (keySet) markProviderReady();
-
   } else if (p === "claude") {
     const installed = status.has_claude;
-    block.innerHTML = (installed
-      ? `<div class="alert alert-ok" style="margin-bottom:10px">✓ Claude Code is already installed.</div>`
-      : `<div class="install-block" style="margin-bottom:10px">
+    block.innerHTML =
+      (installed
+        ? `<div class="alert alert-ok" style="margin-bottom:10px">✓ Claude Code is already installed.</div>`
+        : `<div class="install-block" style="margin-bottom:10px">
            <p>Claude Code is not installed. Click below to install it via npm, or run manually:</p>
            <code>npm install -g @anthropic-ai/claude-code</code>
            <button class="btn btn-primary btn-sm" id="btn-install-claude" onclick="installCLI('claude')">Install Claude Code</button>
@@ -324,12 +369,13 @@ function selectProvider(p) {
     if (installed) {
       // Don't auto-mark ready — always require login confirmation
     }
-
   } else {
     const installed = status.has_gemini;
     const keySet = status.gemini_key_set;
-    block.innerHTML = (installed ? `<div class="alert alert-ok" style="margin-bottom:10px">✓ Gemini CLI is already installed.</div>` :
-      `<div class="install-block" style="margin-bottom:10px">
+    block.innerHTML =
+      (installed
+        ? `<div class="alert alert-ok" style="margin-bottom:10px">✓ Gemini CLI is already installed.</div>`
+        : `<div class="install-block" style="margin-bottom:10px">
          <p>Gemini CLI is not installed. Click below to install it via npm:</p>
          <code>npm install -g @google/gemini-cli</code>
          <button class="btn btn-primary btn-sm" id="btn-install-gemini" onclick="installCLI('gemini')">Install Gemini CLI</button>
@@ -338,7 +384,9 @@ function selectProvider(p) {
       `<div class="input-group" style="margin-top:0">
          <label>Gemini API Key <a href="https://aistudio.google.com/apikey" target="_blank" style="color:#60a5fa;font-size:0.72rem;margin-left:6px">Get a free key at Google AI Studio ↗</a></label>
          <div class="input-row" style="display:flex;gap:6px;align-items:center">
-           <input type="password" id="gemini-key-input" placeholder="AIza…" value="${keySet ? (status.gemini_key || '••••••••••••••••') : ''}" style="flex:1">
+           <input type="password" id="gemini-key-input" placeholder="AIza…" value="${
+             keySet ? status.gemini_key || "••••••••••••••••" : ""
+           }" style="flex:1">
            <button class="btn btn-ghost btn-sm" type="button" id="eye-gemini" title="Show/hide key" style="padding:5px 8px" onclick="toggleKeyVisibility('gemini')">👁</button>
          </div>
          <div class="hint">Free tier — no credit card required. Your key is saved locally and never shared.</div>
@@ -367,7 +415,8 @@ async function claudeLogin() {
   } else {
     btn.disabled = false;
     btn.innerHTML = "Open login in browser";
-    if (statusEl) statusEl.innerHTML = `<div class="alert alert-error" style="margin-top:6px">${data.error}</div>`;
+    if (statusEl)
+      statusEl.innerHTML = `<div class="alert alert-error" style="margin-top:6px">${data.error}</div>`;
   }
 }
 
@@ -381,8 +430,8 @@ async function installCLI(provider) {
 
   const res = await fetch("/api/setup/install-cli", {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({provider})
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ provider }),
   });
   const data = await res.json();
   log.textContent = data.output || "";
@@ -404,11 +453,17 @@ async function testSetupProvider(provider) {
   const out = document.getElementById(`test-${provider}-result`);
   // "claude" maps to itself (CLI provider); other providers pass through unchanged.
   const apiProvider = provider;
-  if (btn) { btn.disabled = true; }
-  if (out) { out.style.color = "#94a3b8"; out.innerHTML = `<span class="spinner"></span> Testing…`; }
+  if (btn) {
+    btn.disabled = true;
+  }
+  if (out) {
+    out.style.color = "#94a3b8";
+    out.innerHTML = `<span class="spinner"></span> Testing…`;
+  }
   try {
     const res = await fetch("/api/ai-settings/test", {
-      method: "POST", headers: {"Content-Type": "application/json"},
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ provider: apiProvider }),
     });
     const data = await res.json();
@@ -421,7 +476,10 @@ async function testSetupProvider(provider) {
     // A successful test proves the provider works — let the user proceed.
     if (data.ok) markProviderReady();
   } catch (e) {
-    if (out) { out.style.color = "#f87171"; out.textContent = "✗ Request failed."; }
+    if (out) {
+      out.style.color = "#f87171";
+      out.textContent = "✗ Request failed.";
+    }
   } finally {
     if (btn) btn.disabled = false;
   }
@@ -432,24 +490,31 @@ async function saveGroqKey() {
   const key = input ? input.value.trim() : "";
   const alertEl = document.getElementById("groq-key-alert");
   if (!key || key.startsWith("•")) {
-    if (alertEl) alertEl.innerHTML = `<div class="alert alert-ok" style="margin-top:8px">✓ Using previously saved key.</div>`;
-    markProviderReady(); return;
+    if (alertEl)
+      alertEl.innerHTML = `<div class="alert alert-ok" style="margin-top:8px">✓ Using previously saved key.</div>`;
+    markProviderReady();
+    return;
   }
   if (alertEl) alertEl.innerHTML = `<span class="spinner"></span> Saving…`;
   try {
     const res = await fetch("/api/setup/save-groq-key", {
-      method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({key})
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key }),
     });
     const data = await res.json();
     if (data.ok) {
-      if (alertEl) alertEl.innerHTML = `<div class="alert alert-ok" style="margin-top:8px">✓ Groq API key saved.</div>`;
+      if (alertEl)
+        alertEl.innerHTML = `<div class="alert alert-ok" style="margin-top:8px">✓ Groq API key saved.</div>`;
       status.groq_key_set = true;
       markProviderReady();
     } else {
-      if (alertEl) alertEl.innerHTML = `<div class="alert alert-error" style="margin-top:8px">${data.error}</div>`;
+      if (alertEl)
+        alertEl.innerHTML = `<div class="alert alert-error" style="margin-top:8px">${data.error}</div>`;
     }
   } catch (e) {
-    if (alertEl) alertEl.innerHTML = `<div class="alert alert-error" style="margin-top:8px">Request failed.</div>`;
+    if (alertEl)
+      alertEl.innerHTML = `<div class="alert alert-error" style="margin-top:8px">Request failed.</div>`;
   }
 }
 
@@ -460,7 +525,8 @@ async function saveGeminiKey() {
 
   // Already saved (placeholder dots shown) — just mark ready
   if (!key || key.startsWith("•")) {
-    if (alertEl) alertEl.innerHTML = `<div class="alert alert-ok" style="margin-top:8px">✓ Using previously saved API key.</div>`;
+    if (alertEl)
+      alertEl.innerHTML = `<div class="alert alert-ok" style="margin-top:8px">✓ Using previously saved API key.</div>`;
     markProviderReady();
     return;
   }
@@ -470,19 +536,22 @@ async function saveGeminiKey() {
   try {
     const res = await fetch("/api/setup/save-gemini-key", {
       method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({key})
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key }),
     });
     const data = await res.json();
     if (data.ok) {
-      if (alertEl) alertEl.innerHTML = `<div class="alert alert-ok" style="margin-top:8px">✓ API key saved.</div>`;
+      if (alertEl)
+        alertEl.innerHTML = `<div class="alert alert-ok" style="margin-top:8px">✓ API key saved.</div>`;
       status.gemini_key_set = true;
       markProviderReady();
     } else {
-      if (alertEl) alertEl.innerHTML = `<div class="alert alert-error" style="margin-top:8px">${data.error}</div>`;
+      if (alertEl)
+        alertEl.innerHTML = `<div class="alert alert-error" style="margin-top:8px">${data.error}</div>`;
     }
   } catch (e) {
-    if (alertEl) alertEl.innerHTML = `<div class="alert alert-error" style="margin-top:8px">Request failed. Try again.</div>`;
+    if (alertEl)
+      alertEl.innerHTML = `<div class="alert alert-error" style="margin-top:8px">Request failed. Try again.</div>`;
   }
 }
 
@@ -545,8 +614,10 @@ function renderPdfStep() {
         <div id="pdf-recheck-status" style="margin-top:8px"></div>
       </div>`;
   }
-  block.insertAdjacentHTML("beforeend",
-    `<div class="hint" style="margin-top:10px">You can skip this and install later — the app works without it until you build a resume.</div>`);
+  block.insertAdjacentHTML(
+    "beforeend",
+    `<div class="hint" style="margin-top:10px">You can skip this and install later — the app works without it until you build a resume.</div>`
+  );
 }
 
 async function recheckPdflatex() {
@@ -559,7 +630,8 @@ async function recheckPdflatex() {
   if (fresh.has_pdflatex) {
     renderPdfStep(); // will show the green ✓ message
   } else {
-    if (statusEl) statusEl.innerHTML = `<div class="alert alert-error" style="margin-top:6px">pdflatex still not found. Make sure the install completed and try running the reload command above, then check again.</div>`;
+    if (statusEl)
+      statusEl.innerHTML = `<div class="alert alert-error" style="margin-top:6px">pdflatex still not found. Make sure the install completed and try running the reload command above, then check again.</div>`;
   }
 }
 
@@ -567,13 +639,13 @@ function copyCmd(el) {
   navigator.clipboard.writeText(el.textContent.trim()).then(() => {
     const orig = el.style.outline;
     el.style.outline = "1px solid #4ade80";
-    setTimeout(() => el.style.outline = orig, 1000);
+    setTimeout(() => (el.style.outline = orig), 1000);
   });
 }
 
 async function saveProfile() {
   const alert = document.getElementById("profile-alert");
-  const name  = (document.getElementById("p-name")?.value || "").trim();
+  const name = (document.getElementById("p-name")?.value || "").trim();
   const email = (document.getElementById("p-email")?.value || "").trim();
 
   if (!name) {

@@ -1,7 +1,7 @@
 import httpx
 
 from .config import SearchConfig
-from .fetcher_utils import http_get, strip_tags, infer_remote
+from .fetcher_utils import http_get, strip_tags, infer_remote, clip_description
 from .models import RawJob, RemoteType
 from .utils import parse_experience, location_matches
 
@@ -13,7 +13,7 @@ def fetch_berlinstartupjobs(search: SearchConfig) -> list[RawJob]:
     query_terms = [t.lower() for t in search.query.split()]
     results: list[RawJob] = []
     page = 1
-    max_pages = search.max_pages if hasattr(search, "max_pages") else 3
+    max_pages = search.max_pages
 
     while page <= max_pages:
         try:
@@ -60,7 +60,7 @@ def fetch_berlinstartupjobs(search: SearchConfig) -> list[RawJob]:
                 location=location,
                 remote=remote,
                 experience=experience,
-                description=description[:2000],
+                description=clip_description(description),
                 posted_at=pub_date or None,
             ))
 

@@ -11,6 +11,18 @@ SHARED_HEADERS = {
     "Accept": "application/json",
 }
 
+# Description length cap. 0 means uncapped — store the full text.
+LIST_DESC_LIMIT = 0
+FULL_DESC_LIMIT = 0
+
+
+def clip_description(text: str, limit: int = LIST_DESC_LIMIT) -> str:
+    """Cap a description to `limit` characters (0/None → ""). Centralises the
+    length policy so it isn't a magic number scattered across every fetcher."""
+    if not text:
+        return ""
+    return text[:limit] if limit else text
+
 
 def http_get(url: str, *, headers: dict | None = None, timeout: int = 15, **kwargs) -> httpx.Response:
     """GET url, raising httpx.HTTPError on 4xx/5xx."""
@@ -86,7 +98,7 @@ def jsonld_job_description(soup) -> str:
             if isinstance(item, dict) and item.get("@type") == "JobPosting":
                 desc = item.get("description") or ""
                 if desc:
-                    return strip_tags(desc)[:4000]
+                    return clip_description(strip_tags(desc), FULL_DESC_LIMIT)
     return ""
 
 

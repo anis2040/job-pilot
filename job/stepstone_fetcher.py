@@ -4,7 +4,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from .config import SearchConfig
-from .fetcher_utils import infer_remote, strip_tags, jsonld_job_description
+from .fetcher_utils import infer_remote, strip_tags, jsonld_job_description, clip_description, FULL_DESC_LIMIT
 from .models import RawJob, RemoteType
 from .utils import parse_experience, location_matches
 
@@ -96,7 +96,7 @@ def fetch_stepstone(search: SearchConfig) -> list[RawJob]:
                 location=raw_location,
                 remote=remote,
                 experience=experience,
-                description=description[:2000],
+                description=clip_description(description),
                 posted_at=None,
             ))
 
@@ -137,4 +137,4 @@ def fetch_description(job_url: str) -> str:
         el = max(candidates, key=lambda e: len(e.get_text()), default=None) if candidates else None
     if not el:
         return ""
-    return el.get_text("\n", strip=True)[:4000]
+    return clip_description(el.get_text("\n", strip=True), FULL_DESC_LIMIT)

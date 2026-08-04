@@ -650,6 +650,7 @@ def api_config_save():
     config_p = _config_path()
     config_p.parent.mkdir(parents=True, exist_ok=True)
     _write_config_yaml(config_p, data)
+    clear_task_state()
     return jsonify({"ok": True})
 
 
@@ -787,6 +788,7 @@ def api_ai_settings_save():
         os.environ["SEMANTIC_MATCH"] = val
         updated_keys.add("SEMANTIC_MATCH")
 
+    clear_task_state()
     return jsonify({"ok": True, "updated": list(updated_keys)})
 
 
@@ -853,8 +855,8 @@ def api_jobs_clear():
 
 @app.route("/api/fetch", methods=["POST"])
 def api_fetch():
-    trigger_fetch()
-    return jsonify({"status": "running"})
+    started = trigger_fetch()
+    return jsonify({"status": "running", "started": started})
 
 
 @app.route("/api/fetch-status")
@@ -1183,6 +1185,26 @@ def api_setup_save_profile():
     _update_symlinks(profile_dir)
     init_db()
     return jsonify({"ok": True})
+
+
+_FRONTEND_DIST = Path(__file__).parent / "frontend" / "dist"
+
+
+@app.route("/app", defaults={"path": ""})
+@app.route("/app/<path:path>")
+def serve_spa(path: str):
+    index = _FRONTEND_DIST / "index.html"
+    if index.exists():
+        return send_file(str(index))
+    return "React app not built. Run: cd frontend && npm run build", 404
+
+
+@app.route("/spa-assets/<path:filename>")
+def serve_spa_assets(filename: str):
+    assets_dir = _FRONTEND_DIST / "assets"
+    if assets_dir.exists():
+        return send_file(str(assets_dir / filename))
+    return "", 404
 
 
 if __name__ == "__main__":

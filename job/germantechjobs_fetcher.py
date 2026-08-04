@@ -2,7 +2,7 @@ import xml.etree.ElementTree as ET
 import httpx
 
 from .config import SearchConfig
-from .fetcher_utils import http_get, strip_tags, infer_remote
+from .fetcher_utils import http_get, strip_tags, infer_remote, clip_description
 from .models import RawJob, RemoteType
 from .utils import parse_experience, location_matches
 
@@ -59,7 +59,7 @@ def fetch_germantechjobs(search: SearchConfig) -> list[RawJob]:
             location=location or "Germany",
             remote=remote,
             experience=experience,
-            description=full_text[:2000],
+            description=clip_description(full_text),
             posted_at=pub_date or None,
         ))
 

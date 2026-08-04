@@ -28,17 +28,28 @@ def strip_llm_fences(text: str) -> str:
 
 
 def extract_json_from_llm(text: str):
-    """Parse the first JSON object/array from an LLM response, tolerating fences
-    and surrounding prose. Strips code fences, then falls back to slicing from the
-    first '{' to the last '}'. Raises json.JSONDecodeError if nothing parses."""
-    cleaned = strip_llm_fences(text)
+    """Parse the first JSON object/array from an LLM response, tolerating fences,
+    surrounding prose, and thinking-model preamble (<thinking>…</thinking> or
+    plain reasoning text that precedes the JSON).  Raises json.JSONDecodeError if
+    nothing parses."""
+    # Strip <thinking>…</thinking> blocks emitted by reasoning models.
+    cleaned = re.sub(r"<thinking>.*?</thinking>", "", text, flags=re.DOTALL).strip()
+    cleaned = strip_llm_fences(cleaned)
     try:
         return _json.loads(cleaned)
     except _json.JSONDecodeError:
-        start, end = cleaned.find("{"), cleaned.rfind("}")
-        if start != -1 and end > start:
-            return _json.loads(cleaned[start:end + 1])
-        raise
+        # Try every '{' position — handles prose before the JSON object.
+        end = cleaned.rfind("}")
+        pos = 0
+        while True:
+            start = cleaned.find("{", pos)
+            if start == -1 or end <= start:
+                break
+            try:
+                return _json.loads(cleaned[start:end + 1])
+            except _json.JSONDecodeError:
+                pos = start + 1
+        raise _json.JSONDecodeError("No valid JSON object found", cleaned, 0)
 
 
 class RateLimitError(RuntimeError):

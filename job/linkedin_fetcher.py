@@ -4,7 +4,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from .config import SearchConfig
-from .fetcher_utils import infer_remote
+from .fetcher_utils import infer_remote, clip_description, FULL_DESC_LIMIT
 from .models import RawJob, RemoteType
 from .utils import parse_experience
 
@@ -114,7 +114,7 @@ def fetch_description(job_url: str) -> str:
     for btn in el.select("button, .show-more-less-html__button"):
         btn.decompose()
     text = el.get_text("\n", strip=True)
-    return _strip_show_toggle(text)[:4000]
+    return clip_description(_strip_show_toggle(text), FULL_DESC_LIMIT)
 
 
 def _strip_show_toggle(text: str) -> str:

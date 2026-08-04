@@ -1,7 +1,7 @@
 import httpx
 
 from .config import SearchConfig
-from .fetcher_utils import http_get, strip_tags, infer_remote, parse_employment_type, parse_salary
+from .fetcher_utils import http_get, strip_tags, infer_remote, parse_employment_type, parse_salary, clip_description
 from .models import RawJob, RemoteType
 from .utils import parse_experience, location_matches
 
@@ -55,7 +55,10 @@ def fetch_jobicy(search: SearchConfig) -> list[RawJob]:
             location=geo,
             remote=remote,
             experience=experience,
-            description=description[:2000],
+            # Jobicy's API returns the complete jobDescription (often 5k+ chars)
+            # and there's no on-demand full-description fetch for this source, so
+            # store it in full (limit=0) rather than clipping it mid-content.
+            description=clip_description(description, 0),
             posted_at=item.get("pubDate"),
             employment_type=employment_type,
             salary_range=salary,
