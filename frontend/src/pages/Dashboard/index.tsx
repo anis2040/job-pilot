@@ -349,6 +349,27 @@ function SettingsModal({ open, onClose, onSaved, allSources }: { open: boolean; 
   );
 }
 
+// ── PanelSlot — wraps DetailPanel with a slide-out animation on close ─────────
+
+function PanelSlot({ job, onClose, onClosing }: { job: Job; onClose: () => void; onClosing: () => void }) {
+  const [closing, setClosing] = useState(false);
+
+  const handleClose = () => {
+    setClosing(true);
+    onClosing();
+    setTimeout(onClose, 500);
+  };
+
+  return (
+    <aside
+      className={`detail-panel${closing ? ' closing' : ''}`}
+      aria-live="polite"
+    >
+      <DetailPanel jobId={job.job_id} initialJob={job} onClose={handleClose} />
+    </aside>
+  );
+}
+
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
 type Tab = 'pending' | 'applied' | 'skipped';
@@ -360,6 +381,7 @@ export default function DashboardPage() {
   const [loadError, setLoadError] = useState(false);
   const [counts, setCounts] = useState({ pending: 0, applied: 0, skipped: 0 });
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
+  const [panelClosing, setPanelClosing] = useState(false);
   const [page, setPage] = useState(1);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -700,7 +722,7 @@ export default function DashboardPage() {
 
       {/* Split view */}
       <div className="split-wrap">
-        <div className={`jobs-col${selectedJobId && isWide ? ' panel-open' : ''}`}>
+        <div className={`jobs-col${selectedJobId && isWide && !panelClosing ? ' panel-open' : ''}`}>
           {loading ? (
             <div className="jobs-skeleton">
               {Array.from({ length: 8 }).map((_, i) => (
@@ -753,12 +775,13 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {selectedJobId && isWide && (() => {
-          const selectedJob = allJobs.find(j => j.job_id === selectedJobId);
+        {isWide && (() => {
+          const selectedJob = selectedJobId ? allJobs.find(j => j.job_id === selectedJobId) : null;
           return selectedJob ? (
-            <aside key={selectedJobId} className="detail-panel" aria-live="polite">
-              <DetailPanel jobId={selectedJobId} initialJob={selectedJob} onClose={() => setSelectedJobId(null)} />
-            </aside>
+            <PanelSlot key={selectedJobId} job={selectedJob}
+              onClose={() => { setSelectedJobId(null); setPanelClosing(false); }}
+              onClosing={() => setPanelClosing(true)}
+            />
           ) : null;
         })()}
       </div>

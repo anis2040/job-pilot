@@ -407,14 +407,15 @@
   }
 }
 @keyframes panelSlideIn {
-  from {
-    opacity: 0;
-    transform: translateX(24px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes panelSlideOut {
+  from { opacity: 1; transform: none; }
+  to   { opacity: 0; transform: translateX(24px); }
+}
+.detail-panel.closing {
+  animation: panelSlideOut var(--dur-slow) var(--ease-out) both;
 }
 
 /* ── Job list ── */
