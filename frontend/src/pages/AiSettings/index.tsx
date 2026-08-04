@@ -145,9 +145,11 @@ export default function AiSettingsPage() {
     setPreferred(pid);
     try {
       await aiSettingsApi.save({ preferred_provider: pid });
+      const updated = await aiSettingsApi.get();
+      setData(updated);
+      setPreferred(updated.preferred_provider || updated.active_provider || null);
     } catch {
       showToast('Failed to save preference', 'err');
-      setPreferred(prev => prev); // keep UI in sync — revert if needed
     }
   };
 
