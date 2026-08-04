@@ -107,7 +107,10 @@ function DocSlot({ jobId, type, job, onRefresh }: {
             {typeof rateLimit.used === 'number' && typeof rateLimit.limit === 'number' && ` — ${rateLimit.used} / ${rateLimit.limit} tokens`}
             {retry && ` · resets in ${retry}`}
           </div>
-          <Link to="/ai-settings" className="btn btn-ghost btn-sm">Switch provider</Link>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <Link to="/ai-settings" className="btn btn-ghost btn-sm">Switch provider</Link>
+            <button className="btn btn-ghost btn-sm" onClick={handleBuild}>Retry</button>
+          </div>
         </div>
       );
     }

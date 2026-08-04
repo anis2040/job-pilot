@@ -787,6 +787,7 @@ def api_ai_settings_save():
         os.environ["SEMANTIC_MATCH"] = val
         updated_keys.add("SEMANTIC_MATCH")
 
+    clear_task_state()
     return jsonify({"ok": True, "updated": list(updated_keys)})
 
 

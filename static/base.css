@@ -220,11 +220,11 @@ body {
               padding var(--dur-slow) var(--ease-out);
 }
 .settings-card-body.is-expanded {
-  max-height: 4000px; opacity: 1;
+  max-height: 9999px; opacity: 1;
   padding-top: var(--space-5) !important; padding-bottom: var(--space-5) !important;
 }
 .card-body.is-expanded {
-  max-height: 4000px; opacity: 1;
+  max-height: 9999px; opacity: 1;
   padding-top: var(--space-4) !important; padding-bottom: var(--space-4) !important;
 }
 
