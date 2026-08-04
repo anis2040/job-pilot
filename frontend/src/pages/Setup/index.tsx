@@ -214,8 +214,11 @@ function Step2({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
       if (!res.ok) { setAutofillMsg(`⚠ ${res.error}`); return; }
       setForm(f => ({ ...f, ...res.data }));
       setAutofillMsg(`✓ Filled from ${file.name}`);
-    } catch { setAutofillMsg('⚠ Upload failed'); }
-    if (fileRef.current) fileRef.current.value = '';
+    } catch (error) {
+      setAutofillMsg(`⚠ ${error instanceof Error ? error.message : 'Upload failed'}`);
+    } finally {
+      if (fileRef.current) fileRef.current.value = '';
+    }
   };
 
   const handleSave = async () => {

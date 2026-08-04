@@ -1,4 +1,5 @@
 from __future__ import annotations
+import concurrent.futures as futures
 import os
 import sys
 import json as _json
@@ -96,6 +97,16 @@ def _run_install(cmd: list, timeout: int) -> dict:
         return {"ok": r.returncode == 0, "output": (r.stdout or r.stderr)[-1000:]}
     except Exception as e:
         return {"ok": False, "output": str(e)}
+
+
+def _call_ai_with_timeout(prompt: str, *, timeout: int = 90) -> str:
+    """Guard AI extraction routes so the UI is never left waiting forever."""
+    executor = futures.ThreadPoolExecutor(max_workers=1)
+    try:
+        future = executor.submit(call_ai, prompt)
+        return future.result(timeout=timeout)
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
 
 
 def _read_config_yaml(path: Path) -> dict:
@@ -947,7 +958,7 @@ Profile:
 """ + profile_text[:6000]
 
     try:
-        output = call_ai(prompt)
+        output = _call_ai_with_timeout(prompt)
         extracted = extract_json_from_llm(output)
 
         titles = extracted.get("titles", [])
@@ -981,7 +992,7 @@ Profile:
         _write_config_yaml(config_p, new_config)
 
         return jsonify({"ok": True, "searches": searches, "title_filter": new_config["title_filter"], "location": location})
-    except subprocess.TimeoutExpired:
+    except (subprocess.TimeoutExpired, futures.TimeoutError):
         return jsonify({"ok": False, "error": "AI extraction timed out. Try again."})
     except Exception as e:
         return jsonify({"ok": False, "error": f"Could not parse AI response: {e}"})
@@ -1128,9 +1139,11 @@ Resume text:
 {raw_text[:8000]}"""
 
     try:
-        output = call_ai(prompt)
+        output = _call_ai_with_timeout(prompt)
         data = extract_json_from_llm(output)
         return jsonify({"ok": True, "data": data})
+    except futures.TimeoutError:
+        return jsonify({"error": "AI extraction timed out. Try again."}), 504
     except _json.JSONDecodeError:
         return jsonify({"error": f"AI returned unexpected output (not JSON). Raw: {output[:200]}"}), 500
     except Exception as e:

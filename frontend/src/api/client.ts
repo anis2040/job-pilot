@@ -90,11 +90,23 @@ export const setup = {
   saveGeminiKey: (key: string) => post<{ ok: boolean }>('/api/setup/save-gemini-key', { key }),
   saveAnthropicKey: (key: string) => post<{ ok: boolean }>('/api/setup/save-anthropic-key', { key }),
   parseResume: async (file: File) => {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 90000);
     const form = new FormData();
     form.append('file', file);
-    const res = await fetch('/api/setup/parse-resume', { method: 'POST', body: form });
-    if (!res.ok) throw new Error(`POST /api/setup/parse-resume → ${res.status}`);
-    return res.json() as Promise<{ ok: boolean; data: unknown }>;
+    try {
+      const res = await fetch('/api/setup/parse-resume', { method: 'POST', body: form, signal: controller.signal });
+      const payload = await res.json().catch(() => null) as { error?: string; ok?: boolean; data?: unknown } | null;
+      if (!res.ok) throw new Error(payload?.error || `POST /api/setup/parse-resume → ${res.status}`);
+      return (payload || { ok: true, data: {} }) as { ok: boolean; data: unknown };
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new Error('Resume extraction timed out. Try a smaller file or another provider.')
+      }
+      throw error
+    } finally {
+      window.clearTimeout(timeout);
+    }
   },
   saveProfile: (content: string) => post<{ ok: boolean }>('/api/setup/save-profile', { content }),
 };

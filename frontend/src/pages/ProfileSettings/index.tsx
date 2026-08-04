@@ -165,8 +165,11 @@ function ProfileFormSection({ slug }: { slug: string }) {
       if (!res.ok) { setAutofillStatus(`⚠ ${res.error}`); return; }
       setForm(f => ({ ...f, ...res.data }));
       setAutofillStatus(`✓ Form filled from ${file.name}`);
-    } catch { setAutofillStatus('⚠ Upload failed.'); }
-    if (fileRef.current) fileRef.current.value = '';
+    } catch (error) {
+      setAutofillStatus(`⚠ ${error instanceof Error ? error.message : 'Upload failed.'}`);
+    } finally {
+      if (fileRef.current) fileRef.current.value = '';
+    }
   };
 
   const handleSave = async () => {

@@ -3,6 +3,8 @@
 Fully offline: the AI SDK clients and live model-listing are stubbed, and
 web.BASE is redirected to a temp dir so tests never touch the real .env.
 """
+import concurrent.futures as futures
+import io
 import json
 import pytest
 
@@ -168,3 +170,16 @@ class TestAiSettingsTest:
         assert data["ok"] is True
         assert data["model"] == "llama-3.3-70b-versatile"
         assert isinstance(data["latency_ms"], int)
+
+
+class TestSetupParseResume:
+    def test_timeout_returns_504(self, client, monkeypatch):
+        monkeypatch.setattr(web, "call_ai", lambda prompt: (_ for _ in ()).throw(futures.TimeoutError()))
+
+        data = {
+            "file": (io.BytesIO(b"Example resume text"), "resume.txt"),
+        }
+        r = client.post("/api/setup/parse-resume", data=data, content_type="multipart/form-data")
+
+        assert r.status_code == 504
+        assert r.get_json()["error"] == "AI extraction timed out. Try again."
