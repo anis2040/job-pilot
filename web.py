@@ -1249,6 +1249,11 @@ def api_setup_parse_resume():
     if not raw_text.strip():
         return jsonify({"error": "Could not extract text from the file. Try a different format."}), 400
 
+    # Normalize double-spaces and redundant newlines that pypdf introduces
+    import re as _re
+    raw_text = _re.sub(r'[ \t]{2,}', ' ', raw_text)
+    raw_text = _re.sub(r'\n{3,}', '\n\n', raw_text)
+
     # Limit to 20k chars — enough for even long CVs without hitting token limits
     text_for_ai = raw_text[:20000]
 
