@@ -331,7 +331,15 @@ function Step2({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
     try {
       const res = await setupApi.parseResume(file) as { ok: boolean; data: Partial<ProfileFormData>; error?: string };
       if (!res.ok) { setAutofillMsg(`⚠ ${res.error}`); return; }
-      setForm(f => ({ ...f, ...res.data }));
+      const data = res.data as Partial<ProfileFormData>;
+      if (Array.isArray(data.experience)) {
+        data.experience = data.experience.map(e => ({
+          ...e,
+          bullets: Array.isArray(e.bullets) && e.bullets.length ? e.bullets : [''],
+          projects: Array.isArray(e.projects) ? e.projects : [],
+        }));
+      }
+      setForm(f => ({ ...f, ...data }));
       setAutofillMsg(`✓ Filled from ${file.name}`);
     } catch (error) {
       setAutofillMsg(`⚠ ${error instanceof Error ? error.message : 'Upload failed'}`);

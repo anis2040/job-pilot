@@ -170,7 +170,16 @@ function ProfileFormSection({ slug }: { slug: string }) {
     try {
       const res = await setup.parseResume(file) as { ok: boolean; data: Partial<ProfileFormData>; error?: string };
       if (!res.ok) { setAutofillStatus(`⚠ ${res.error}`); return; }
-      setForm(f => ({ ...f, ...res.data }));
+      const data = res.data as Partial<ProfileFormData>;
+      // Ensure experience entries always have bullets/projects arrays (never undefined)
+      if (Array.isArray(data.experience)) {
+        data.experience = data.experience.map(e => ({
+          ...e,
+          bullets: Array.isArray(e.bullets) && e.bullets.length ? e.bullets : [''],
+          projects: Array.isArray(e.projects) ? e.projects : [],
+        }));
+      }
+      setForm(f => ({ ...f, ...data }));
       setAutofillStatus(`✓ Form filled from ${file.name}`);
     } catch (error) {
       setAutofillStatus(`⚠ ${error instanceof Error ? error.message : 'Upload failed.'}`);
