@@ -67,10 +67,31 @@ def infer_remote(*text_fields: str, default: str = RemoteType.ONSITE) -> str:
     keyword doesn't reliably mean on-site (e.g. LinkedIn search cards omit the
     workplace type entirely, so guessing 'On-site' would be wrong)."""
     combined = " ".join(t.lower() for t in text_fields if t)
-    if "hybrid" in combined:
-        return RemoteType.HYBRID
-    if "remote" in combined or "homeoffice" in combined or "home office" in combined or "worldwide" in combined or "anywhere" in combined:
-        return RemoteType.REMOTE
+
+    # Hybrid wins over Remote when both signals are present
+    _HYBRID = (
+        "hybrid",
+        "flex office", "flexible office",
+        "office/remote", "remote/office",
+        "büro und remote", "remote und büro",
+    )
+    _REMOTE = (
+        "remote",
+        "homeoffice", "home office", "home-office",
+        "mobiles arbeiten", "mobile working",
+        "work from home", "wfh",
+        "flexible arbeitsort",
+        "télétravail",
+        "distributed team",
+        "worldwide", "anywhere",
+    )
+
+    for kw in _HYBRID:
+        if kw in combined:
+            return RemoteType.HYBRID
+    for kw in _REMOTE:
+        if kw in combined:
+            return RemoteType.REMOTE
     if "on-site" in combined or "on site" in combined or "onsite" in combined:
         return RemoteType.ONSITE
     return default
