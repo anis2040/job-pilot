@@ -17,7 +17,7 @@ from .db import (
     update_status, get_pending, get_pending_deduped, get_jobs_by_status,
     update_description, log_fetch, last_fetch_at, get_job, stats as db_stats,
 )
-from .fetcher import fetch_search, fetch_description as fetch_job_description, source_can_describe
+from .fetcher import fetch_search, fetch_description as fetch_job_description, source_can_describe, should_fetch_description
 from .profiles import get_profile_path
 
 app = typer.Typer(help="Job hunt automator — fetch, track, and manage job listings.")
@@ -298,7 +298,7 @@ def resume(
 
     console.print(f"[bold]Fetching descriptions for {len(candidates)} job(s)…[/bold]")
     for i, row in enumerate(candidates, 1):
-        if row["description"] and len(row["description"]) > 100:
+        if not should_fetch_description(row["job_id"], row["description"]):
             continue
         if not source_can_describe(row["job_id"]):
             continue

@@ -73,6 +73,11 @@ export interface SearchConfig {
   company_blacklist: string[];
 }
 
+export interface SaveConfigResult {
+  ok: boolean;
+  fetch_required?: boolean;
+}
+
 export interface UsageInfo {
   last_24h_tokens: number;
   today_tokens: number;

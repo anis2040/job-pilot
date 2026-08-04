@@ -129,6 +129,11 @@ def test_jsonld_description_list():
     html = '<script type="application/ld+json">[{"@type":"Organization"},{"@type":"JobPosting","description":"Listed desc"}]</script>'
     assert "Listed desc" in jsonld_job_description(_soup(html))
 
+def test_jsonld_description_type_list_and_schema_url():
+    from job.fetcher_utils import jsonld_job_description
+    html = '<script type="application/ld+json">{"@graph":[{"@type":["https://schema.org/JobPosting"],"description":"Schema URL desc"}]}</script>'
+    assert "Schema URL desc" in jsonld_job_description(_soup(html))
+
 def test_jsonld_description_absent_returns_empty():
     from job.fetcher_utils import jsonld_job_description
     assert jsonld_job_description(_soup("<html><body>no ld json</body></html>")) == ""
@@ -501,6 +506,29 @@ _STEPSTONE_HTML = """
 </body></html>
 """
 
+_STEPSTONE_DETAIL_JSONLD = """
+<html><head>
+<script type="application/ld+json">
+{
+  "@type": ["JobPosting"],
+  "description": "<h2>Was Deinen Job ausmacht</h2><ul><li>Begleitung der Entwicklung und Optimierung komplexer Webprojekte</li><li>Gezielter Einsatz KI-gestützter Entwicklungs- und Assistenztools</li></ul><h2>Das wünschen wir uns</h2><p>Sehr gute Deutschkenntnisse und gute Englischkenntnisse</p>"
+}
+</script>
+</head></html>
+"""
+
+_STEPSTONE_DETAIL_MARKUP = """
+<html><body>
+<section data-at="job-ad-content">
+  <h2>Was wir Dir bieten</h2>
+  <ul>
+    <li>50 % remote arbeiten, 30+ Urlaubstage und Workation-Möglichkeiten</li>
+    <li>Unbefristeter Arbeitsvertrag und attraktive Weiterbildungsmöglichkeiten</li>
+  </ul>
+</section>
+</body></html>
+"""
+
 
 def test_stepstone_fetcher_parses_html(monkeypatch, search):
     import job.stepstone_fetcher as ss
@@ -518,6 +546,33 @@ def test_stepstone_fetcher_parses_html(monkeypatch, search):
     assert job.company == "MegaCorp GmbH"
     assert job.location == "Berlin, Deutschland"
     assert job.remote == RemoteType.REMOTE
+
+
+def test_stepstone_describe_parses_german_jsonld(monkeypatch):
+    import job.stepstone_fetcher as ss
+
+    monkeypatch.setattr(ss.httpx, "get", lambda *a, **kw: FakeResponse(text=_STEPSTONE_DETAIL_JSONLD))
+
+    out = ss.fetch_description("https://www.stepstone.de/stellenangebote--frontend--123-inline.html")
+
+    assert "Was Deinen Job ausmacht" in out
+    assert "KI-gestützter Entwicklungs- und Assistenztools" in out
+    assert "Sehr gute Deutschkenntnisse" in out
+    assert "• Begleitung der Entwicklung" in out
+    assert "<h2>" not in out
+
+
+def test_stepstone_describe_falls_back_to_detail_markup(monkeypatch):
+    import job.stepstone_fetcher as ss
+
+    monkeypatch.setattr(ss.httpx, "get", lambda *a, **kw: FakeResponse(text=_STEPSTONE_DETAIL_MARKUP))
+
+    out = ss.fetch_description("https://www.stepstone.de/stellenangebote--frontend--123-inline.html")
+
+    assert "Was wir Dir bieten" in out
+    assert "50 % remote arbeiten" in out
+    assert "Unbefristeter Arbeitsvertrag" in out
+    assert "<li>" not in out
 
 
 # ── Router ────────────────────────────────────────────────────────────────────

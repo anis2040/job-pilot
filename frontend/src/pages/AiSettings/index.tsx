@@ -251,11 +251,13 @@ export default function AiSettingsPage() {
   const handleSaveModel = async (pid: string, model: string) => {
     // claude uses CLI — no model key to save
     if (pid === 'claude') return;
+    const label = PROVIDER_META[pid]?.label ?? pid;
+    setPreferred(pid);
     try {
-      await aiSettingsApi.save({ [`${pid}_model`]: model });
+      await aiSettingsApi.save({ [`${pid}_model`]: model, preferred_provider: pid });
       setData(await aiSettingsApi.get());
-      showToast('Model saved');
-    } catch { showToast('Failed to save model', 'err'); }
+      showToast(`${label} model saved`);
+    } catch { showToast(`Failed to save ${label} model`, 'err'); }
   };
 
   const handleTest = async (pid: string) => {

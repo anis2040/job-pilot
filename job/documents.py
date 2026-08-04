@@ -4,7 +4,7 @@ from pathlib import Path
 
 from . import paths
 from .db import get_job, update_description, init_db
-from .fetcher import fetch_description as fetch_job_description
+from .fetcher import fetch_description as fetch_job_description, should_fetch_description
 from .profiles import get_profile_path, get_resumes_path
 from .ai_providers import (_get_anthropic_client, _get_gemini_client, _get_groq_client,
                            _get_model, _generate_content, call_ai, extract_json_from_llm)
@@ -478,20 +478,13 @@ def _build_document(job_id: str, doc_type: str) -> None:
             raise ValueError(f"Job {job_id} not found")
         row = dict(row)
 
-        if is_resume:
-            if (not row.get("description") or len(row["description"]) < 100):
-                stage_fn(job_id, "Fetching job description…")
-                desc = fetch_job_description(job_id, row.get("url") or "")
-                if desc:
-                    update_description(job_id, desc)
-                    row["description"] = desc
-        else:
-            if not row.get("description"):
-                stage_fn(job_id, "Fetching job description…")
-                desc = fetch_job_description(job_id, row.get("url") or "")
-                if desc:
-                    update_description(job_id, desc)
-                    row["description"] = desc
+        if should_fetch_description(job_id, row.get("description")):
+            stage_fn(job_id, "Fetching job description…")
+            desc = fetch_job_description(job_id, row.get("url") or "")
+            if desc and len(desc) > len(row.get("description") or ""):
+                update_description(job_id, desc)
+                row["description"] = desc
+        if not is_resume:
             if not row.get("description"):
                 raise ValueError("No job description available — cannot build cover letter")
 

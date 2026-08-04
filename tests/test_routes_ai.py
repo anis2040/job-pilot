@@ -99,6 +99,22 @@ class TestAiSettingsSave:
         assert "GROQ_MODEL=llama-3.1-8b-instant" in env_text
         assert "PREFERRED_PROVIDER=groq" in env_text
 
+    def test_saving_gemini_model_does_not_write_groq_model(self, client, tmp_path):
+        r = client.post("/api/ai-settings", json={
+            "gemini_model": "gemini-3.5-flash",
+            "preferred_provider": "gemini",
+        })
+
+        assert r.status_code == 200
+        data = r.get_json()
+        assert data["ok"] is True
+        assert "GEMINI_MODEL" in data["updated"]
+        assert "GROQ_MODEL" not in data["updated"]
+        env_text = (tmp_path / ".env").read_text()
+        assert "GEMINI_MODEL=gemini-3.5-flash" in env_text
+        assert "PREFERRED_PROVIDER=gemini" in env_text
+        assert "GROQ_MODEL=" not in env_text
+
     def test_clearing_preferred_removes_it(self, client, tmp_path):
         client.post("/api/ai-settings", json={"preferred_provider": "gemini"})
         assert "PREFERRED_PROVIDER=gemini" in (tmp_path / ".env").read_text()

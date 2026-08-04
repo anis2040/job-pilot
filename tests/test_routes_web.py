@@ -150,6 +150,35 @@ class TestApiJobDescription:
         assert r.get_json()["remote"] == "Hybrid"
         assert db.get_job("li_2")["remote"] == "Hybrid"
 
+    def test_stepstone_snippet_is_refreshed_to_full_description(self, web_client, monkeypatch):
+        import job.fetcher as fetcher
+        full_description = (
+            "Was Deinen Job ausmacht\n"
+            "• Begleitung der Entwicklung und Optimierung komplexer Webprojekte\n"
+            "• Gezielter Einsatz KI-gestützter Entwicklungs- und Assistenztools\n"
+            "Das wünschen wir uns\n"
+            "Sehr gute Deutschkenntnisse und gute Englischkenntnisse"
+        )
+        db.insert_job(
+            job_id="ss_2",
+            url="https://www.stepstone.de/stellenangebote--frontend--2-inline.html",
+            title="Frontend Engineer",
+            company="Cofinpro",
+            location="Frankfurt",
+            remote="Remote",
+            experience="",
+            description="Remote work possible",
+            posted_at=None,
+            search_name="stepstone",
+        )
+        monkeypatch.setattr(fetcher, "fetch_description", lambda *_: full_description)
+
+        r = web_client.get("/api/job/ss_2/description")
+
+        assert r.status_code == 200
+        assert r.get_json()["description"] == full_description
+        assert db.get_job("ss_2")["description"] == full_description
+
 
 # ── /api/job-status ───────────────────────────────────────────────────────────
 
@@ -243,6 +272,45 @@ class TestApiConfig:
         r = web_client.post("/api/config", json=payload)
         assert r.status_code == 200
         assert r.get_json()["ok"] is True
+
+    def test_narrowing_work_styles_is_local_only_and_keeps_jobs(self, web_client):
+        _insert_job("j-config", title="Engineer")
+        payload = {
+            "searches": [
+                {"name": "gh-eng", "source": "greenhouse", "query": "engineer",
+                 "location": "United States", "max_pages": 3, "work_styles": ["Remote"]}
+            ],
+            "title_filter": ["engineer"],
+            "blacklist": [],
+            "company_blacklist": [],
+        }
+
+        r = web_client.post("/api/config", json=payload)
+
+        assert r.status_code == 200
+        assert r.get_json()["fetch_required"] is False
+        assert db.get_job("j-config") is not None
+
+    def test_expanding_work_styles_requires_fetch(self, web_client):
+        remote_only = {
+            "searches": [
+                {"name": "gh-eng", "source": "greenhouse", "query": "engineer",
+                 "location": "United States", "max_pages": 3, "work_styles": ["Remote"]}
+            ],
+            "title_filter": ["engineer"],
+            "blacklist": [],
+            "company_blacklist": [],
+        }
+        remote_and_hybrid = {
+            **remote_only,
+            "searches": [{**remote_only["searches"][0], "work_styles": ["Remote", "Hybrid"]}],
+        }
+        assert web_client.post("/api/config", json=remote_only).status_code == 200
+
+        r = web_client.post("/api/config", json=remote_and_hybrid)
+
+        assert r.status_code == 200
+        assert r.get_json()["fetch_required"] is True
 
 
 # ── /api/sources ──────────────────────────────────────────────────────────────

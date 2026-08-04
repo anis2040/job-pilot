@@ -133,7 +133,7 @@ export const handlers = [
   http.get('/api/config', () => HttpResponse.json(db.config)),
   http.post('/api/config', async ({ request }) => {
     db.config = (await request.json()) as SearchConfig
-    return HttpResponse.json({ ok: true })
+    return HttpResponse.json({ ok: true, fetch_required: false })
   }),
 
   // ── Profiles ──
@@ -162,7 +162,7 @@ export const handlers = [
   http.get('/api/profiles/:slug/config', () => HttpResponse.json(db.config)),
   http.post('/api/profiles/:slug/config', async ({ request }) => {
     db.config = (await request.json()) as SearchConfig
-    return HttpResponse.json({ ok: true })
+    return HttpResponse.json({ ok: true, fetch_required: false })
   }),
   http.post('/api/profiles/:slug/clear-jobs', () => HttpResponse.json({ ok: true })),
 

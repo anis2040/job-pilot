@@ -113,14 +113,33 @@ def jsonld_job_description(soup) -> str:
             data = json.loads(raw)
         except (json.JSONDecodeError, ValueError):
             continue
-        # JSON-LD may be a single object, a list, or a @graph container
-        candidates = data if isinstance(data, list) else data.get("@graph", [data]) if isinstance(data, dict) else []
-        for item in candidates:
-            if isinstance(item, dict) and item.get("@type") == "JobPosting":
+        for item in _jsonld_nodes(data):
+            if _jsonld_is_type(item, "JobPosting"):
                 desc = item.get("description") or ""
                 if desc:
-                    return clip_description(strip_tags(desc), FULL_DESC_LIMIT)
+                    return clip_description(strip_tags(str(desc)), FULL_DESC_LIMIT)
     return ""
+
+
+def _jsonld_nodes(data):
+    """Yield JSON-LD dict nodes from objects, lists, and nested @graph blocks."""
+    if isinstance(data, list):
+        for item in data:
+            yield from _jsonld_nodes(item)
+        return
+    if not isinstance(data, dict):
+        return
+    yield data
+    graph = data.get("@graph")
+    if graph:
+        yield from _jsonld_nodes(graph)
+
+
+def _jsonld_is_type(item: dict, expected: str) -> bool:
+    raw_types = item.get("@type")
+    types = raw_types if isinstance(raw_types, list) else [raw_types]
+    expected_lower = expected.lower()
+    return any(str(t or "").lower().rstrip("/").endswith(expected_lower) for t in types)
 
 
 _EMPLOYMENT_MAP = {
@@ -170,4 +189,3 @@ def parse_salary(item: dict, *,
     if low:
         return f"{currency}{int(low):,}+"
     return ""
-

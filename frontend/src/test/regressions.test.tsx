@@ -12,7 +12,7 @@ import { http, HttpResponse } from 'msw'
 import { renderApp } from './utils'
 import { server } from './mocks/server'
 import { seedJobs, db } from './mocks/handlers'
-import { buildJob, buildMatch, buildSearchConfig } from './fixtures'
+import { buildJob, buildJobDetail, buildMatch, buildSearchConfig } from './fixtures'
 
 afterEach(() => {
   vi.useRealTimers()
@@ -113,13 +113,54 @@ describe('Fetch jobs with progress (regression: field mismatch + leak)', () => {
   })
 })
 
-describe('Settings save clears stale jobs and re-fetches (regression)', () => {
-  it('after saving fetch settings, old jobs are cleared and a fetch is triggered', async () => {
+describe('Settings save refresh strategy', () => {
+  it('narrowing work styles updates local filters without clearing or fetching', async () => {
     let cleared = false
     let fetchTriggered = false
     server.use(
       http.post('/api/jobs/clear', () => { cleared = true; db.jobs = []; return HttpResponse.json({ ok: true }) }),
-      http.post('/api/config', async ({ request }) => { await request.json(); return HttpResponse.json({ ok: true }) }),
+      http.post('/api/config', async ({ request }) => { db.config = (await request.json()) as typeof db.config; return HttpResponse.json({ ok: true, fetch_required: false }) }),
+      http.post('/api/fetch', () => { fetchTriggered = true; db.fetchStatus = { status: 'done', message: '' }; return HttpResponse.json({ status: 'running' }) }),
+    )
+    db.config = buildSearchConfig({
+      searches: [{
+        group_id: 'search-1',
+        name: 'LinkedIn - Engineer',
+        source: 'LinkedIn',
+        query: 'Engineer',
+        location: 'US',
+        max_pages: 3,
+        remote: true,
+        work_styles: ['Remote', 'Hybrid'],
+      }],
+    })
+    seedJobs([
+      buildJob({ job_id: 'remote1', title: 'Remote Engineer', source: 'LinkedIn', remote: 'Remote', status: 'pending' }),
+      buildJob({ job_id: 'hybrid1', title: 'Hybrid Engineer', source: 'LinkedIn', remote: 'Hybrid', status: 'pending' }),
+    ])
+    renderApp('/')
+    await waitFor(() => expect(screen.getByText('Remote Engineer')).toBeInTheDocument())
+    expect(screen.getByText('Hybrid Engineer')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Search settings/i }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: /Hybrid/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Save settings/i }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('Hybrid Engineer')).toBeNull()
+      expect(screen.getByText('Remote Engineer')).toBeInTheDocument()
+    })
+    expect(cleared).toBe(false)
+    expect(fetchTriggered).toBe(false)
+  })
+
+  it('expanded settings trigger an incremental fetch without clearing existing jobs', async () => {
+    let cleared = false
+    let fetchTriggered = false
+    server.use(
+      http.post('/api/jobs/clear', () => { cleared = true; db.jobs = []; return HttpResponse.json({ ok: true }) }),
+      http.post('/api/config', async ({ request }) => { db.config = (await request.json()) as typeof db.config; return HttpResponse.json({ ok: true, fetch_required: true }) }),
       http.post('/api/fetch', () => { fetchTriggered = true; db.fetchStatus = { status: 'done', message: '' }; return HttpResponse.json({ status: 'running' }) }),
     )
     db.config = buildSearchConfig({
@@ -133,10 +174,8 @@ describe('Settings save clears stale jobs and re-fetches (regression)', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /Save settings/i })).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: /Save settings/i }))
 
-    await waitFor(() => {
-      expect(cleared).toBe(true)
-      expect(fetchTriggered).toBe(true)
-    })
+    await waitFor(() => expect(fetchTriggered).toBe(true))
+    expect(cleared).toBe(false)
   })
 
   it('shows an error and does not close on save failure', async () => {
@@ -184,8 +223,8 @@ describe('Settings save clears stale jobs and re-fetches (regression)', () => {
 
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(screen.getByLabelText('Search jobs')).toHaveValue('Product Manager')
-    expect(screen.getByRole('button', { name: /Hybrid/i })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('button', { name: /Remote/i })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getAllByRole('button', { name: /Hybrid/i }).find(el => el.classList.contains('filter-chip'))).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getAllByRole('button', { name: /Remote/i }).find(el => el.classList.contains('filter-chip'))).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByLabelText('Filter by source')).toHaveValue('LinkedIn')
   })
 })
@@ -251,6 +290,58 @@ describe('Workplace badge correction (regression guard)', () => {
 
     await waitFor(() => expect(within(row).getByText('Hybrid')).toBeInTheDocument())
     expect(within(row).queryByText('Remote')).toBeNull()
+  })
+
+  it('fetches the full StepStone description even when the stored row has a snippet', async () => {
+    setWideViewport()
+    let descriptionFetches = 0
+    const fullDescription = 'Was Deinen Job ausmacht\n• Begleitung der Entwicklung komplexer Webprojekte\nDas wünschen wir uns\nSehr gute Deutschkenntnisse'
+    const job = buildJob({
+      job_id: 'ss_3',
+      title: 'Frontend Engineer',
+      source: 'StepStone',
+      status: 'pending',
+    })
+    seedJobs([job], [buildJobDetail({ ...job, description: 'Remote work possible' })])
+    server.use(
+      http.get('/api/job/:jobId/description', () => {
+        descriptionFetches++
+        return HttpResponse.json({ description: fullDescription, remote: 'Hybrid', match: null })
+      })
+    )
+
+    renderApp('/')
+    await waitFor(() => expect(screen.getByText('Frontend Engineer')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByText('Frontend Engineer'))
+
+    await waitFor(() => expect(screen.getByText(/Was Deinen Job ausmacht/)).toBeInTheDocument())
+    expect(screen.getByText(/Sehr gute Deutschkenntnisse/)).toBeInTheDocument()
+    expect(descriptionFetches).toBe(1)
+  })
+
+  it('fetches full StepStone descriptions on the standalone detail page', async () => {
+    const fullDescription = 'Was wir Dir bieten\n• 50 % remote arbeiten\nUnbefristeter Arbeitsvertrag'
+    const job = buildJob({
+      job_id: 'ss_4',
+      title: 'Angular Developer',
+      source: 'StepStone',
+      status: 'pending',
+    })
+    seedJobs([job], [buildJobDetail({ ...job, description: 'Short StepStone snippet' })])
+    server.use(
+      http.get('/api/job/:jobId/description', () => HttpResponse.json({
+        description: fullDescription,
+        remote: 'Hybrid',
+        match: null,
+      }))
+    )
+
+    renderApp('/job/ss_4')
+    await waitFor(() => expect(screen.getAllByText('Angular Developer').length).toBeGreaterThan(0))
+
+    await waitFor(() => expect(screen.getByText(/Was wir Dir bieten/)).toBeInTheDocument())
+    expect(screen.getByText(/Unbefristeter Arbeitsvertrag/)).toBeInTheDocument()
   })
 })
 

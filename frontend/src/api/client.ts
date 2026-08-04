@@ -1,6 +1,6 @@
 import type {
   Job, JobCounts, JobDetail, MatchInfo, Profile, SearchConfig, AiSettings,
-  SetupStatus, DocumentStatus, FetchStatus, AppConstants,
+  SetupStatus, DocumentStatus, FetchStatus, AppConstants, SaveConfigResult,
 } from './types';
 
 async function get<T>(url: string): Promise<T> {
@@ -71,7 +71,7 @@ export const profiles = {
   getMarkdown: (slug: string) => get<{ content: string }>(`/api/profiles/${slug}/profile-md`),
   saveMarkdown: (slug: string, content: string) => post<{ ok: boolean }>(`/api/profiles/${slug}/profile-md`, { content }),
   getConfig: (slug: string) => get<SearchConfig>(`/api/profiles/${slug}/config`),
-  saveConfig: (slug: string, config: SearchConfig) => post<{ ok: boolean }>(`/api/profiles/${slug}/config`, config),
+  saveConfig: (slug: string, config: SearchConfig) => post<SaveConfigResult>(`/api/profiles/${slug}/config`, config),
   clearJobs: (slug: string) => post<{ ok: boolean }>(`/api/profiles/${slug}/clear-jobs`),
 };
 
@@ -79,7 +79,7 @@ export const profiles = {
 
 export const config = {
   get: () => get<SearchConfig>('/api/config'),
-  save: (cfg: SearchConfig) => post<{ ok: boolean }>('/api/config', cfg),
+  save: (cfg: SearchConfig) => post<SaveConfigResult>('/api/config', cfg),
 };
 
 // ── AI Settings ───────────────────────────────────────────────────────────────

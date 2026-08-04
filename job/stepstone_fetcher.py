@@ -4,7 +4,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from .config import SearchConfig
-from .fetcher_utils import infer_remote, clip_description
+from .fetcher_utils import FULL_DESC_LIMIT, infer_remote, clip_description, jsonld_job_description, strip_tags
 from .models import RawJob, RemoteType
 from .utils import parse_experience, location_matches
 
@@ -13,6 +13,21 @@ _HEADERS = {
     "Accept-Language": "de-DE,de;q=0.9,en;q=0.8",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 }
+
+_DESCRIPTION_SELECTORS = (
+    "[data-at='job-ad-content']",
+    "[data-at='job-ad-description']",
+    "[data-at='job-description']",
+    "[data-at='job-item-description']",
+    "[data-testid='job-description']",
+    "[data-testid='jobDescription']",
+    "#job-description",
+    "#jobDescription",
+    "section[class*='job-description']",
+    "div[class*='job-description']",
+    "section[class*='JobDescription']",
+    "div[class*='JobDescription']",
+)
 
 
 def fetch_stepstone(search: SearchConfig) -> list[RawJob]:
@@ -109,6 +124,34 @@ def fetch_stepstone(search: SearchConfig) -> list[RawJob]:
 
 
 def fetch_description(job_url: str) -> str:
-    """StepStone detail pages are blocked from scraper IPs (403/timeout).
-    Description is already captured from the listing snippet during fetch_stepstone."""
-    return ""
+    """Fetch the full description from a StepStone detail page.
+
+    StepStone often embeds the full posting as schema.org JobPosting JSON-LD,
+    which is more stable than CSS selectors and works for German descriptions.
+    Selector fallbacks cover pages where the structured block is absent.
+    """
+    if not job_url:
+        return ""
+    try:
+        resp = httpx.get(job_url, headers=_HEADERS, timeout=15, follow_redirects=True)
+        resp.raise_for_status()
+    except httpx.HTTPError:
+        return ""
+
+    soup = BeautifulSoup(resp.text, "lxml")
+    description = jsonld_job_description(soup)
+    if description:
+        return description
+    return _description_from_detail_markup(soup)
+
+
+def _description_from_detail_markup(soup: BeautifulSoup) -> str:
+    candidates: list[str] = []
+    for selector in _DESCRIPTION_SELECTORS:
+        for el in soup.select(selector):
+            for noisy in el.select("script, style, noscript, svg, form, button, nav, header, footer, aside"):
+                noisy.decompose()
+            text = clip_description(strip_tags(str(el)), FULL_DESC_LIMIT)
+            if len(text) >= 80:
+                candidates.append(text)
+    return max(candidates, key=len) if candidates else ""

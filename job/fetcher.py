@@ -61,6 +61,7 @@ SOURCE_REGISTRY: list[Source] = [
 ]
 
 _BY_ID = {s.id: s for s in SOURCE_REGISTRY}
+_STEPSTONE_SNIPPET_LIMIT = 500
 
 # ── Backwards-compatible derived views ─────────────────────────────────────────
 # (id, default_pages) tuples — consumed by web.py and the config generator.
@@ -90,6 +91,15 @@ def source_can_describe(job_id: str) -> bool:
     """True if this job's source supports on-demand full-description scraping."""
     s = _source_for_job_id(job_id)
     return bool(s and s.describe)
+
+
+def should_fetch_description(job_id: str, description: str | None) -> bool:
+    """True when a stored description is missing or likely only a search-card snippet."""
+    text = (description or "").strip()
+    if not text:
+        return True
+    s = _source_for_job_id(job_id)
+    return bool(s and s.id == "stepstone" and len(text) < _STEPSTONE_SNIPPET_LIMIT)
 
 
 def reinfer_remote(job_id: str, title: str, location: str, description: str,

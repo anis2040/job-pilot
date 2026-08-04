@@ -111,7 +111,8 @@ def _load_env() -> None:
             # Always overwrite API keys and provider preference from .env
             # so that keys saved via the UI take effect without a restart
             if k in ("ANTHROPIC_API_KEY", "GROQ_API_KEY", "GEMINI_API_KEY",
-                     "GOOGLE_API_KEY", "ANTHROPIC_AUTH_TOKEN", "PREFERRED_PROVIDER"):
+                     "GOOGLE_API_KEY", "ANTHROPIC_AUTH_TOKEN", "PREFERRED_PROVIDER",
+                     "GROQ_MODEL", "ANTHROPIC_MODEL", "GEMINI_MODEL", "SEMANTIC_MATCH"):
                 os.environ[k] = v
             else:
                 os.environ.setdefault(k, v)
