@@ -3,12 +3,14 @@ import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import { jobs as jobsApi, documents } from '../../api/client';
 import { useToast } from '../../components/ui/useToast';
 import { useDocumentStatus } from '../../hooks/useDocumentStatus';
+import { SourceBadge } from '../../components/ui/SourceBadge';
 import { Icon } from '../../components/ui/Icon';
 import { Spinner } from '../../components/ui/Spinner';
 import { AppShell } from '../../components/layout/AppShell';
 import { BackButton } from '../../components/layout/BackButton';
 import { safeUrl, fmtDate } from '../../utils/format';
 import { formatDescription, isLongDescription } from '../../utils/descriptionRenderer';
+import { shouldFetchFullDescription } from '../../utils/jobDescription';
 import { buildBackState } from '../../utils/backNavigation';
 import type { JobDetail, Job } from '../../api/types';
 
@@ -130,8 +132,8 @@ function DocSlot({ jobId, type, job, onRefresh }: {
     return <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-faint)' }}>🔒 Build CV first</span>;
   }
   return (
-    <button className="btn btn-primary btn-sm" onClick={handleBuild}>
-      {isResume ? '▶ Build CV' : '✉ Write Cover Letter'}
+    <button className="btn btn-ai btn-sm" onClick={handleBuild}>
+      {isResume ? '✦ Build CV' : '✦ Write Cover Letter'}
     </button>
   );
 }
@@ -256,24 +258,44 @@ function SimilarJobs({ jobId }: { jobId: string }) {
         </div>
       </div>
       <div className="similar-slider" ref={sliderRef}>
-        {similar.map((j, i) => (
-          <a
-            key={j.job_id}
-            className="similar-card-item"
-            href="#"
-            style={{ animationDelay: `${i * 60}ms` }}
-            onClick={e => { e.preventDefault(); navigate(`/job/${j.job_id}`); }}
-          >
-            <div className="similar-title">{j.title}</div>
-            <div className="similar-company">{j.company}</div>
-            {j.location && <div className="similar-location">{j.location}</div>}
-            {j.match && typeof j.match.semantic_score === 'number' && (
-              <span className={`similar-match ${j.match.semantic_score >= 70 ? 'high' : j.match.semantic_score >= 45 ? 'mid' : 'low'}`}>
-                {j.match.semantic_score}% fit
-              </span>
-            )}
-          </a>
-        ))}
+        {similar.map((j, i) => {
+          const score = j.match && typeof j.match.semantic_score === 'number' ? j.match.semantic_score : null;
+          const badgeCls = score !== null ? (score >= 70 ? 'high' : score >= 45 ? 'mid' : 'low') : null;
+          const REMOTE_CSS: Record<string, string> = { Remote: 'remote', Hybrid: 'hybrid', 'On-site': 'onsite', 'On-Site': 'onsite' };
+          return (
+            <a
+              key={j.job_id}
+              className="similar-card-item"
+              href="#"
+              style={{ animationDelay: `${i * 60}ms` }}
+              onClick={e => { e.preventDefault(); navigate(`/job/${j.job_id}`); }}
+            >
+              <div className="similar-card-top">
+                {badgeCls && <span className={`similar-match ${badgeCls}`}>{score}% fit</span>}
+                {j.source && <span className="similar-source">{j.source}</span>}
+              </div>
+              <div className="similar-title">{j.title}</div>
+              <div className="similar-company"><Icon name="building" size={11} /> {j.company}</div>
+              <div className="similar-meta">
+                {j.location && <span className="similar-meta-item"><Icon name="mapPin" size={11} />{j.location}</span>}
+                {j.remote && j.remote !== 'Unknown' && (
+                  <span className={`similar-meta-item similar-remote ${REMOTE_CSS[j.remote] || ''}`}>
+                    <Icon name={j.remote === 'Remote' ? 'globe' : 'building'} size={11} />{j.remote}
+                  </span>
+                )}
+                {j.experience && j.experience !== 'Unknown' && (
+                  <span className="similar-meta-item"><Icon name="briefcase" size={11} />{j.experience}</span>
+                )}
+                {j.posted && <span className="similar-meta-item"><Icon name="clock" size={11} />{j.posted}</span>}
+              </div>
+              {j.match?.matched && j.match.matched.length > 0 && (
+                <div className="similar-skills">
+                  {j.match.matched.slice(0, 3).map(s => <span key={s} className="similar-skill-chip">{s}</span>)}
+                </div>
+              )}
+            </a>
+          );
+        })}
       </div>
     </div>
   );
@@ -292,6 +314,17 @@ export default function JobDetailPage() {
     try {
       const data = await jobsApi.get(jobId);
       setJob(data);
+      if (shouldFetchFullDescription(data)) {
+        try {
+          const desc = await jobsApi.description(jobId);
+          setJob({
+            ...data,
+            description: desc.description || data.description,
+            remote: desc.remote || data.remote,
+            match: desc.match ?? data.match,
+          });
+        } catch { /* non-fatal */ }
+      }
     } catch {
       showToast('Failed to load job', 'err');
     }
@@ -337,7 +370,27 @@ export default function JobDetailPage() {
     <AppShell>
       <div className="detail-header">
         <BackButton fallbackTo="/" className="detail-back" />
-        <span className="detail-header-title">{job.title}</span>
+        <div className="detail-header-info">
+          <span className="detail-header-title">{job.title}</span>
+          <span className="detail-header-sub">
+            {job.company}
+            {job.location && <><span className="detail-header-dot">·</span><Icon name="mapPin" size={11} />{job.location}</>}
+            {job.remote && job.remote !== 'Unknown' && <><span className="detail-header-dot">·</span>{job.remote}</>}
+          </span>
+        </div>
+        <div className="detail-header-actions">
+          {job.status === 'pending' ? (
+            <>
+              <button className="btn btn-teal btn-sm" onClick={() => setStatus('applied')}><Icon name="check" size={13} /> Applied</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => setStatus('skipped')}><Icon name="x" size={13} /> Skip</button>
+            </>
+          ) : (
+            <>
+              <span className={`status-pill ${job.status}`}>{job.status === 'applied' ? '✓ Applied' : '✗ Skipped'}</span>
+              <button className="btn btn-ghost btn-sm" onClick={() => setStatus('pending')}>↩ Restore</button>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="detail-layout">
@@ -359,23 +412,8 @@ export default function JobDetailPage() {
                   <Icon name="globe" size={13} /> {job.remote}
                 </span>
               )}
-              {job.source && <span className="meta-pill source-badge"><Icon name="external" size={13} /> {job.source}</span>}
+              {job.source && <SourceBadge source={job.source} />}
               {job.posted && <span className="meta-pill"><Icon name="clock" size={13} /> {job.posted}</span>}
-            </div>
-            <div className="job-hero-actions">
-              {job.status === 'pending' ? (
-                <>
-                  <button className="btn btn-success" onClick={() => setStatus('applied')}><Icon name="check" size={15} /> Mark as Applied</button>
-                  <button className="btn btn-ghost" onClick={() => setStatus('skipped')}><Icon name="x" size={15} /> Skip</button>
-                </>
-              ) : (
-                <>
-                  <span className={`status-pill ${job.status}`}>
-                    {job.status === 'applied' ? 'Applied' : 'Skipped'}
-                  </span>
-                  <button className="btn btn-ghost btn-sm" onClick={() => setStatus('pending')}>↩ Restore to pending</button>
-                </>
-              )}
             </div>
           </div>
 

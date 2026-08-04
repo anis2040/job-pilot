@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { jobs as jobsApi, documents, config as configApi, fetcher as fetcherApi, constants } from '../../api/client';
 import { useProfile } from '../../hooks/useProfile';
+import { SourceBadge } from '../../components/ui/SourceBadge';
 import { consumeProfileFetchSignal } from '../../hooks/profileFetchSignal';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useToast } from '../../components/ui/useToast';
@@ -13,10 +14,11 @@ import { useDocumentStatus } from '../../hooks/useDocumentStatus';
 import { SearchRow } from '../../components/ui/SearchRow';
 import { createSearchRow, deriveTitleFilters, groupSearchEntries, expandSearchRows, WORK_STYLES, type SearchRowEntry } from '../../components/ui/searchRowModel';
 import { formatDescription, isLongDescription } from '../../utils/descriptionRenderer';
+import { shouldFetchFullDescription } from '../../utils/jobDescription';
 import { safeUrl } from '../../utils/format';
 import { applyFilters, filtersToKey, DEFAULT_FILTERS } from '../../utils/filters';
 import type { Filters } from '../../utils/filters';
-import type { Job, JobDetail, SearchConfig, AppConstants } from '../../api/types';
+import type { Job, JobDetail, SearchConfig, AppConstants, SaveConfigResult } from '../../api/types';
 
 const PAGE_SIZE = 25;
 const SPLIT_MIN = 1200;
@@ -95,9 +97,8 @@ function JobRow({ job, selected, onClick, onStatusChange }: {
   const badgeCls = matchPct !== null
     ? (matchPct >= 70 ? 'high' : matchPct >= 45 ? 'mid' : 'low')
     : (skillCount >= 5 ? 'high' : skillCount >= 3 ? 'mid' : 'low');
-  const badgeLabel = matchPct !== null
-    ? `${matchPct}% fit`
-    : skillCount > 0 ? `${skillCount} skill${skillCount !== 1 ? 's' : ''} match` : null;
+
+  const topSkills = match?.matched?.slice(0, 3) ?? [];
 
   return (
     <div
@@ -107,59 +108,67 @@ function JobRow({ job, selected, onClick, onStatusChange }: {
       tabIndex={0}
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onClick(); }}
     >
+      {/* Left: main content */}
       <div className="job-row-main">
         <div className="job-row-title">{job.title}</div>
+
         <div className="job-row-meta">
-          <span>{job.company}</span>
-          {job.location && <><span className="dot">·</span><span>{job.location}</span></>}
-          {job.remote && job.remote !== 'Unknown' && (
-            <><span className="dot">·</span><span className={`remote-badge ${REMOTE_CSS[job.remote] || ''}`}>{job.remote}</span></>
+          <span className="job-row-company">{job.company}</span>
+          {job.location && (
+            <><span className="dot">·</span><span className="job-meta-item"><Icon name="mapPin" size={11} />{job.location}</span></>
           )}
-          {job.source && <><span className="dot">·</span><span className="source-badge">{job.source}</span></>}
-          <><span className="dot">·</span><span className="age-label">{job.posted || job.age}</span></>
+          {job.remote && job.remote !== 'Unknown' && (
+            <><span className="dot">·</span><span className={`remote-badge ${REMOTE_CSS[job.remote] || ''}`}>
+              <Icon name={job.remote === 'Remote' ? 'globe' : 'building'} size={11} />{job.remote}
+            </span></>
+          )}
+          {job.experience && job.experience !== 'Unknown' && (
+            <><span className="dot">·</span><span className="exp-badge"><Icon name="briefcase" size={11} />{job.experience}</span></>
+          )}
+          <><span className="dot">·</span><span className="age-label"><Icon name="clock" size={11} />{job.posted || job.age}</span></>
         </div>
-        {match && badgeLabel && (
-          <div className="job-row-match">
-            <span className={`match-badge ${badgeCls}`}>{badgeLabel}</span>
+
+        {topSkills.length > 0 && (
+          <div className="job-row-skills">
+            {topSkills.map(s => <span key={s} className="skill-chip matched">{s}</span>)}
+            {(match?.missing?.length ?? 0) > 0 && (
+              <span className="skill-chip missing">+{match!.missing.length} missing</span>
+            )}
           </div>
         )}
       </div>
-      <div className="job-row-actions" onClick={e => e.stopPropagation()}>
-        {job.status === 'pending' ? (
-          <>
-            <button className="btn-row-action apply" title="Mark applied" onClick={() => onStatusChange(job.job_id, 'applied')}><Icon name="check" size={13} /></button>
-            <button className="btn-row-action skip" title="Skip" onClick={() => onStatusChange(job.job_id, 'skipped')}><Icon name="x" size={13} /></button>
-          </>
-        ) : (
-          <button className="btn-row-action restore" title="Restore to pending" onClick={() => onStatusChange(job.job_id, 'pending')}>↩</button>
-        )}
-        {job.resume_status === 'building' && <span className="spinner spinner-xs spinner-resume" />}
-        {job.resume_status === 'done' && job.pdf_url && (
-          <a
-            href={safeUrl(job.pdf_url)}
-            target="_blank"
-            rel="noreferrer"
-            title="Open CV"
-            style={{ color: 'var(--green)', fontSize: '0.75rem', textDecoration: 'none' }}
-            onClick={e => e.stopPropagation()}
-          >
-            CV
-          </a>
-        )}
-        {job.cl_status === 'building' && <span className="spinner spinner-xs spinner-cl" />}
-        {job.cl_status === 'done' && job.cl_pdf_url && (
-          <a
-            href={safeUrl(job.cl_pdf_url)}
-            target="_blank"
-            rel="noreferrer"
-            title="Open cover letter"
-            style={{ color: 'var(--blue-light)', fontSize: '0.75rem', textDecoration: 'none' }}
-            onClick={e => e.stopPropagation()}
-          >
-            CL
-          </a>
-        )}
-        {job.cl_status === 'done' && !job.cl_pdf_url && <span title="Cover letter ready" style={{ color: 'var(--blue-light)', fontSize: '0.75rem' }}>CL</span>}
+
+      {/* Right: score + source + actions */}
+      <div className="job-row-right" onClick={e => e.stopPropagation()}>
+        <div className="job-row-score-row">
+          {matchPct !== null && (
+            <span className={`match-badge ${badgeCls}`}>{matchPct}%</span>
+          )}
+          {matchPct === null && skillCount > 0 && (
+            <span className={`match-badge ${badgeCls}`}>{skillCount} skills</span>
+          )}
+          {job.source && <SourceBadge source={job.source} />}
+        </div>
+
+        <div className="job-row-actions">
+          {job.status === 'pending' ? (
+            <>
+              <button className="btn-row-action apply" title="Mark applied" onClick={() => onStatusChange(job.job_id, 'applied')}><Icon name="check" size={12} /></button>
+              <button className="btn-row-action skip" title="Skip" onClick={() => onStatusChange(job.job_id, 'skipped')}><Icon name="x" size={12} /></button>
+            </>
+          ) : (
+            <button className="btn-row-action restore" title="Restore to pending" onClick={() => onStatusChange(job.job_id, 'pending')}>↩</button>
+          )}
+          {job.resume_status === 'building' && <span className="spinner spinner-xs" />}
+          {job.resume_status === 'done' && job.pdf_url && (
+            <a href={safeUrl(job.pdf_url)} target="_blank" rel="noreferrer" title="Open CV" className="doc-micro-badge cv" onClick={e => e.stopPropagation()}>CV</a>
+          )}
+          {job.cl_status === 'building' && <span className="spinner spinner-xs" />}
+          {job.cl_status === 'done' && job.cl_pdf_url && (
+            <a href={safeUrl(job.cl_pdf_url)} target="_blank" rel="noreferrer" title="Open cover letter" className="doc-micro-badge cl" onClick={e => e.stopPropagation()}>CL</a>
+          )}
+          {job.cl_status === 'done' && !job.cl_pdf_url && <span className="doc-micro-badge cl" title="Cover letter ready">CL</span>}
+        </div>
       </div>
     </div>
   );
@@ -188,6 +197,39 @@ function Pagination({ page, total, pageSize, onChange }: { page: number; total: 
   );
 }
 
+// ── ProviderIcon ─────────────────────────────────────────────────────────────
+
+const SOURCE_DOMAINS: Record<string, string> = {
+  linkedin:          'linkedin.com',
+  stepstone:         'stepstone.de',
+  greenhouse:        'greenhouse.io',
+  himalayas:         'himalayas.app',
+  jobicy:            'jobicy.com',
+  germantechjobs:    'germantechjobs.de',
+  berlinstartupjobs: 'berlinstartupjobs.com',
+  heyjobs:           'heyjobs.eu',
+};
+
+function ProviderIcon({ source, company }: { source?: string; company?: string }) {
+  const [imgOk, setImgOk] = useState(true);
+  const domain = source ? SOURCE_DOMAINS[source.toLowerCase()] : null;
+  const initial = company?.[0]?.toUpperCase() ?? '?';
+
+  if (domain && imgOk) {
+    return (
+      <span className="panel-provider-icon">
+        <img
+          src={`https://www.google.com/s2/favicons?domain=${domain}&sz=64`}
+          alt={source}
+          style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+          onError={() => setImgOk(false)}
+        />
+      </span>
+    );
+  }
+  return <span className="panel-company-initial">{initial}</span>;
+}
+
 // ── Detail panel (split view) ─────────────────────────────────────────────────
 
 function DetailPanel({ jobId, initialJob, onClose, onJobUpdated }: { jobId: string; initialJob: Job; onClose: () => void; onJobUpdated: (job: JobDetail) => void }) {
@@ -204,7 +246,7 @@ function DetailPanel({ jobId, initialJob, onClose, onJobUpdated }: { jobId: stri
     jobsApi.get(jobId).then(async (data) => {
       setJob(data);
       onJobUpdated(data);
-      if (!data.description) {
+      if (shouldFetchFullDescription(data)) {
         try {
           const desc = await jobsApi.description(jobId);
           const enriched: JobDetail = {
@@ -279,58 +321,29 @@ function DetailPanel({ jobId, initialJob, onClose, onJobUpdated }: { jobId: stri
   return (
     <div className="detail-panel-content">
       <div className="panel-header">
-        <button className="panel-close" onClick={onClose} aria-label="Close panel">
-          <Icon name="x" size={16} />
-        </button>
-        <button className="panel-open-full" onClick={() => navigate(`/job/${jobId}`)}>
-          <Icon name="external" size={14} /> Full view
-        </button>
-      </div>
-      <div className="panel-hero">
-        <h2 className="panel-title">
-          {job.url ? (
-            <a href={safeUrl(job.url)} target="_blank" rel="noreferrer" className="panel-title-link">
-              {job.title}
-            </a>
-          ) : job.title}
-        </h2>
-        <div className="panel-company">{job.company}</div>
-        <div className="panel-meta">
-          {job.location && <span>{job.location}</span>}
-          {job.remote && job.remote !== 'Unknown' && <span className={`remote-badge ${REMOTE_CSS[job.remote] || ''}`}>{job.remote}</span>}
-          {job.source && <span className="source-badge">{job.source}</span>}
-          {job.posted && <span>{job.posted}</span>}
+        <div className="panel-header-info">
+          <ProviderIcon source={job.source} company={job.company} />
+          <div className="panel-header-text">
+            {job.url
+              ? <a href={safeUrl(job.url)} target="_blank" rel="noreferrer" className="panel-header-title">{job.title}</a>
+              : <span className="panel-header-title" style={{ cursor: 'default' }}>{job.title}</span>
+            }
+            <div className="panel-header-meta">
+              <span className="panel-header-company">{job.company}</span>
+              {job.location && <><span className="dot">·</span><span className="panel-meta-item"><Icon name="mapPin" size={10} />{job.location}</span></>}
+              {job.remote && job.remote !== 'Unknown' && <><span className="dot">·</span><span className={`remote-badge panel-meta-item ${REMOTE_CSS[job.remote] || ''}`}><Icon name={job.remote === 'Remote' ? 'globe' : 'building'} size={10} />{job.remote}</span></>}
+              {job.posted && <><span className="dot">·</span><span className="panel-meta-item"><Icon name="clock" size={10} />{job.posted}</span></>}
+            </div>
+          </div>
         </div>
-      </div>
-      <div className="panel-actions">
-        {job.status === 'pending' ? (
-          <>
-            <button className="btn btn-success btn-sm" onClick={() => setStatus('applied')}><Icon name="check" size={13} /> Applied</button>
-            <button className="btn btn-ghost btn-sm" onClick={() => setStatus('skipped')}><Icon name="x" size={13} /> Skip</button>
-          </>
-        ) : (
-          <>
-            <span className={`status-pill ${job.status}`}>{job.status === 'applied' ? 'Applied' : 'Skipped'}</span>
-            <button className="btn btn-ghost btn-sm" onClick={() => setStatus('pending')}>↩ Restore</button>
-          </>
-        )}
-        {job.url && (
-          <a href={safeUrl(job.url)} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">
-            <Icon name="external" size={13} /> Source
-          </a>
-        )}
-      </div>
-      <div className="panel-docs">
-        {job.resume_status === 'idle' && (
-          <button className="btn btn-primary btn-sm" onClick={handleBuildResume} disabled={buildingResume}>▶ Build CV</button>
-        )}
-        {(job.resume_status === 'building' || buildingResume) && <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}><span className="spinner spinner-xs spinner-resume" /> Building CV…</span>}
-        {job.resume_status === 'done' && job.pdf_url && (
-          <a href={safeUrl(job.pdf_url)} target="_blank" rel="noreferrer" className="btn btn-success btn-sm">📄 Open CV</a>
-        )}
-        {job.resume_status === 'error' && (
-          <span style={{ fontSize: 'var(--text-sm)', color: 'var(--red)' }}>{job.resume_error || 'CV build failed'}</span>
-        )}
+        <div className="panel-header-actions">
+          <button className="panel-action-btn" title="Open full detail" onClick={() => navigate(`/job/${jobId}`)}>
+            <Icon name="maximize" size={14} />
+          </button>
+          <button className="panel-action-btn panel-action-close" onClick={onClose} aria-label="Close panel">
+            <Icon name="x" size={15} />
+          </button>
+        </div>
       </div>
       {job.match && (
         <div className="panel-match">
@@ -338,7 +351,6 @@ function DetailPanel({ jobId, initialJob, onClose, onJobUpdated }: { jobId: stri
           {job.match.missing?.slice(0, 3).map(s => <span key={s} className="skill-tag-missing">{s}</span>)}
         </div>
       )}
-      {/* Description */}
       <div className="panel-desc">
         {descHtml ? (
           <>
@@ -353,12 +365,22 @@ function DetailPanel({ jobId, initialJob, onClose, onJobUpdated }: { jobId: stri
             )}
           </>
         ) : (
-          <p style={{ fontStyle: 'italic', color: 'var(--text-faint)', fontSize: 'var(--text-sm)' }}>
-            {job.url
-              ? <><span>No description — </span><a href={safeUrl(job.url)} target="_blank" rel="noreferrer" style={{ color: 'var(--blue-light)' }}>view on source ↗</a></>
-              : 'No description available.'}
-          </p>
+          <p style={{ fontStyle: 'italic', color: 'var(--text-faint)', fontSize: 'var(--text-sm)' }}>No description available.</p>
         )}
+        <div className="panel-cv-row">
+          {job.resume_status === 'idle' && (
+            <button className="btn btn-ai btn-sm" onClick={handleBuildResume} disabled={buildingResume}>✦ Build CV</button>
+          )}
+          {(job.resume_status === 'building' || buildingResume) && (
+            <span className="panel-building"><span className="spinner spinner-xs" /> Building…</span>
+          )}
+          {job.resume_status === 'done' && job.pdf_url && (
+            <a href={safeUrl(job.pdf_url)} target="_blank" rel="noreferrer" className="btn btn-success btn-sm">📄 Open CV</a>
+          )}
+          {job.resume_status === 'error' && (
+            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--red)' }}>{job.resume_error?.slice(0, 60) || 'Build failed'}</span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -366,7 +388,7 @@ function DetailPanel({ jobId, initialJob, onClose, onJobUpdated }: { jobId: stri
 
 // ── Settings modal ────────────────────────────────────────────────────────────
 
-function SettingsModal({ open, onClose, onSaved, allSources }: { open: boolean; onClose: () => void; onSaved: (rows: SearchRowEntry[]) => void; allSources: string[] }) {
+function SettingsModal({ open, onClose, onSaved, allSources }: { open: boolean; onClose: () => void; onSaved: (rows: SearchRowEntry[], result: SaveConfigResult) => void; allSources: string[] }) {
   const { showToast } = useToast();
   const [cfg, setCfg] = useState<SearchConfig>({ searches: [], title_filter: [], blacklist: [], company_blacklist: [] });
   const [rows, setRows] = useState<SearchRowEntry[]>([]);
@@ -396,10 +418,10 @@ function SettingsModal({ open, onClose, onSaved, allSources }: { open: boolean; 
     const next = { ...cfg, searches, title_filter: deriveTitleFilters(rows) };
     setSaving(true);
     try {
-      await configApi.save(next);
-      showToast('Settings saved');
+      const result = await configApi.save(next);
+      showToast(result.fetch_required ? 'Settings saved. Fetching uncovered searches…' : 'Settings saved. Updated local filters.');
       onClose();
-      onSaved(rows);
+      onSaved(rows, result);
     } catch {
       showToast('Could not save settings', 'err');
     } finally {
@@ -694,15 +716,9 @@ export default function DashboardPage() {
   };
   handleFetchRef.current = handleFetch;
 
-  // After saving fetch settings: the previously-fetched jobs no longer reflect
-  // the new config, so clear them and re-fetch (matches the original app flow).
-  const handleSettingsSaved = async (rows: SearchRowEntry[]) => {
+  const handleSettingsSaved = async (rows: SearchRowEntry[], result: SaveConfigResult) => {
     syncFiltersWithSearchRows(rows);
-    try {
-      await jobsApi.clear();
-      await Promise.all([loadJobs(), loadCounts()]);
-    } catch { /* clear is best-effort */ }
-    handleFetch();
+    if (result.fetch_required) handleFetch();
   };
 
   const setFilter = (k: keyof Filters, v: unknown) => {
@@ -763,21 +779,18 @@ export default function DashboardPage() {
     <AppShell>
       <h1 className="visually-hidden">Job Listings</h1>
 
-      {/* Tabs + toolbar */}
-      <div className="toolbar-row">
-        <div className="tabs">
+      {/* Search bar row — tabs + search + fetch merged */}
+      <div className="search-bar-row">
+        <div className="tab-pill-group">
           {(['pending', 'applied', 'skipped'] as Tab[]).map(t => (
-            <button key={t} className={`tab${tab === t ? ' active' : ''}`}
+            <button key={t} className={`tab-pill${tab === t ? ' active' : ''}`}
               onClick={() => { setTab(t); setPage(1); setSelectedJobId(null); }}>
               {t.charAt(0).toUpperCase() + t.slice(1)}
-              <span className="tab-count">{counts[t]}</span>
+              <span className="tab-pill-count">{counts[t]}</span>
             </button>
           ))}
         </div>
-      </div>
 
-      {/* Search bar row */}
-      <div className="search-bar-row">
         <div className="search-bar-wrap">
           <Icon name="search" size={15} className="search-bar-icon" />
           <input
@@ -796,7 +809,6 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Fetch progress message */}
         {fetchMessage && (
           <span className="fetch-progress-msg">
             {fetchRunning && <span className="spinner spinner-fetch" style={{ marginRight: 6 }} />}
@@ -805,16 +817,16 @@ export default function DashboardPage() {
         )}
 
         <button
-          className={`btn btn-primary btn-sm fetch-jobs-btn${fetchRunning ? ' fetching' : ''}`}
+          className={`search-action-btn search-action-fetch${fetchRunning ? ' fetching' : ''}`}
           onClick={handleFetch}
           disabled={fetchRunning}
         >
-          <Icon name="refresh" size={14} className={fetchRunning ? 'spin' : ''} />
+          <Icon name="refresh" size={15} className={fetchRunning ? 'spin' : ''} />
           {fetchRunning ? 'Fetching…' : 'Fetch jobs'}
         </button>
 
-        <button className="btn btn-ghost btn-sm search-bar-settings" onClick={() => setSettingsOpen(true)}>
-          <Icon name="settings" size={14} /> Search settings
+        <button className="search-action-btn search-action-settings" onClick={() => setSettingsOpen(true)}>
+          <Icon name="settings" size={15} /> Search settings
         </button>
       </div>
 
@@ -822,12 +834,12 @@ export default function DashboardPage() {
       <div className="filter-bar">
         <div className="filter-group">
           <span className="filter-label">Work type</span>
-          {[{ val: 'Remote', icon: '🌐' }, { val: 'Hybrid', icon: '🏠' }, { val: 'On-site', icon: '🏢' }].map(({ val, icon }) => (
+          {[{ val: 'Remote' }, { val: 'Hybrid' }, { val: 'On-site' }].map(({ val }) => (
             <button key={val}
               className={`filter-chip remote-${val.toLowerCase()}${filters.remote.includes(val) ? ' active' : ''}`}
               aria-pressed={filters.remote.includes(val)}
               onClick={() => toggleRemote(val)}>
-              {icon} {val}
+              {val}
             </button>
           ))}
         </div>
@@ -883,33 +895,28 @@ export default function DashboardPage() {
         >
           {isSaved ? '★' : '☆'} Save
         </button>
-        {hasFilters && <button className="filter-clear" onClick={clearFilters}>Clear filters</button>}
+        {hasFilters && <button className="filter-clear" onClick={clearFilters}>Clear</button>}
       </div>
 
       {/* Saved / recent search chips */}
       {showChips && (
         <div className="search-chips">
-          {savedSearches.length > 0 && (
-            <>
-              <span className="search-chips-label">Saved</span>
-              {savedSearches.map((s, i) => (
-                <button key={i} className="search-chip saved" onClick={() => applyChip(s)}>
-                  {searchLabel(s)}
-                  <span className="chip-x" onClick={e => { e.stopPropagation(); removeSaved(s); }}>✕</span>
-                </button>
-              ))}
-            </>
-          )}
+          {savedSearches.length > 0 && savedSearches.map((s, i) => (
+            <button key={i} className="search-chip saved" onClick={() => applyChip(s)}>
+              <span className="search-chip-icon">★</span>
+              {searchLabel(s)}
+              <span className="chip-x" onClick={e => { e.stopPropagation(); removeSaved(s); }}>✕</span>
+            </button>
+          ))}
           {recentSearches.length > 0 && (
-            <>
-              <span className="search-chips-label" style={{ marginLeft: savedSearches.length ? 8 : 0 }}>Recent</span>
-              {recentSearches.map((s, i) => (
-                <button key={i} className="search-chip" onClick={() => applyChip(s)}>
-                  {searchLabel(s)}
-                </button>
-              ))}
-            </>
+            <span className="search-chips-divider" />
           )}
+          {recentSearches.length > 0 && recentSearches.map((s, i) => (
+            <button key={i} className="search-chip recent" onClick={() => applyChip(s)}>
+              <span className="search-chip-icon">↺</span>
+              {searchLabel(s)}
+            </button>
+          ))}
         </div>
       )}
 

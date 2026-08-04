@@ -21,44 +21,52 @@ export function AppShell({ children, showFetchButton, onFetch, fetchRunning }: A
     <>
       <header className="app-header">
         <Link to="/" className="app-logo" aria-label="JobPilot AI home">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4Z"/>
-          </svg>
-          <span>JobPilot AI</span>
+          <span className="app-logo-icon" aria-hidden="true">
+            <svg width="32" height="32" viewBox="0 0 20 20" fill="none">
+              <defs>
+                <linearGradient id="logo-g" x1="0" y1="0" x2="20" y2="20" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#6ea8ff"/>
+                  <stop offset="100%" stopColor="#2dd4bf"/>
+                </linearGradient>
+              </defs>
+              <path d="M10 1 L12.1 7.9 L19 10 L12.1 12.1 L10 19 L7.9 12.1 L1 10 L7.9 7.9 Z" fill="url(#logo-g)"/>
+            </svg>
+          </span>
+          <span className="app-logo-text">JobPilot <em>AI</em></span>
         </Link>
 
         <div className="app-header-right">
           {showFetchButton && (
             <button
-              className={`header-icon-btn fetch-btn${fetchRunning ? ' fetching' : ''}`}
+              className={`header-nav-btn fetch-btn${fetchRunning ? ' fetching' : ''}`}
               onClick={onFetch}
               disabled={fetchRunning}
-              title={fetchRunning ? 'Fetching…' : 'Fetch Jobs'}
               aria-label={fetchRunning ? 'Fetching jobs' : 'Fetch jobs'}
             >
-              <Icon name="refresh" size={17} className={fetchRunning ? 'spin' : ''} />
+              <Icon name="refresh" size={16} className={fetchRunning ? 'spin' : ''} />
+              <span>{fetchRunning ? 'Fetching…' : 'Fetch'}</span>
             </button>
           )}
 
           <Link
             to="/ai-settings"
             state={backState}
-            className={`header-icon-btn${location.pathname === '/ai-settings' ? ' active' : ''}`}
-            title="AI Models"
+            className={`header-nav-btn nav-ai${location.pathname === '/ai-settings' ? ' active' : ''}`}
             aria-label="AI Models"
           >
-            <Icon name="zap" size={17} />
+            <Icon name="zap" size={16} />
+            <span>AI Models</span>
           </Link>
 
           {active && (
             <Link
               to={`/profile-settings/${active.slug}`}
               state={backState}
-              className={`header-icon-btn${location.pathname.startsWith('/profile-settings') ? ' active' : ''}`}
-              title="Settings"
+              className={`header-nav-btn nav-settings${location.pathname.startsWith('/profile-settings') ? ' active' : ''}`}
               aria-label="Settings"
             >
-              <Icon name="settings" size={17} />
+              <Icon name="settings" size={16} />
+              <span>Settings</span>
             </Link>
           )}
 
