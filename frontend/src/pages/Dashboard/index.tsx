@@ -98,8 +98,6 @@ function JobRow({ job, selected, onClick, onStatusChange }: {
     ? (matchPct >= 70 ? 'high' : matchPct >= 45 ? 'mid' : 'low')
     : (skillCount >= 5 ? 'high' : skillCount >= 3 ? 'mid' : 'low');
 
-  const topSkills = match?.matched?.slice(0, 3) ?? [];
-
   return (
     <div
       className={`job-row${selected ? ' selected' : ''}`}
@@ -128,21 +126,13 @@ function JobRow({ job, selected, onClick, onStatusChange }: {
           <><span className="dot">·</span><span className="age-label"><Icon name="clock" size={11} />{job.posted || job.age}</span></>
         </div>
 
-        {topSkills.length > 0 && (
-          <div className="job-row-skills">
-            {topSkills.map(s => <span key={s} className="skill-chip matched">{s}</span>)}
-            {(match?.missing?.length ?? 0) > 0 && (
-              <span className="skill-chip missing">+{match!.missing.length} missing</span>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Right: score + source + actions */}
       <div className="job-row-right" onClick={e => e.stopPropagation()}>
         <div className="job-row-score-row">
           {matchPct !== null && (
-            <span className={`match-badge ${badgeCls}`}>{matchPct}%</span>
+            <span className={`match-badge ${badgeCls}`}>{matchPct}% fit</span>
           )}
           {matchPct === null && skillCount > 0 && (
             <span className={`match-badge ${badgeCls}`}>{skillCount} skills</span>
@@ -261,17 +251,6 @@ function DetailPanel({ jobId, initialJob, onClose, onJobUpdated }: { jobId: stri
       }
     }).catch(() => {});
   }, [jobId, onJobUpdated]);
-
-  const setStatus = async (status: 'applied' | 'skipped' | 'pending') => {
-    try {
-      await jobsApi.setStatus(jobId, status);
-      const updated = await jobsApi.get(jobId);
-      setJob(updated);
-      onJobUpdated(updated);
-    } catch {
-      showToast('Could not update job status — please try again', 'err');
-    }
-  };
 
   const handleBuildResume = async () => {
     if (buildingResume) return;              // guard against duplicate submission
@@ -895,7 +874,7 @@ export default function DashboardPage() {
         >
           {isSaved ? '★' : '☆'} Save
         </button>
-        {hasFilters && <button className="filter-clear" onClick={clearFilters}>Clear</button>}
+        {hasFilters && <button className="filter-clear" onClick={clearFilters} aria-label="Clear filters">Clear</button>}
       </div>
 
       {/* Saved / recent search chips */}

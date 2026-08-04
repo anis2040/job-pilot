@@ -16,6 +16,15 @@ function jobRowTitles() {
   return Array.from(document.querySelectorAll('.job-row-title')).map(el => el.textContent ?? '')
 }
 
+function workTypeChip(label: string) {
+  const button = screen
+    .getAllByRole('button', { name: new RegExp(label, 'i') })
+    .find(el => el.classList.contains('filter-chip'))
+
+  if (!button) throw new Error(`Missing ${label} filter chip`)
+  return button
+}
+
 const SAMPLE = () => [
   buildJob({ job_id: 'j1', title: 'React Developer',  company: 'Alpha Tech',  remote: 'Remote',  source: 'LinkedIn',  status: 'pending', posted_at: new Date(Date.now() - 12 * 3600000).toISOString(), resume_status: 'done', pdf_url: '/pdf/j1/resume.pdf' }),
   buildJob({ job_id: 'j2', title: 'Vue Designer',     company: 'Beta Studio', remote: 'Hybrid',  source: 'Jobicy',    status: 'pending', posted_at: new Date(Date.now() - 5 * 86400000).toISOString() }),
@@ -55,7 +64,7 @@ describe('Work-type filter chips', () => {
     renderApp('/')
     await waitFor(() => expect(document.querySelectorAll('.job-row')).toHaveLength(5))
 
-    fireEvent.click(screen.getByText('🌐 Remote'))
+    fireEvent.click(workTypeChip('Remote'))
 
     await waitFor(() => {
       const t = jobRowTitles()
@@ -69,8 +78,8 @@ describe('Work-type filter chips', () => {
   it('Remote + Hybrid together (OR) exclude On-site', async () => {
     renderApp('/')
     await waitFor(() => expect(document.querySelectorAll('.job-row')).toHaveLength(5))
-    fireEvent.click(screen.getByText('🌐 Remote'))
-    fireEvent.click(screen.getByText('🏠 Hybrid'))
+    fireEvent.click(workTypeChip('Remote'))
+    fireEvent.click(workTypeChip('Hybrid'))
     await waitFor(() => expect(jobRowTitles()).not.toContain('Backend Engineer'))
     expect(jobRowTitles()).toContain('Vue Designer')
   })
@@ -78,9 +87,9 @@ describe('Work-type filter chips', () => {
   it('toggling a chip off restores the full list', async () => {
     renderApp('/')
     await waitFor(() => expect(document.querySelectorAll('.job-row')).toHaveLength(5))
-    fireEvent.click(screen.getByText('🌐 Remote'))
+    fireEvent.click(workTypeChip('Remote'))
     await waitFor(() => expect(document.querySelectorAll('.job-row')).toHaveLength(2))
-    fireEvent.click(screen.getByText('🌐 Remote'))
+    fireEvent.click(workTypeChip('Remote'))
     await waitFor(() => expect(document.querySelectorAll('.job-row')).toHaveLength(5))
   })
 })
@@ -214,7 +223,7 @@ describe('Combined filters', () => {
   it('Remote chip + LinkedIn source narrows to the intersection', async () => {
     renderApp('/')
     await waitFor(() => expect(document.querySelectorAll('.job-row')).toHaveLength(5))
-    fireEvent.click(screen.getByText('🌐 Remote'))
+    fireEvent.click(workTypeChip('Remote'))
     fireEvent.change(screen.getByLabelText('Filter by source'), { target: { value: 'LinkedIn' } })
     await waitFor(() => {
       const t = jobRowTitles()
@@ -227,10 +236,10 @@ describe('Combined filters', () => {
   it('Clear filters resets everything', async () => {
     renderApp('/')
     await waitFor(() => expect(document.querySelectorAll('.job-row')).toHaveLength(5))
-    fireEvent.click(screen.getByText('🌐 Remote'))
+    fireEvent.click(workTypeChip('Remote'))
     fireEvent.change(screen.getByLabelText('Filter by source'), { target: { value: 'LinkedIn' } })
     await waitFor(() => expect(document.querySelectorAll('.job-row')).toHaveLength(2))
-    fireEvent.click(screen.getByText('Clear filters'))
+    fireEvent.click(screen.getByRole('button', { name: /Clear filters/i }))
     await waitFor(() => expect(document.querySelectorAll('.job-row')).toHaveLength(5))
   })
 })

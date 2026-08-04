@@ -3,6 +3,7 @@ import { render } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { ToastProvider } from '@/components/ui/Toast'
 import { ProfileProvider } from '@/hooks/ProfileProvider'
+import { AppHeader } from '@/components/layout/AppShell'
 import DashboardPage from '@/pages/Dashboard/index'
 import JobDetailPage from '@/pages/JobDetail/index'
 import ProfileSettingsPage from '@/pages/ProfileSettings/index'
@@ -22,6 +23,7 @@ export function renderApp(route = '/') {
     <MemoryRouter initialEntries={[route]}>
       <ToastProvider>
         <ProfileProvider>
+          <AppHeader />
           <Routes>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/job/:jobId" element={<JobDetailPage />} />

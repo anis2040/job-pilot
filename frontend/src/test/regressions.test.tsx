@@ -24,6 +24,26 @@ function setWideViewport() {
   window.dispatchEvent(new Event('resize'))
 }
 
+describe('Shared app header', () => {
+  it('is present exactly once on dashboard routes', async () => {
+    seedJobs([buildJob({ job_id: 'header-1', title: 'Header Role', status: 'pending' })])
+
+    renderApp('/')
+    await waitFor(() => expect(screen.getByText('Header Role')).toBeInTheDocument())
+
+    expect(screen.getByLabelText('JobPilot AI home')).toBeInTheDocument()
+    expect(document.querySelectorAll('.app-header')).toHaveLength(1)
+  })
+
+  it('is present exactly once on secondary pages', async () => {
+    renderApp('/ai-settings')
+
+    await waitFor(() => expect(screen.getByText(/AI Model Settings/i)).toBeInTheDocument())
+    expect(screen.getByLabelText('JobPilot AI home')).toBeInTheDocument()
+    expect(document.querySelectorAll('.app-header')).toHaveLength(1)
+  })
+})
+
 describe('Job list load failure (regression: silent swallow)', () => {
   it('shows an error state with retry when the jobs request fails', async () => {
     server.use(http.get('/api/jobs', () => HttpResponse.json({ error: 'down' }, { status: 500 })))

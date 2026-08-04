@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ToastProvider } from './components/ui/Toast';
 import { ProfileProvider } from './hooks/ProfileProvider';
 import { MatrixBackground } from './components/ui/MatrixBackground';
+import { AppHeader } from './components/layout/AppShell';
 import DashboardPage from './pages/Dashboard';
 import JobDetailPage from './pages/JobDetail';
 import SetupPage from './pages/Setup';
@@ -16,6 +17,7 @@ export default function App() {
       <MatrixBackground />
       <ToastProvider>
         <ProfileProvider>
+          <AppHeader />
           <Routes>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/job/:jobId" element={<JobDetailPage />} />
