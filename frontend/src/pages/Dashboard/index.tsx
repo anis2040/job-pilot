@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { jobs as jobsApi, documents, config as configApi, fetcher as fetcherApi, constants } from '../../api/client';
 import { useProfile } from '../../hooks/useProfile';
@@ -747,7 +748,10 @@ export default function DashboardPage() {
         )}
       </div>
 
-      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} onSaved={handleSettingsSaved} allSources={appConstants?.sources ?? []} />
+      {createPortal(
+        <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} onSaved={handleSettingsSaved} allSources={appConstants?.sources ?? []} />,
+        document.body
+      )}
     </AppShell>
   );
 }

@@ -1,4 +1,5 @@
 import { useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { Icon } from './Icon';
 
@@ -23,7 +24,7 @@ export function ConfirmDialog({
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div
       className="confirm-backdrop open"
       role="dialog"
@@ -49,6 +50,7 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

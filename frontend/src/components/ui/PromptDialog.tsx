@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 interface PromptDialogProps {
@@ -25,7 +26,7 @@ export function PromptDialog({
 
   const submit = () => { const v = value.trim(); if (v) onConfirm(v); };
 
-  return (
+  return createPortal(
     <div
       className="confirm-backdrop open"
       role="dialog"
@@ -52,6 +53,7 @@ export function PromptDialog({
           <button className="btn btn-primary" onClick={submit}>{confirmLabel}</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
