@@ -1185,6 +1185,26 @@ def api_setup_save_profile():
     return jsonify({"ok": True})
 
 
+_FRONTEND_DIST = Path(__file__).parent / "frontend" / "dist"
+
+
+@app.route("/app", defaults={"path": ""})
+@app.route("/app/<path:path>")
+def serve_spa(path: str):
+    index = _FRONTEND_DIST / "index.html"
+    if index.exists():
+        return send_file(str(index))
+    return "React app not built. Run: cd frontend && npm run build", 404
+
+
+@app.route("/spa-assets/<path:filename>")
+def serve_spa_assets(filename: str):
+    assets_dir = _FRONTEND_DIST / "assets"
+    if assets_dir.exists():
+        return send_file(str(assets_dir / filename))
+    return "", 404
+
+
 if __name__ == "__main__":
     from startup import run_startup
     run_startup()

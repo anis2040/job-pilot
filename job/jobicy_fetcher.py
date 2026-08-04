@@ -55,7 +55,10 @@ def fetch_jobicy(search: SearchConfig) -> list[RawJob]:
             location=geo,
             remote=remote,
             experience=experience,
-            description=description[:2000],
+            # Jobicy's API returns the complete jobDescription (often 5k+ chars)
+            # and there's no on-demand full-description fetch for this source, so
+            # store it in full rather than clipping it mid-content.
+            description=description,
             posted_at=item.get("pubDate"),
             employment_type=employment_type,
             salary_range=salary,
