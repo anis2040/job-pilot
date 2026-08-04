@@ -984,6 +984,48 @@ a.btn {
 .search-location-add select {
   flex: 1 1 180px;
   min-width: 0;
+  height: 42px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--text-base);
+  line-height: 1.2;
+  outline: none;
+  padding: 9px 12px;
+  transition: border-color var(--dur-fast) var(--ease-standard), background var(--dur-fast) var(--ease-standard);
+}
+
+.search-location-add select {
+  flex-basis: 220px;
+  padding-right: 36px;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2364748b'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 10px 6px;
+}
+
+.search-location-add input {
+  flex-basis: 160px;
+}
+
+.search-location-add input:hover,
+.search-location-add select:hover {
+  border-color: var(--blue-light);
+}
+
+.search-location-add input:focus,
+.search-location-add select:focus {
+  border-color: var(--blue);
+}
+
+.search-location-add select option {
+  background: var(--bg-surface);
+  color: var(--text);
 }
 
 .search-location-tags,
@@ -1460,7 +1502,7 @@ a.btn {
   border-radius: var(--radius-sm);
   padding: 10px 12px;
   font-size: var(--text-sm);
-  color: #a78bfa;
+  color: var(--blue-light);
   font-family: "SF Mono", monospace;
   margin-bottom: var(--space-2);
   white-space: pre-wrap;
@@ -1595,6 +1637,12 @@ a.btn {
 
 /* ── Mobile touch-target bumps (WCAG 2.5.8) ───────────────────────────────── */
 @media (max-width: 640px) {
+  .search-location-add input,
+  .search-location-add select {
+    flex-basis: 100%;
+    width: 100%;
+  }
+
   .modal-close,
   .btn-icon {
     width: 44px;

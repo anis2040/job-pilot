@@ -528,9 +528,9 @@
   border: 1px solid var(--green-border);
 }
 .match-badge.mid {
-  background: #1a1400;
+  background: var(--hybrid-bg);
   color: var(--yellow);
-  border: 1px solid #5a4500;
+  border: 1px solid var(--hybrid-border);
 }
 .match-badge.low {
   background: var(--bg-raised);
@@ -581,12 +581,6 @@
   width: 14px;
   height: 14px;
   border-width: 2px;
-}
-.spinner-resume {
-  color: #a78bfa;
-}
-.spinner-cl {
-  color: #60a5fa;
 }
 
 /* ── Skeleton rows ── */
@@ -1183,9 +1177,9 @@
   color: var(--green);
 }
 .similar-match.mid {
-  background: #1a1400;
+  background: var(--hybrid-bg);
   color: var(--yellow);
-  border: 1px solid #5a4500;
+  border: 1px solid var(--hybrid-border);
 }
 .similar-match.low {
   background: var(--bg-raised);

@@ -17,13 +17,18 @@ export function filtersToKey(f: Filters): string {
 
 export function applyFilters(jobs: Job[], filters: Filters): Job[] {
   let result = [...jobs];
-  if (filters.search) {
-    const q = filters.search.toLowerCase();
+  const searchTerms = filters.search
+    .split(/[,;|\n]+/)
+    .map(term => term.trim().toLowerCase())
+    .filter(Boolean);
+  if (searchTerms.length) {
     result = result.filter(j =>
-      j.title.toLowerCase().includes(q) ||
-      j.company.toLowerCase().includes(q) ||
-      j.location?.toLowerCase().includes(q) ||
-      j.source?.toLowerCase().includes(q)
+      searchTerms.some(q =>
+        j.title.toLowerCase().includes(q) ||
+        j.company.toLowerCase().includes(q) ||
+        j.location?.toLowerCase().includes(q) ||
+        j.source?.toLowerCase().includes(q)
+      )
     );
   }
   if (filters.remote.length) result = result.filter(j => filters.remote.includes(j.remote));

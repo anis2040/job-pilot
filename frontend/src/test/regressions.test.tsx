@@ -7,14 +7,22 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { screen, waitFor, fireEvent } from '@testing-library/react'
+import { screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { renderApp } from './utils'
 import { server } from './mocks/server'
 import { seedJobs, db } from './mocks/handlers'
-import { buildJob, buildSearchConfig } from './fixtures'
+import { buildJob, buildMatch, buildSearchConfig } from './fixtures'
 
-afterEach(() => vi.useRealTimers())
+afterEach(() => {
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+})
+
+function setWideViewport() {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: 1400 })
+  window.dispatchEvent(new Event('resize'))
+}
 
 describe('Job list load failure (regression: silent swallow)', () => {
   it('shows an error state with retry when the jobs request fails', async () => {
@@ -115,7 +123,7 @@ describe('Settings save clears stale jobs and re-fetches (regression)', () => {
       http.post('/api/fetch', () => { fetchTriggered = true; db.fetchStatus = { status: 'done', message: '' }; return HttpResponse.json({ status: 'running' }) }),
     )
     db.config = buildSearchConfig({
-      searches: [{ name: 'LinkedIn - PM', source: 'LinkedIn', query: 'PM', location: 'US', max_pages: 3, remote: true }],
+      searches: [{ name: 'LinkedIn - Old Job', source: 'LinkedIn', query: 'Old Job', location: 'US', max_pages: 3, remote: true }],
     })
     seedJobs([buildJob({ job_id: 'old1', title: 'Old Job', status: 'pending' })])
     renderApp('/')
@@ -134,7 +142,7 @@ describe('Settings save clears stale jobs and re-fetches (regression)', () => {
   it('shows an error and does not close on save failure', async () => {
     server.use(http.post('/api/config', () => HttpResponse.json({ error: 'bad config' }, { status: 400 })))
     db.config = buildSearchConfig({
-      searches: [{ name: 'LinkedIn - PM', source: 'LinkedIn', query: 'PM', location: 'US', max_pages: 3, remote: true }],
+      searches: [{ name: 'LinkedIn - Old Job', source: 'LinkedIn', query: 'Old Job', location: 'US', max_pages: 3, remote: true }],
     })
     seedJobs([buildJob({ job_id: 'old1', title: 'Old Job', status: 'pending' })])
     renderApp('/')
@@ -147,6 +155,102 @@ describe('Settings save clears stale jobs and re-fetches (regression)', () => {
     await waitFor(() => expect(screen.getByText(/Could not save settings/i)).toBeInTheDocument())
     // modal still open
     expect(screen.getByRole('button', { name: /Save settings/i })).toBeInTheDocument()
+  })
+
+  it('syncs the filter bar from the saved fetch settings', async () => {
+    server.use(
+      http.post('/api/fetch', () => { db.fetchStatus = { status: 'done', message: '' }; return HttpResponse.json({ status: 'running' }) }),
+    )
+    db.config = buildSearchConfig({
+      searches: [{
+        group_id: 'search-1',
+        name: 'LinkedIn - Product Manager',
+        source: 'LinkedIn',
+        query: 'Product Manager',
+        location: 'Germany',
+        max_pages: 3,
+        remote: false,
+        work_styles: ['Hybrid'],
+      }],
+    })
+    seedJobs([buildJob({ job_id: 'pm1', title: 'Product Manager', source: 'LinkedIn', remote: 'Hybrid', status: 'pending' })])
+
+    renderApp('/')
+    await waitFor(() => expect(screen.getByText('Product Manager')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: /Search settings/i }))
+    await waitFor(() => expect(screen.getByRole('button', { name: /Save settings/i })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: /Save settings/i }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(screen.getByLabelText('Search jobs')).toHaveValue('Product Manager')
+    expect(screen.getByRole('button', { name: /Hybrid/i })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /Remote/i })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByLabelText('Filter by source')).toHaveValue('LinkedIn')
+  })
+})
+
+describe('Dashboard row skill details (regression guard)', () => {
+  it('keeps extracted skill names out of the compact job row', async () => {
+    seedJobs([
+      buildJob({
+        job_id: 'matched-1',
+        title: 'Platform Engineer',
+        match: buildMatch({ matched: ['GraphQL'], missing: ['Terraform'], semantic_score: 76 }),
+      }),
+    ])
+    renderApp('/')
+
+    await waitFor(() => expect(screen.getByText('Platform Engineer')).toBeInTheDocument())
+    expect(screen.getByText('76% fit')).toBeInTheDocument()
+    expect(screen.queryByText('GraphQL')).toBeNull()
+    expect(screen.queryByText('Terraform')).toBeNull()
+  })
+})
+
+describe('Pagination scroll behavior (regression guard)', () => {
+  it('changes pages without forcing the window back to the top', async () => {
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined)
+    seedJobs(Array.from({ length: 26 }, (_, i) => buildJob({
+      job_id: `paged-${i + 1}`,
+      title: `Paged Job ${i + 1}`,
+      status: 'pending',
+    })))
+
+    renderApp('/')
+    await waitFor(() => expect(screen.getByText('Paged Job 1')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: '›' }))
+
+    await waitFor(() => expect(screen.getByText('Paged Job 26')).toBeInTheDocument())
+    expect(scrollTo).not.toHaveBeenCalled()
+  })
+})
+
+describe('Workplace badge correction (regression guard)', () => {
+  it('updates the row from Remote to Hybrid when the full description has the stronger signal', async () => {
+    setWideViewport()
+    server.use(
+      http.get('/api/job/:jobId/description', () => HttpResponse.json({
+        description: 'Hybrid work model with regular office collaboration days.',
+        remote: 'Hybrid',
+        match: null,
+      }))
+    )
+    seedJobs([
+      buildJob({ job_id: 'hybrid-1', title: 'Platform Engineer', status: 'pending', remote: 'Remote' }),
+    ])
+
+    renderApp('/')
+    await waitFor(() => expect(screen.getByText('Platform Engineer')).toBeInTheDocument())
+
+    const row = screen.getByText('Platform Engineer').closest('.job-row') as HTMLElement
+    expect(within(row).getByText('Remote')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Platform Engineer'))
+
+    await waitFor(() => expect(within(row).getByText('Hybrid')).toBeInTheDocument())
+    expect(within(row).queryByText('Remote')).toBeNull()
   })
 })
 

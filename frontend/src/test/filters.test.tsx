@@ -157,6 +157,18 @@ describe('Search bar', () => {
     })
   })
 
+  it('treats comma-separated search terms as alternatives', async () => {
+    renderApp('/')
+    await waitFor(() => expect(document.querySelectorAll('.job-row')).toHaveLength(5))
+    fireEvent.change(screen.getByPlaceholderText(/Search by title/i), { target: { value: 'React Developer, Product Manager' } })
+    await waitFor(() => {
+      const t = jobRowTitles()
+      expect(t).toContain('React Developer')
+      expect(t).toContain('Product Manager')
+      expect(t).not.toContain('Backend Engineer')
+    })
+  })
+
   it('clear button empties the search and restores the list', async () => {
     renderApp('/')
     await waitFor(() => expect(document.querySelectorAll('.job-row')).toHaveLength(5))

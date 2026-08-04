@@ -117,6 +117,39 @@ class TestApiJobs:
         assert len(data) == 1
         assert data[0]["job_id"] == "j1"
 
+    def test_corrects_remote_to_hybrid_from_stored_description(self, web_client):
+        db.insert_job(
+            job_id="li_1",
+            url="https://example.com/job/1",
+            title="Engineering Manager",
+            company="Acme",
+            location="Berlin",
+            remote="Remote",
+            experience="",
+            description="This is a hybrid role with two office days per week.",
+            posted_at=None,
+            search_name="t",
+        )
+
+        r = web_client.get("/api/jobs")
+
+        assert r.status_code == 200
+        assert r.get_json()[0]["remote"] == "Hybrid"
+        assert db.get_job("li_1")["remote"] == "Hybrid"
+
+
+class TestApiJobDescription:
+    def test_fetched_description_can_correct_remote_to_hybrid(self, web_client, monkeypatch):
+        import job.fetcher as fetcher
+        _insert_job("li_2", title="Product Manager")
+        monkeypatch.setattr(fetcher, "fetch_description", lambda *_: "Hybrid work model with team office days.")
+
+        r = web_client.get("/api/job/li_2/description")
+
+        assert r.status_code == 200
+        assert r.get_json()["remote"] == "Hybrid"
+        assert db.get_job("li_2")["remote"] == "Hybrid"
+
 
 # ── /api/job-status ───────────────────────────────────────────────────────────
 

@@ -104,6 +104,20 @@ describe('Building a resume', () => {
     expect(cvLink).toHaveAttribute('href', '/pdf/jd1/resume.pdf')
   })
 
+  it('dashboard row shows a clickable CL link when the cover letter PDF is ready', async () => {
+    setWideViewport()
+    seedJobs([
+      buildJob({ job_id: 'jd1', title: 'Platform Engineer', status: 'pending', cl_status: 'done', cl_pdf_url: '/pdf/jd1/cover-letter.pdf' }),
+    ], [
+      buildJobDetail({ job_id: 'jd1', title: 'Platform Engineer', status: 'pending', cl_status: 'done', cl_pdf_url: '/pdf/jd1/cover-letter.pdf' }),
+    ])
+
+    renderApp('/')
+    const clLink = await screen.findByRole('link', { name: 'CL' })
+
+    expect(clLink).toHaveAttribute('href', '/pdf/jd1/cover-letter.pdf')
+  })
+
   it('dashboard panel title links to the source page', async () => {
     setWideViewport()
     seedJobs(

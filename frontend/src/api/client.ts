@@ -1,5 +1,5 @@
 import type {
-  Job, JobCounts, JobDetail, Profile, SearchConfig, AiSettings,
+  Job, JobCounts, JobDetail, MatchInfo, Profile, SearchConfig, AiSettings,
   SetupStatus, DocumentStatus, FetchStatus, AppConstants,
 } from './types';
 
@@ -37,7 +37,7 @@ export const jobs = {
   list: listJobs,
   counts: () => get<JobCounts>('/api/job-counts'),
   get: (jobId: string) => get<JobDetail>(`/api/job/${jobId}`),
-  description: (jobId: string) => get<{ description: string; remote: string; match: unknown }>(`/api/job/${jobId}/description`),
+  description: (jobId: string) => get<{ description: string; remote: string; match: MatchInfo | null }>(`/api/job/${jobId}/description`),
   similar: (jobId: string) => get<Job[]>(`/api/jobs/similar/${jobId}`),
   setStatus: (jobId: string, status: string) => post<{ ok: boolean }>(`/api/job-status/${jobId}/${status}`),
   clear: () => post<{ ok: boolean }>('/api/jobs/clear'),

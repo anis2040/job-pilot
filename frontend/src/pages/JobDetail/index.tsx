@@ -130,13 +130,7 @@ function DocSlot({ jobId, type, job, onRefresh }: {
     return <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-faint)' }}>🔒 Build CV first</span>;
   }
   return (
-    <button
-      className="btn btn-sm"
-      style={isResume
-        ? { background: '#2e1f6e', color: '#c4b5fd', border: '1px solid #4c2ea8' }
-        : { background: '#0c2d42', color: '#7dd3fc', border: '1px solid #0e4a72' }}
-      onClick={handleBuild}
-    >
+    <button className="btn btn-primary btn-sm" onClick={handleBuild}>
       {isResume ? '▶ Build CV' : '✉ Write Cover Letter'}
     </button>
   );

@@ -11,7 +11,7 @@ import { Icon } from '../../components/ui/Icon';
 import { TagInput } from '../../components/ui/TagInput';
 import { useDocumentStatus } from '../../hooks/useDocumentStatus';
 import { SearchRow } from '../../components/ui/SearchRow';
-import { createSearchRow, deriveTitleFilters, groupSearchEntries, expandSearchRows, type SearchRowEntry } from '../../components/ui/searchRowModel';
+import { createSearchRow, deriveTitleFilters, groupSearchEntries, expandSearchRows, WORK_STYLES, type SearchRowEntry } from '../../components/ui/searchRowModel';
 import { formatDescription, isLongDescription } from '../../utils/descriptionRenderer';
 import { safeUrl } from '../../utils/format';
 import { applyFilters, filtersToKey, DEFAULT_FILTERS } from '../../utils/filters';
@@ -29,6 +29,41 @@ function normalizeFilters(value?: Partial<Filters> | null): Filters {
     ...DEFAULT_FILTERS,
     ...value,
     remote: Array.isArray(value?.remote) ? value.remote : DEFAULT_FILTERS.remote,
+  };
+}
+
+function sameFilterValue(a: string, b: string) {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+function addUniqueFilterValue(list: string[], raw: string) {
+  const next = raw.trim();
+  if (!next || list.some(item => sameFilterValue(item, next))) return list;
+  return [...list, next];
+}
+
+function resolveSourceValue(source: string, options: string[]) {
+  return options.find(option => sameFilterValue(option, source)) ?? source;
+}
+
+function deriveFiltersFromSearchRows(rows: SearchRowEntry[], current: Filters, sourceOptions: string[]): Filters {
+  const titles = rows.reduce<string[]>((list, row) => {
+    let next = list;
+    for (const title of row.titles) next = addUniqueFilterValue(next, title);
+    return next;
+  }, []);
+  const remote = WORK_STYLES.filter(style => rows.some(row => row.workStyles.includes(style)));
+  const sources = rows.reduce<string[]>((list, row) => {
+    let next = list;
+    for (const source of row.sources) next = addUniqueFilterValue(next, source);
+    return next;
+  }, []);
+
+  return {
+    ...current,
+    search: titles.join(', '),
+    remote,
+    source: sources.length === 1 ? resolveSourceValue(sources[0], sourceOptions) : '',
   };
 }
 
@@ -85,8 +120,6 @@ function JobRow({ job, selected, onClick, onStatusChange }: {
         </div>
         {match && badgeLabel && (
           <div className="job-row-match">
-            {match.matched?.slice(0, 4).map(s => <span key={s} className="skill-chip matched">{s}</span>)}
-            {match.missing?.slice(0, 2).map(s => <span key={s} className="skill-chip missing">{s}</span>)}
             <span className={`match-badge ${badgeCls}`}>{badgeLabel}</span>
           </div>
         )}
@@ -114,7 +147,19 @@ function JobRow({ job, selected, onClick, onStatusChange }: {
           </a>
         )}
         {job.cl_status === 'building' && <span className="spinner spinner-xs spinner-cl" />}
-        {job.cl_status === 'done' && <span title="Cover letter ready" style={{ color: 'var(--blue-light)', fontSize: '0.75rem' }}>CL</span>}
+        {job.cl_status === 'done' && job.cl_pdf_url && (
+          <a
+            href={safeUrl(job.cl_pdf_url)}
+            target="_blank"
+            rel="noreferrer"
+            title="Open cover letter"
+            style={{ color: 'var(--blue-light)', fontSize: '0.75rem', textDecoration: 'none' }}
+            onClick={e => e.stopPropagation()}
+          >
+            CL
+          </a>
+        )}
+        {job.cl_status === 'done' && !job.cl_pdf_url && <span title="Cover letter ready" style={{ color: 'var(--blue-light)', fontSize: '0.75rem' }}>CL</span>}
       </div>
     </div>
   );
@@ -162,7 +207,14 @@ function DetailPanel({ jobId, initialJob, onClose, onJobUpdated }: { jobId: stri
       if (!data.description) {
         try {
           const desc = await jobsApi.description(jobId);
-          if (desc.description) setJob(j => j ? { ...j, description: desc.description } : j);
+          const enriched: JobDetail = {
+            ...data,
+            description: desc.description || data.description,
+            remote: desc.remote || data.remote,
+            match: desc.match ?? data.match,
+          };
+          setJob(enriched);
+          onJobUpdated(enriched);
         } catch { /* non-fatal */ }
       }
     }).catch(() => {});
@@ -270,7 +322,7 @@ function DetailPanel({ jobId, initialJob, onClose, onJobUpdated }: { jobId: stri
       </div>
       <div className="panel-docs">
         {job.resume_status === 'idle' && (
-          <button className="btn btn-sm" style={{ background: '#2e1f6e', color: '#c4b5fd', border: '1px solid #4c2ea8' }} onClick={handleBuildResume} disabled={buildingResume}>▶ Build CV</button>
+          <button className="btn btn-primary btn-sm" onClick={handleBuildResume} disabled={buildingResume}>▶ Build CV</button>
         )}
         {(job.resume_status === 'building' || buildingResume) && <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}><span className="spinner spinner-xs spinner-resume" /> Building CV…</span>}
         {job.resume_status === 'done' && job.pdf_url && (
@@ -314,7 +366,7 @@ function DetailPanel({ jobId, initialJob, onClose, onJobUpdated }: { jobId: stri
 
 // ── Settings modal ────────────────────────────────────────────────────────────
 
-function SettingsModal({ open, onClose, onSaved, allSources }: { open: boolean; onClose: () => void; onSaved: () => void; allSources: string[] }) {
+function SettingsModal({ open, onClose, onSaved, allSources }: { open: boolean; onClose: () => void; onSaved: (rows: SearchRowEntry[]) => void; allSources: string[] }) {
   const { showToast } = useToast();
   const [cfg, setCfg] = useState<SearchConfig>({ searches: [], title_filter: [], blacklist: [], company_blacklist: [] });
   const [rows, setRows] = useState<SearchRowEntry[]>([]);
@@ -347,7 +399,7 @@ function SettingsModal({ open, onClose, onSaved, allSources }: { open: boolean; 
       await configApi.save(next);
       showToast('Settings saved');
       onClose();
-      onSaved();
+      onSaved(rows);
     } catch {
       showToast('Could not save settings', 'err');
     } finally {
@@ -437,6 +489,7 @@ export default function DashboardPage() {
   const fetchPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fetchRefreshInFlightRef = useRef(false);
   const handleFetchRef = useRef<() => void>(() => {});
+  const syncedSettingsProfileRef = useRef<string | null>(null);
 
   // Clean up any in-flight fetch poll on unmount (prevents setState-after-unmount)
   useEffect(() => () => { if (fetchPollRef.current) clearInterval(fetchPollRef.current); }, []);
@@ -489,9 +542,33 @@ export default function DashboardPage() {
   // option value matches each job's `source` exactly (the /api/sources list uses
   // lowercase ids that don't match the capitalised display labels).
   const sourceOptions = useMemo(
-    () => [...new Set(allJobs.map(j => j.source).filter(Boolean))].sort(),
-    [allJobs]
+    () => [...new Set([
+      ...allJobs.map(j => j.source).filter(Boolean),
+      ...(appConstants?.sources ?? []),
+      filters.source,
+    ].filter(Boolean))].sort(),
+    [allJobs, appConstants?.sources, filters.source]
   );
+
+  const syncFiltersWithSearchRows = useCallback((rows: SearchRowEntry[]) => {
+    setFilters(current => deriveFiltersFromSearchRows(rows, current, sourceOptions));
+    setPage(1);
+  }, [sourceOptions]);
+
+  useEffect(() => {
+    const profileKey = activeProfile?.slug ?? '';
+    if (syncedSettingsProfileRef.current === profileKey) return;
+    syncedSettingsProfileRef.current = profileKey;
+    let cancelled = false;
+    configApi.get()
+      .then(data => {
+        if (cancelled) return;
+        const rows = groupSearchEntries(data.searches || []);
+        if (rows.length) setFilters(current => deriveFiltersFromSearchRows(rows, current, sourceOptions));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [activeProfile?.slug, sourceOptions]);
 
   const closePanel = useCallback(() => {
     setSelectedJobId(null);
@@ -563,6 +640,8 @@ export default function DashboardPage() {
   const handleJobUpdated = useCallback((updated: Job | JobDetail) => {
     setAllJobs(current => current.map(job => job.job_id === updated.job_id ? {
       ...job,
+      remote: updated.remote,
+      match: updated.match,
       status: updated.status,
       resume_status: updated.resume_status,
       resume_stage: updated.resume_stage,
@@ -617,7 +696,8 @@ export default function DashboardPage() {
 
   // After saving fetch settings: the previously-fetched jobs no longer reflect
   // the new config, so clear them and re-fetch (matches the original app flow).
-  const handleSettingsSaved = async () => {
+  const handleSettingsSaved = async (rows: SearchRowEntry[]) => {
+    syncFiltersWithSearchRows(rows);
     try {
       await jobsApi.clear();
       await Promise.all([loadJobs(), loadCounts()]);
@@ -885,7 +965,7 @@ export default function DashboardPage() {
                 ))}
               </div>
               <Pagination page={page} total={filteredJobs.length} pageSize={PAGE_SIZE}
-                onChange={p => { setPage(p); window.scrollTo(0, 0); }} />
+                onChange={setPage} />
             </>
           )}
         </div>

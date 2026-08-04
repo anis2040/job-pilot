@@ -250,6 +250,15 @@ def _serialize_job(row, task_status: dict, cl_task_status: dict, profile: dict |
     r = dict(row)
     job_id = r["job_id"]
     company = r.get("company") or ""
+    title = r.get("title") or ""
+    location = r.get("location") or ""
+    remote = _maybe_update_remote_from_text(
+        job_id,
+        title,
+        location,
+        r.get("description") or "",
+        r.get("remote") or "",
+    )
 
     ts = task_status.get(job_id, {})
     resume_status = ts.get("status", "idle")
@@ -275,10 +284,10 @@ def _serialize_job(row, task_status: dict, cl_task_status: dict, profile: dict |
     return {
         "job_id": job_id,
         "url": r.get("url") or "",
-        "title": r.get("title") or "",
+        "title": title,
         "company": company,
-        "location": r.get("location") or "",
-        "remote": r.get("remote") or "",
+        "location": location,
+        "remote": remote,
         "experience": r.get("experience") or "",
         "age": _format_relative_age(r.get("first_seen_at")),
         "posted": _format_posted(r.get("posted_at")),
@@ -296,6 +305,27 @@ def _serialize_job(row, task_status: dict, cl_task_status: dict, profile: dict |
         "cl_pdf_url": _pdf_url(cl_pdf_path),
         "cl_error": cl_ts.get("error"),
     }
+
+
+def _should_apply_remote_inference(current: str, inferred: str) -> bool:
+    if not inferred or inferred == RemoteType.UNKNOWN or inferred == current:
+        return False
+    if current in ("", RemoteType.UNKNOWN):
+        return True
+    return inferred == RemoteType.HYBRID and current != RemoteType.HYBRID
+
+
+def _maybe_update_remote_from_text(job_id: str, title: str, location: str,
+                                   description: str, current: str) -> str:
+    if not description:
+        return current or ""
+    from job.fetcher_utils import infer_remote
+    inferred = infer_remote(title, location, description, default=RemoteType.UNKNOWN)
+    if not _should_apply_remote_inference(current or "", inferred):
+        return current or ""
+    from job.db import update_remote
+    update_remote(job_id, inferred)
+    return inferred
 
 
 # ── Main routes ───────────────────────────────────────────────────────────────
@@ -518,8 +548,7 @@ def job_detail_page(job_id):
 def api_job_description(job_id):
     """Return description for a job — from DB if stored, otherwise scrape on demand
     via the source's declared describe capability (see job.fetcher.SOURCE_REGISTRY).
-    When a fresh description is fetched and the stored workplace type is Unknown,
-    re-infer it from the description (LinkedIn cards don't expose it)."""
+    Re-infer workplace type from the full text when it carries a better signal."""
     row = get_job(job_id)
     if not row:
         return jsonify({"error": "Job not found"}), 404
@@ -530,18 +559,17 @@ def api_job_description(job_id):
 
     if not description:
         from job.fetcher import fetch_description as _fetch_desc
-        from job.db import update_description, update_remote
-        from job.fetcher_utils import infer_remote
+        from job.db import update_description
         description = _fetch_desc(job_id, r.get("url") or "")
         if description:
             update_description(job_id, description)
-            # Backfill workplace type from the full text if we didn't know it
-            if remote in ("", RemoteType.UNKNOWN):
-                inferred = infer_remote(r.get("title") or "", r.get("location") or "",
-                                        description, default=RemoteType.UNKNOWN)
-                if inferred != RemoteType.UNKNOWN:
-                    update_remote(job_id, inferred)
-                    remote = inferred
+    remote = _maybe_update_remote_from_text(
+        job_id,
+        r.get("title") or "",
+        r.get("location") or "",
+        description,
+        remote,
+    )
 
     # Lazily compute + cache this job's embedding (off the list render path) so
     # the detail card and future list loads get the semantic score.
