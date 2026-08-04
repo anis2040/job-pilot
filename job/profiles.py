@@ -284,6 +284,15 @@ def create_profile(name: str) -> str:
         profile_dir = PROFILES_DIR / slug
         counter += 1
     profile_dir.mkdir(parents=True, exist_ok=True)
+
+    # Write a minimal config.yaml so fetch doesn't fail on a brand-new profile
+    config_path = profile_dir / "config.yaml"
+    if not config_path.exists():
+        config_path.write_text(
+            "searches: []\nblacklist: []\ncompany_blacklist: []\ntitle_filter: []\n",
+            encoding="utf-8",
+        )
+
     return slug
 
 

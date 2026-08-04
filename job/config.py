@@ -35,8 +35,6 @@ def load_config(path: str | None = None) -> Config:
         data = yaml.safe_load(f)
 
     searches = [SearchConfig(**s) for s in data.get("searches", [])]
-    if not searches:
-        raise ValueError("config.yaml must have at least one search entry")
 
     blacklist = [kw.lower() for kw in data.get("blacklist", [])]
     company_blacklist = [c.lower() for c in data.get("company_blacklist", [])]
