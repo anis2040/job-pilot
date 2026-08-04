@@ -385,8 +385,12 @@
     align-items: start;
   }
   .jobs-col {
-    flex: 5;
+    flex: 11;
     min-width: 0;
+    transition: flex-grow var(--dur-slow) var(--ease-out);
+  }
+  .jobs-col.panel-open {
+    flex-grow: 5;
   }
   .detail-panel {
     flex: 6;

@@ -700,7 +700,7 @@ export default function DashboardPage() {
 
       {/* Split view */}
       <div className="split-wrap">
-        <div className="jobs-col">
+        <div className={`jobs-col${selectedJobId && isWide ? ' panel-open' : ''}`}>
           {loading ? (
             <div className="jobs-skeleton">
               {Array.from({ length: 8 }).map((_, i) => (
