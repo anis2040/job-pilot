@@ -288,6 +288,11 @@ function ExpBlock({ exp, idx, onChange, onRemove }: { exp: ExpEntry; idx: number
       </div>
       <div className="sublabel">Key bullets</div>
       <DynamicList items={exp.bullets} onChange={v => set('bullets', v)} placeholder="Led delivery of X, resulting in Y" />
+      {exp.bullets.filter(Boolean).length === 0 && (exp.title || exp.company) && (
+        <p style={{ fontSize: 'var(--text-xs)', color: 'var(--yellow)', marginTop: 4 }}>
+          ⚠ Add at least one bullet — the CV builder needs these to generate content
+        </p>
+      )}
     </div>
   );
 }
@@ -338,6 +343,12 @@ function Step2({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
   const handleSave = async () => {
     if (!form.name) { showToast('Please enter your full name', 'err'); return; }
     if (!form.email) { showToast('Please enter your email', 'err'); return; }
+    const emptyRoles = form.experience.filter(e => (e.title || e.company) && e.bullets.filter(Boolean).length === 0);
+    if (emptyRoles.length > 0) {
+      const names = emptyRoles.map(e => e.company || e.title).join(', ');
+      showToast(`Add at least one bullet point for: ${names} — the CV builder needs these to generate content`, 'err');
+      return;
+    }
     setSaving(true);
     const res = await setupApi.saveProfile(buildProfileMd(form));
     setSaving(false);

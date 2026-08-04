@@ -1249,24 +1249,49 @@ def api_setup_parse_resume():
     if not raw_text.strip():
         return jsonify({"error": "Could not extract text from the file. Try a different format."}), 400
 
-    prompt = f"""Extract structured information from this resume text and return ONLY valid JSON with exactly this structure (no markdown, no explanation):
+    # Limit to 20k chars — enough for even long CVs without hitting token limits
+    text_for_ai = raw_text[:20000]
 
+    prompt = f"""Extract ALL structured information from this resume and return ONLY valid JSON. No markdown, no explanation, just JSON.
+
+Use exactly this structure:
 {{
-  "name": "Full Name", "email": "email@example.com", "phone": "+1 555-000-0000",
-  "location": "City, State", "linkedin": "https://linkedin.com/in/...", "auth": "",
+  "name": "Full Name",
+  "email": "email@example.com",
+  "phone": "+1 555-000-0000",
+  "location": "City, Country",
+  "linkedin": "https://linkedin.com/in/...",
+  "auth": "",
   "summary": "2-3 sentence professional summary",
-  "competencies": ["skill 1", "skill 2"],
-  "experience": [{{"title": "Job Title", "company": "Company Name", "location": "City, Country",
-    "start": "Mon Year", "end": "Mon Year or Present",
-    "bullets": ["achievement 1"], "projects": [{{"name": "Project", "desc": "description"}}]}}],
-  "education": [{{"degree": "Full Degree Name", "school": "Institution", "year": "2024", "location": "City, Country"}}],
+  "competencies": ["skill 1", "skill 2", "skill 3"],
+  "experience": [
+    {{
+      "title": "Exact Job Title",
+      "company": "Company Name",
+      "location": "City, Country",
+      "start": "Mon Year",
+      "end": "Mon Year or Present",
+      "bullets": [
+        "Accomplishment or responsibility 1 — extract EVERY bullet/line from this role",
+        "Accomplishment or responsibility 2"
+      ],
+      "projects": [{{"name": "Project Name", "desc": "What you built/did"}}]
+    }}
+  ],
+  "education": [{{"degree": "Full Degree Name", "school": "Institution Name", "year": "2024", "location": "City, Country"}}],
   "certifications": ["Cert Name, Issuer (Year)"]
 }}
 
-Rules: empty string for missing text, empty array for missing lists, return ONLY JSON.
+Critical rules:
+- Extract EVERY job role, even short ones
+- For each role, extract ALL bullet points, responsibilities, and achievements verbatim — do not summarize or drop any
+- If bullets are listed as plain lines under a role, include each line as a separate bullet
+- competencies: extract ALL technical skills, tools, languages, frameworks mentioned anywhere
+- Empty string for missing text fields, empty array [] for missing list fields
+- Return ONLY the JSON object
 
-Resume text:
-{raw_text[:8000]}"""
+Resume:
+{text_for_ai}"""
 
     try:
         output = _call_ai_with_timeout(prompt)
