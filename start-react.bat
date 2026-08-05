@@ -10,13 +10,13 @@ echo  =============================================
 echo.
 
 if not exist ".venv\Scripts\python.exe" (
-    echo  [ERROR] Setup not complete. Run run.bat first.
+    echo  [ERROR] Setup not complete. Run setup-react.bat first.
     pause
     exit /b 1
 )
 
 if not exist "frontend\node_modules" (
-    echo  [ERROR] Frontend dependencies missing. Run run.bat first.
+    echo  [ERROR] Frontend dependencies missing. Run setup-react.bat first.
     pause
     exit /b 1
 )
