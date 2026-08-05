@@ -65,10 +65,12 @@ This map decides bullet **selection and order**: strong-evidence, most-frequent 
 
 **Job title:** display the title from `profile.md` that best matches the JD (if ambiguous, let the dominant responsibilities decide). Never show a title not grounded in the candidate's real experience — background checks return the HR-of-record title.
 
-**Summary Formula** (write from scratch, <60 words, no "I", don't open with the job title):
-1. Value proposition: what they do + for whom + at what scale.
+**Summary Formula** (write from scratch, <60 words, no "I"):
+1. **Open with a transformation, not a title.** The first ~10 words are all a recruiter skims before deciding to keep reading. Lead with what the candidate *changes* — a concrete outcome, the scale of impact, or a domain tension they resolve — drawn only from real evidence in `profile.md`. Never open with a job title, "X years of experience", or "Seasoned/Experienced/Certified [noun]"; those openers appear on every resume and get skimmed past.
 2. Method: how they work; mirror Tier 1 JD language.
 3. Domain/credential hook + direct JD match.
+
+Every sentence must pass the **"so what?" test**: if cutting it doesn't reduce what a recruiter learns about the candidate's value, cut it. The strongest, most-specific fact leads — do not bury it behind setup. Ground the opening claim in profile evidence: an eye-catching summary that overstates is worse than a plain one, and the fabrication guard will strip it.
 
 **Keyword equivalence (truthful terminology alignment):** when the profile expresses a JD keyword differently, adopt the JD's wording — but ONLY as a rephrasing of evidence that already exists. Alignment rephrases; it never originates a skill.
 - Profile "REST APIs" + JD "RESTful API development" → "RESTful API development".
