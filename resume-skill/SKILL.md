@@ -97,3 +97,25 @@ This map decides bullet **selection and order**: strong-evidence, most-frequent 
 Metrics include baseline/timeframe where the profile supports it. One idea per bullet (split any bullet with multiple "and"s). Read each bullet aloud — if it sounds like a template, rewrite it.
 
 **Role emphasis** (infer from JD): Product/PO → prioritization, roadmap, backlog, stakeholder alignment. Analyst → KPIs, metrics, reporting. Solution Engineer → enablement, discovery, integrations. Engineering-heavy → architecture, scalability (only where the profile supports it).
+
+## Layout
+
+Readability wins over page count — let it flow to two pages rather than cram or cut genuinely relevant experience.
+
+Readability floor (never cross these):
+- Body font no smaller than `10pt`
+- Margins no tighter than `0.5in`
+- Keep at least `itemsep=2pt` between bullets — never `0pt` to the point lines visually collide
+- Never drop a bullet that maps to a Tier 1 JD requirement purely for space
+
+Vertical fill (the page should look intentionally full, not padded or sparse):
+- If content ends well short of one page, the resume is too thin — expand Key Projects to 3–4 bullets each and restore trimmed detail rather than leaving a block of whitespace at the bottom.
+- Never let content spill just 2–3 lines onto a second page. Either tighten to fit one page (using the techniques below), or add enough real content that the second page fills past its halfway point. A near-empty page 2 looks worse than either.
+- Never strand a section heading alone at the bottom of a page with its content on the next. Reorder sections or adjust content length so the heading moves with its content.
+
+Tightening techniques (apply progressively, only as needed):
+- Reduce margins toward `0.75in` (from `1in`), and only toward `0.5in` if still needed
+- Tighten list spacing: `itemsep=2pt, topsep=2pt`
+- Tighten section spacing: `\titlespacing{\section}{0pt}{8pt}{3pt}`
+- Move tools (Jira, Confluence, etc.) into Core Competencies rather than separate lines
+- Cut filler words from bullets: "enterprise", "scalable", "high-availability", "digital", "robust", "seamless", "end-to-end" (unless end-to-end is the actual point), "throughout the product lifecycle", "ensuring X" trailing clauses that just restate the verb
