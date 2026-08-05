@@ -517,6 +517,7 @@ def _build_document(job_id: str, doc_type: str) -> None:
                 response_text = _generate_content(skill_text, repair, cwd=str(skill_dir),
                                                   stage_fn=lambda s: stage_fn(job_id, s))
                 content = _parse_content_json(response_text)
+            content["company"] = company
 
             stage_fn(job_id, "Rendering document…")
             profile_text = get_profile_path().read_text(encoding="utf-8")
@@ -549,7 +550,7 @@ def _build_document(job_id: str, doc_type: str) -> None:
             clean_content(content)
 
             latex_content = render_resume_latex(content, profile_text)
-            company_folder = _sanitize_folder_name(content.get("company", company), folder_fallback)
+            company_folder = _sanitize_folder_name(company, folder_fallback)
 
             # Deterministic quality check (non-fatal): flag likely fabrication +
             # ATS keyword coverage. Logged for visibility; doesn't block the build.
@@ -574,6 +575,7 @@ def _build_document(job_id: str, doc_type: str) -> None:
                 response_text = _generate_content(skill_text, repair, cwd=str(skill_dir),
                                                   stage_fn=lambda s: stage_fn(job_id, s))
                 content = _parse_cover_letter_json(response_text)
+            content["company"] = company
 
             profile_text = get_profile_path().read_text(encoding="utf-8")
             stage_fn(job_id, "Checking accuracy…")

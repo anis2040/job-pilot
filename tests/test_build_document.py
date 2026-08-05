@@ -16,7 +16,7 @@ import job.task_state as task_state
 
 
 _CONTENT = {
-    "company": "Acme & Co",
+    "company": "Target Company",
     "summary": "Senior Angular engineer with 100% focus on C# & C++ and $1M outcomes.",
     "core_competencies": ["Angular", "NgRx", "TypeScript", "Lit"],
     "experiences": [{
@@ -75,8 +75,9 @@ def test_build_resume_renders_and_writes_tex(wired):
     documents._build_resume("li_1")
 
     status = task_state._task_status.get("li_1", {})
-    tex = resumes / "AcmeCo" / "resumes" / "Anis_Helaoui_Resume.tex"
+    tex = resumes / "Acme" / "resumes" / "Anis_Helaoui_Resume.tex"
     assert tex.exists(), f"tex not written; status={status}"
+    assert not (resumes / "TargetCompany" / "resumes" / "Anis_Helaoui_Resume.tex").exists()
     text = tex.read_text()
     # Content present + specials escaped (the whole point of the refactor)
     assert "Anis Helaoui" in text
@@ -218,7 +219,7 @@ def test_verify_content_restores_env(monkeypatch):
 # ── cover-letter JSON build + guard ───────────────────────────────────────────
 
 _CL_CONTENT = {
-    "company": "Acme & Co",
+    "company": "Target Company",
     "paragraphs": [
         "I'm applying for the Staff Engineer role. My NgRx work at SAP LeanIX for 1M+ users fits.",
         "At DocCheck I cut CI/CD time by 50% and built shared component libraries.",
@@ -254,11 +255,12 @@ def test_build_cover_letter_renders_json_to_tex(cl_wired):
     resumes = cl_wired
     documents._build_cover_letter("li_2")
     st = task_state._cl_task_status.get("li_2", {})
-    tex = resumes / "AcmeCo" / "cover-letters" / "Anis_Helaoui_Cover_Letter.tex"
+    tex = resumes / "Acme" / "cover-letters" / "Anis_Helaoui_Cover_Letter.tex"
     assert tex.exists(), f"CL tex not written; status={st}"
+    assert not (resumes / "TargetCompany" / "cover-letters" / "Anis_Helaoui_Cover_Letter.tex").exists()
     text = tex.read_text()
     assert text.startswith(r"\documentclass") and r"\end{document}" in text
-    assert r"Acme \& Co" in text  # company escaped
+    assert r"Hiring Manager\\Acme" in text  # company from the job, not model placeholder
     assert "Anis Helaoui" in text  # name from profile
     assert "NgRx work at SAP LeanIX" in text  # paragraph rendered
 
