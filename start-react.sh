@@ -9,11 +9,6 @@ if [[ ! -f ".venv/bin/activate" ]]; then
     exit 1
 fi
 
-if [[ ! -d "frontend/node_modules" ]]; then
-    echo "  [ERROR] Frontend dependencies missing. Run ./setup-react.sh first."
-    exit 1
-fi
-
 # shellcheck disable=SC1091
 source .venv/bin/activate
 

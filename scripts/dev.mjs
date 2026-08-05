@@ -5,6 +5,7 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const frontendDir = path.join(root, 'frontend')
 const isWindows = process.platform === 'win32'
 const npmCmd = isWindows ? 'npm.cmd' : 'npm'
 const mode = process.argv.includes('--backend-only')
@@ -84,7 +85,35 @@ function ensureFrontendDeps() {
   }
 
   console.log('\nInstalling frontend dependencies...')
-  runChecked(npmCmd, ['install', '--prefix', 'frontend'])
+  runChecked(npmCmd, ['install', '--prefix', 'frontend', '--include=optional'])
+
+  if (frontendToolWorks()) {
+    return
+  }
+
+  console.log('\nFrontend native dependencies are incomplete. Reinstalling cleanly...')
+  if (exists(path.join(frontendDir, 'package-lock.json'))) {
+    runChecked(npmCmd, ['ci', '--prefix', 'frontend', '--include=optional'])
+  } else {
+    runChecked(npmCmd, ['install', '--prefix', 'frontend', '--include=optional', '--force'])
+  }
+
+  if (!frontendToolWorks(true)) {
+    throw new Error(
+      'Frontend dependencies installed, but Vite still cannot load its native binding. ' +
+        'Delete frontend/node_modules and run npm install --prefix frontend --include=optional.',
+    )
+  }
+}
+
+function frontendToolWorks(verbose = false) {
+  const result = spawnSync(npmCmd, ['--prefix', 'frontend', 'exec', '--', 'vite', '--version'], {
+    cwd: root,
+    stdio: verbose ? 'inherit' : 'ignore',
+    shell: false,
+  })
+
+  return !result.error && result.status === 0
 }
 
 function startProcess(command, args, name) {

@@ -15,12 +15,6 @@ if not exist ".venv\Scripts\python.exe" (
     exit /b 1
 )
 
-if not exist "frontend\node_modules" (
-    echo  [ERROR] Frontend dependencies missing. Run setup-react.bat first.
-    pause
-    exit /b 1
-)
-
 start "" powershell -NoProfile -WindowStyle Hidden -Command "Start-Sleep 6; Start-Process 'http://localhost:5173'"
 
 echo   Backend:  http://localhost:5050

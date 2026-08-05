@@ -155,7 +155,11 @@ pip install -r requirements.txt -q || { err "pip install failed. Check your inte
 
 # ── 9. Install frontend dependencies ──────────────────────────────────────────
 info "Installing frontend dependencies..."
-npm install --prefix frontend || { err "npm install failed. Check your internet connection and try again."; exit 1; }
+if [[ -f "frontend/package-lock.json" ]]; then
+    npm ci --prefix frontend --include=optional || { err "npm ci failed. Check your internet connection and try again."; exit 1; }
+else
+    npm install --prefix frontend --include=optional || { err "npm install failed. Check your internet connection and try again."; exit 1; }
+fi
 
 # ── 10. Open browser after servers start ──────────────────────────────────────
 if [[ "$OS" == "Darwin" ]]; then
