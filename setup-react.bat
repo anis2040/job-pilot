@@ -24,7 +24,7 @@ if not defined PYTHON (
     if errorlevel 1 (
         echo  [ERROR] winget is not available on this machine.
         echo  Please install Python manually from https://www.python.org/downloads/
-        echo  Check "Add Python to PATH" on the first installer screen, then run run.bat again.
+        echo  Check "Add Python to PATH" on the first installer screen, then run setup-react.bat again.
         pause
         exit /b 1
     )
@@ -39,7 +39,7 @@ if not defined PYTHON (
     echo.
     echo  [ERROR] Could not find Python 3.9+ after install.
     echo  Please install it manually from https://www.python.org/downloads/
-    echo  Check "Add Python to PATH" on the first installer screen, then run run.bat again.
+    echo  Check "Add Python to PATH" on the first installer screen, then run setup-react.bat again.
     pause
     exit /b 1
 )
@@ -53,7 +53,7 @@ if errorlevel 1 (
     where winget >nul 2>&1
     if errorlevel 1 (
         echo  [ERROR] winget not available — cannot install Node.js automatically.
-        echo  Please install Node.js from https://nodejs.org/ then run run.bat again.
+        echo  Please install Node.js from https://nodejs.org/ then run setup-react.bat again.
         pause
         exit /b 1
     )
@@ -65,7 +65,7 @@ where node >nul 2>&1
 if errorlevel 1 (
     echo.
     echo  [ERROR] Node.js not found after install.
-    echo  Close this window, open a new one, and run run.bat again.
+    echo  Close this window, open a new one, and run setup-react.bat again.
     pause
     exit /b 1
 )
@@ -135,6 +135,13 @@ goto :eof
 
 
 :refresh_node_path
+:: winget writes the updated PATH to the registry, but this already-running
+:: shell won't see it — so re-read PATH from both registry hives (machine + user)
+:: and merge it in. This catches Node wherever winget put it, not just the known
+:: dirs below.
+for /f "skip=2 tokens=2,*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "PATH=!PATH!;%%B"
+for /f "skip=2 tokens=2,*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul') do set "PATH=!PATH!;%%B"
+:: Fast path / fallback: prepend well-known Node install dirs if present.
 for %%D in (
     "%PROGRAMFILES%\nodejs"
     "%PROGRAMFILES(X86)%\nodejs"
