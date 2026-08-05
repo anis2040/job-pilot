@@ -904,6 +904,11 @@ def api_ai_settings_save():
 
     preferred = (data.get("preferred_provider") or "").strip().lower()
     if preferred in ("groq", "anthropic", "gemini", "claude", ""):
+        if preferred == "anthropic" and not (data.get("anthropic_model") or "").strip():
+            default_model = _MODEL_DEFAULTS["anthropic"]
+            _write_env_var(env_path, "ANTHROPIC_MODEL", default_model)
+            os.environ["ANTHROPIC_MODEL"] = default_model
+            updated_keys.add("ANTHROPIC_MODEL")
         if preferred:
             _write_env_var(env_path, "PREFERRED_PROVIDER", preferred)
             os.environ["PREFERRED_PROVIDER"] = preferred

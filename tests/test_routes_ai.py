@@ -115,6 +115,19 @@ class TestAiSettingsSave:
         assert "PREFERRED_PROVIDER=gemini" in env_text
         assert "GROQ_MODEL=" not in env_text
 
+    def test_selecting_claude_api_defaults_to_cheapest_model(self, client, tmp_path):
+        r = client.post("/api/ai-settings", json={
+            "preferred_provider": "anthropic",
+        })
+
+        assert r.status_code == 200
+        data = r.get_json()
+        assert data["ok"] is True
+        assert "ANTHROPIC_MODEL" in data["updated"]
+        env_text = (tmp_path / ".env").read_text()
+        assert "ANTHROPIC_MODEL=claude-haiku-4-5" in env_text
+        assert "PREFERRED_PROVIDER=anthropic" in env_text
+
     def test_clearing_preferred_removes_it(self, client, tmp_path):
         client.post("/api/ai-settings", json={"preferred_provider": "gemini"})
         assert "PREFERRED_PROVIDER=gemini" in (tmp_path / ".env").read_text()
