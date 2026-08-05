@@ -116,6 +116,17 @@ function frontendToolWorks(verbose = false) {
   return !result.error && result.status === 0
 }
 
+function ensureFrontendBuild() {
+  // The Flask backend serves the built SPA from frontend/dist/ at /app. Vite's
+  // dev server (port 5173) doesn't need it, but a fresh clone has no dist/, so
+  // /app shows "React app not built". Build once if it's missing; skip if present.
+  if (exists(path.join(frontendDir, 'dist', 'index.html'))) {
+    return
+  }
+  console.log('\nBuilding frontend (frontend/dist/ for the backend-served /app route)...')
+  runChecked(npmCmd, ['run', 'build', '--prefix', 'frontend'])
+}
+
 function startProcess(command, args, name) {
   const child = spawn(command, args, {
     cwd: root,
@@ -180,6 +191,14 @@ try {
   }
   if (mode === 'frontend' || mode === 'full') {
     ensureFrontendDeps()
+  }
+  // The backend serves the built SPA at /app, so it needs frontend/dist/.
+  // In backend-only mode, ensure frontend deps exist before building.
+  if (mode === 'backend') {
+    ensureFrontendDeps()
+    ensureFrontendBuild()
+  } else if (mode === 'full') {
+    ensureFrontendBuild()
   }
 
   if (mode === 'backend') {
