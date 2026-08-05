@@ -2,6 +2,8 @@
   "name": "job-scraper",
   "private": true,
   "scripts": {
+    "setup:react": "npm install --prefix frontend",
+    "start:react": "npm --prefix frontend run dev",
     "backend": "node scripts/dev.mjs --backend-only",
     "frontend": "node scripts/dev.mjs --frontend-only",
     "dev": "node scripts/dev.mjs"
