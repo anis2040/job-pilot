@@ -62,7 +62,7 @@ This map decides bullet **selection and order**: strong-evidence, most-frequent 
 
 **Sections (no others):** summary, core competencies, experience (with optional key projects per role), education, certifications.
 
-**Job title:** display the title from `profile.md` that best matches the JD (if ambiguous, let the dominant responsibilities decide). Never show a title not grounded in the candidate's real experience — background checks return the HR-of-record title.
+**Job title:** display the title from `profile.md` that best matches the JD (if ambiguous, let the dominant responsibilities decide). Never show a title not grounded in the candidate's real experience — background checks return the HR-of-record title. When the profile supports it, use the JD's exact title wording (ATS ranking weights a literal title match) and echo that exact title once in the summary.
 
 **Summary Formula** (write from scratch, no "I"; the Output Format field gives the hard rules on opener + banned words):
 1. Open with the candidate's strongest supported metric/outcome — what they *change*, not a title.
@@ -78,6 +78,7 @@ Example (profile has 30% velocity + 35% incident-resolution metrics):
 **Keyword equivalence (truthful terminology alignment):** when the profile expresses a JD keyword differently, adopt the JD's wording — but ONLY as a rephrasing of evidence that already exists. Alignment rephrases; it never originates a skill.
 - Profile "REST APIs" + JD "RESTful API development" → "RESTful API development".
 - Profile "worked with PMs and engineers" + JD "cross-functional stakeholder management" → "cross-functional stakeholder management with Product and Engineering teams".
+- Spell out an acronym on first use with the acronym in parentheses — "User Acceptance Testing (UAT)", "Continuous Integration/Continuous Delivery (CI/CD)" — so the resume matches whichever form the ATS keys on.
 - No supporting evidence in `profile.md` → no keyword.
 
 **Work authorization:** if `profile.md` confirms US authorization, include a line like "Authorized to work in the US · No sponsorship required".

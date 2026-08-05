@@ -226,6 +226,22 @@ def test_validate_reports_keyword_coverage():
     assert "Kubernetes" in ats[0] and "Go" in ats[0]
 
 
+def test_validate_coverage_is_alias_aware():
+    # "owning backlogs" / "RESTful" must count toward the canonical JD keywords
+    # "Backlog Management" / "REST" — a raw substring check would miss both.
+    content = dict(_VALID, summary="Product Owner owning backlogs and RESTful integrations.",
+                   core_competencies=[],
+                   experiences=[{"title": "PO", "employer": "X", "location": "Y",
+                                 "dates": "2020", "bullets": ["Ran PI planning"]}])
+    warnings = validate_resume_content(
+        content, "# Me\nWorked at X.",
+        jd_keywords=["Backlog Management", "REST", "PI Planning", "Kubernetes"])
+    ats = [w for w in warnings if w.startswith("ATS")]
+    assert ats and "3/4" in ats[0]           # backlog, REST, PI planning covered
+    assert "Kubernetes" in ats[0]            # the only genuine miss
+    assert "Backlog Management" not in ats[0]
+
+
 # ── ground_competencies (deterministic competency fabrication check) ──────────
 
 from job.latex_render import ground_competencies

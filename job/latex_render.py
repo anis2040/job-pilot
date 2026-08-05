@@ -371,12 +371,18 @@ def validate_resume_content(content: dict, profile_text: str, jd_keywords: list 
             warnings.append(f"Employer not found in profile (possible fabrication): {employer!r}")
 
     if jd_keywords:
-        blob = _norm(" ".join([
+        # Use the alias-aware detector on the resume text so canonical forms
+        # match their variants ("owning backlogs" covers "Backlog Management",
+        # "RESTful" covers "REST") — a raw substring check under-counts and
+        # makes the coverage number misleadingly low.
+        from .skills_vocab import detect_keywords
+        blob = " ".join([
             content.get("summary", ""),
             " ".join(content.get("core_competencies", [])),
             " ".join(b for e in content.get("experiences", []) for b in e.get("bullets", [])),
-        ]))
-        missed = [k for k in jd_keywords if _norm(k) not in blob]
+        ])
+        covered_set = set(detect_keywords(blob))
+        missed = [k for k in jd_keywords if k not in covered_set]
         if missed:
             covered = len(jd_keywords) - len(missed)
             warnings.append(

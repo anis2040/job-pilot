@@ -74,8 +74,10 @@ _ALIASES: dict[str, str] = {
     # Product / program management aliases (profile phrasings + common JD variants)
     "safe": "SAFe", "scaled agile": "SAFe", "scaled agile framework": "SAFe",
     "roadmap": "Roadmapping", "road map": "Roadmapping", "product roadmap": "Roadmapping",
-    "backlog": "Backlog Management", "backlog management": "Backlog Management",
+    "backlog": "Backlog Management", "backlogs": "Backlog Management",
+    "backlog management": "Backlog Management",
     "program backlog": "Backlog Management", "product backlog": "Backlog Management",
+    "roadmaps": "Roadmapping",
     "stakeholder": "Stakeholder Management", "stakeholders": "Stakeholder Management",
     "stakeholder management": "Stakeholder Management",
     "stakeholder communication": "Stakeholder Management",
