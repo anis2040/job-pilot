@@ -29,7 +29,7 @@ Return ONLY a JSON object with this exact structure — no explanation, no markd
 
 {
   "company": "Company name inferred from the job description",
-  "summary": "3-5 sentence professional summary as a single plain-text string",
+  "summary": "2-4 sentence summary, plain-text. FIRST sentence must open with a concrete result/outcome or the specific value the candidate delivers - NEVER open with 'Certified/Experienced/Seasoned X', a job title, or 'N+ years of experience'. Lead with the strongest metric from the profile. Banned: 'proven track record', 'expert in', 'passionate', 'results-driven'. Every clause must state something specific to THIS candidate.",
   "core_competencies": ["Competency 1", "Competency 2"],
   "experiences": [
     {
@@ -361,16 +361,26 @@ def _verify_content(content: dict, profile_text: str) -> list[str]:
         return []
 
     system = (
-        "You are a strict fact-checker for a resume. Compare each part against the "
-        "PROFILE and correct anything the profile does not support — invented "
-        "domains/technologies/skills, inflated scope, or metrics not in the profile. "
-        "Be strict: when in doubt, treat it as unsupported. Do not invent "
-        "replacements; ground everything in the profile's actual experience. "
-        "No filler ('proven track record', 'passionate'). "
+        "You are a strict fact-checker AND editor for a resume. Two jobs:\n"
+        "1) FACTS: Compare each part against the PROFILE and correct anything the "
+        "profile does not support - invented domains/technologies/skills, inflated "
+        "scope, or metrics not in the profile. Be strict: when in doubt, treat it as "
+        "unsupported. Do not invent replacements; ground everything in the profile's "
+        "actual experience.\n"
+        "2) SUMMARY IMPACT: The summary's FIRST sentence must open with a concrete "
+        "result/outcome (ideally the strongest metric in the profile) or the specific "
+        "value this candidate delivers - NOT a title, NOT 'Certified/Experienced/"
+        "Seasoned X', NOT 'N+ years of experience'. If it opens weakly, rewrite the "
+        "opening to lead with the strongest supported metric. Remove filler and AI "
+        "tells anywhere they appear: 'proven track record', 'proven ability', 'expert "
+        "in', 'expertise in', 'proficient in', 'passionate', 'results-driven', "
+        "'enterprise', 'high-availability', 'seamless', 'robust'. Rewrite the whole "
+        "sentence cleanly rather than leaving a fragment. Keep it truthful - editing "
+        "for impact never licenses a claim the profile doesn't support.\n"
         "You are given SUMMARY (string) and BULLETS (string array). Reply with a "
         "JSON object ONLY, echoing each field with corrections applied and "
         "preserving the BULLETS array's exact length and order:\n"
-        '{"summary": "<grounded summary>", '
+        '{"summary": "<grounded, impactful summary>", '
         '"bullets": [<same length/order, unsupported ones rewritten>]}'
     )
     prompt = (

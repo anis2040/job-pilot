@@ -72,6 +72,10 @@ This map decides bullet **selection and order**: strong-evidence, most-frequent 
 
 Every sentence must pass the **"so what?" test**: if cutting it doesn't reduce what a recruiter learns about the candidate's value, cut it. The strongest, most-specific fact leads — do not bury it behind setup. Ground the opening claim in profile evidence: an eye-catching summary that overstates is worse than a plain one, and the fabrication guard will strip it.
 
+Concrete example (Product Owner with 30% velocity + 35% incident-resolution metrics in `profile.md`):
+- ❌ "Certified Product Owner with 4+ years delivering enterprise platforms in Agile/SAFe environments. Expert in Scrum ceremonies and backlog management. Proven track record of driving velocity." — generic opener, buries the metrics, uses banned "Expert in" / "Proven track record" / "enterprise".
+- ✅ "Product Owner who increased delivery velocity 30% and cut incident-resolution time 35% by owning backlogs against real delivery constraints. Runs Agile and SAFe teams through PI planning, story definition, and UAT in regulated environments." — leads with the result, every clause is this candidate's.
+
 **Keyword equivalence (truthful terminology alignment):** when the profile expresses a JD keyword differently, adopt the JD's wording — but ONLY as a rephrasing of evidence that already exists. Alignment rephrases; it never originates a skill.
 - Profile "REST APIs" + JD "RESTful API development" → "RESTful API development".
 - Profile "worked with PMs and engineers" + JD "cross-functional stakeholder management" → "cross-functional stakeholder management with Product and Engineering teams".
