@@ -1,12 +1,12 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { jobs as jobsApi, config as configApi, constants } from '../../api/client';
+import { jobs as jobsApi, constants } from '../../api/client';
 import { useProfile } from '../../hooks/useProfile';
 import { consumeProfileFetchSignal } from '../../hooks/profileFetchSignal';
 import { useToast } from '../../components/ui/useToast';
 import { AppShell } from '../../components/layout/AppShell';
-import { groupSearchEntries, type SearchRowEntry } from '../../components/ui/searchRowModel';
+import { type SearchRowEntry } from '../../components/ui/searchRowModel';
 import { applyFilters, DEFAULT_FILTERS } from '../../utils/filters';
 import type { Filters } from '../../utils/filters';
 import type { Job, JobDetail, AppConstants, SaveConfigResult } from '../../api/types';
@@ -43,7 +43,6 @@ export default function DashboardPage() {
   const { active: activeProfile } = useProfile();
   const isWide = useIsWide();
   const navigate = useNavigate();
-  const syncedSettingsProfileRef = useRef<string | null>(null);
 
   const {
     savedSearches,
