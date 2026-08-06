@@ -120,8 +120,8 @@ if not errorlevel 1 (
     echo  [WARN] pdflatex not found. PDF generation will not work.
 )
 
-:: ── 6. Open browser once both servers are ready ───────────────────────────────
-start "" powershell -NoProfile -WindowStyle Hidden -Command "Start-Sleep 6; Start-Process 'http://localhost:5173'"
+:: ── 6. Open browser once the frontend server is actually ready ─────────────
+start "" powershell -NoProfile -WindowStyle Hidden -Command "while (-not (Test-NetConnection -ComputerName localhost -Port 5173 -InformationLevel Quiet -WarningAction SilentlyContinue)) { Start-Sleep 1 }; Start-Process 'http://localhost:5173'"
 
 :: ── 7. Start everything via dev.mjs (venv + pip + npm + both servers) ────────
 echo.

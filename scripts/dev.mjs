@@ -143,8 +143,12 @@ function ensureBackendDeps() {
     runChecked(launcher.command, [...launcher.prefixArgs, '-m', 'venv', '.venv'])
   }
 
+  console.log('\nUpgrading pip...')
+  runChecked(venvPython, ['-m', 'pip', 'install', '--quiet', '--upgrade', 'pip'])
+
   console.log('\nInstalling backend dependencies...')
-  runChecked(venvPython, ['-m', 'pip', 'install', '-r', 'requirements.txt'])
+  // --prefer-binary avoids source builds (e.g. cryptography needs Rust without this)
+  runChecked(venvPython, ['-m', 'pip', 'install', '--prefer-binary', '-r', 'requirements.txt'])
 }
 
 function ensureFrontendDeps() {
