@@ -89,7 +89,8 @@ function ProviderCard({
 
   const persistKey = async (raw: string) => {
     const next = raw.trim();
-    if (!next || next === '••••••••••••••••' || savingKey) return;
+    // Skip empty, placeholder, or masked values (API never returns full secrets).
+    if (!next || next.startsWith('••••') || savingKey) return;
     if (next === info.key) return;
     setSavingKey(true);
     setKeyAlert({ kind: 'neutral', text: 'Saving key…' });

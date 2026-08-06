@@ -17,17 +17,15 @@ runner = CliRunner()
 @pytest.fixture
 def cli_db(temp_db, monkeypatch):
     """Isolated DB + stubbed config, reusing temp_db from conftest.py."""
-    from job import config as cfg
+    from job import cli as cli_mod
 
-    monkeypatch.setattr(
-        cfg,
-        "load_config",
-        lambda path=None: Config(
-            searches=[
-                SearchConfig(name="t", source="greenhouse", query="eng", location="US")
-            ]
-        ),
+    stub = lambda path=None: Config(
+        searches=[
+            SearchConfig(name="t", source="greenhouse", query="eng", location="US")
+        ]
     )
+    # cli.py binds load_config at import time — patch the CLI module reference.
+    monkeypatch.setattr(cli_mod, "load_config", stub)
     return temp_db
 
 

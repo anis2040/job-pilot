@@ -28,19 +28,23 @@ def web_client(tmp_path, monkeypatch):
     # Isolate .env / BASE paths
     monkeypatch.setattr(web, "BASE", tmp_path)
     monkeypatch.setattr(job.paths, "BASE", tmp_path)
+    monkeypatch.setenv("AUTH_DISABLED", "1")
+    monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False)
+    monkeypatch.delenv("GOOGLE_CLIENT_SECRET", raising=False)
 
-    # Isolate profile filesystem
+    # Isolate profile filesystem (user-scoped under _local)
+    from job.user_context import LOCAL_USER_ID
     pdir = tmp_path / "profiles"
     pdir.mkdir()
     monkeypatch.setattr(profs, "PROFILES_DIR", pdir)
-    monkeypatch.setattr(profs, "ACTIVE_FILE", pdir / ".active")
     monkeypatch.setattr(profs, "_update_symlinks", lambda d: None)
-    # web.py imports PROFILES_DIR directly into its own namespace
+    monkeypatch.setattr(profs, "get_current_user_id", lambda: LOCAL_USER_ID)
     monkeypatch.setattr(web, "PROFILES_DIR", pdir)
 
     # Create a test profile and activate it
-    profile_dir = pdir / "test-user"
-    profile_dir.mkdir()
+    user_dir = pdir / LOCAL_USER_ID
+    profile_dir = user_dir / "test-user"
+    profile_dir.mkdir(parents=True)
     (profile_dir / "profile.md").write_text("# Test User\nSoftware Engineer")
     (profile_dir / "config.yaml").write_text(
         "searches:\n"
@@ -49,7 +53,7 @@ def web_client(tmp_path, monkeypatch):
         "    query: engineer\n"
         "    location: United States\n"
     )
-    (pdir / ".active").write_text("test-user")
+    (user_dir / ".active").write_text("test-user")
 
     # Isolate SQLite to the temp profile dir
     db_file = profile_dir / "state.db"

@@ -21,9 +21,11 @@ from job.profiles import (
     list_profiles, get_active_slug, get_active_profile, set_active,
     create_profile, delete_profile, has_any_profiles, slugify,
     get_profile_path, get_config_path, get_resumes_path, active_profile_dir,
-    get_profile_json,
-    PROFILES_DIR,
+    get_profile_json, safe_profile_dir, ensure_user_dir,
 )
+from job.user_env import write_user_env_var, remove_user_env_var, mask_secret
+from job.auth import init_oauth, register_auth_routes
+from job.ai_providers import _env_get
 
 from job.paths import BASE
 from job.fetcher import SOURCES
@@ -34,6 +36,13 @@ from job.ai_providers import extract_json_from_llm
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 app.secret_key = os.environ.get("SECRET_KEY", "job-scraper-dev-key-change-in-prod")
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = os.environ.get("FLASK_DEBUG", "true").lower() not in ("1", "true", "yes")
+app.config["PERMANENT_SESSION_LIFETIME"] = 60 * 60 * 24 * 30  # 30 days
+
+init_oauth(app)
+register_auth_routes(app)
 
 
 @app.errorhandler(404)
@@ -210,8 +219,7 @@ def _save_api_key(env_key: str, provider: str):
     key = (data.get("key") or "").strip()
     if not key:
         return jsonify({"error": "No key provided"}), 400
-    _write_env_var(BASE / ".env", env_key, key)
-    os.environ[env_key] = key
+    write_user_env_var(env_key, key)
     _clear_model_cache(provider)
     return jsonify({"ok": True})
 
@@ -227,7 +235,7 @@ def _pdf_url(path: str | None) -> str | None:
 
 
 def _require_profile_dir(slug: str):
-    if not (PROFILES_DIR / slug).is_dir():
+    if not safe_profile_dir(slug):
         return jsonify({"error": "Profile not found"}), 404
     return None
 
@@ -456,7 +464,7 @@ def profile_picker():
 def api_profile_clear_jobs(slug):
     if err := _require_profile_dir(slug): return err
     import sqlite3
-    profile_dir = PROFILES_DIR / slug
+    profile_dir = safe_profile_dir(slug)
     db_path = str(profile_dir / "state.db")
     try:
         con = sqlite3.connect(db_path)
@@ -475,8 +483,8 @@ def api_profile_clear_jobs(slug):
 @app.route("/profile-settings/<slug>")
 def profile_settings(slug):
     from job.profiles import _profile_info
-    profile_dir = PROFILES_DIR / slug
-    if not profile_dir.is_dir():
+    profile_dir = safe_profile_dir(slug)
+    if not profile_dir:
         return redirect(url_for("manage_profiles"))
     profile = _profile_info(profile_dir)
     active_slug = get_active_slug()
@@ -573,7 +581,7 @@ def api_profiles_delete(slug):
 @app.route("/api/profiles/<slug>/profile-md", methods=["GET"])
 def api_profile_md_get(slug):
     if err := _require_profile_dir(slug): return err
-    profile_dir = PROFILES_DIR / slug
+    profile_dir = safe_profile_dir(slug)
     profile_md = profile_dir / "profile.md"
     return jsonify({"content": profile_md.read_text(encoding="utf-8") if profile_md.exists() else ""})
 
@@ -581,7 +589,7 @@ def api_profile_md_get(slug):
 @app.route("/api/profiles/<slug>/profile-md", methods=["POST"])
 def api_profile_md_save(slug):
     if err := _require_profile_dir(slug): return err
-    profile_dir = PROFILES_DIR / slug
+    profile_dir = safe_profile_dir(slug)
     data = request.get_json() or {}
     content = (data.get("content") or "").strip()
     if not content:
@@ -598,7 +606,10 @@ def api_profile_md_save(slug):
 
 @app.route("/api/profiles/<slug>/config", methods=["GET"])
 def api_profile_config_get(slug):
-    config_p = PROFILES_DIR / slug / "config.yaml"
+    profile_dir = safe_profile_dir(slug)
+    if not profile_dir:
+        return jsonify({"error": "Profile not found"}), 404
+    config_p = profile_dir / "config.yaml"
     if not config_p.exists():
         return jsonify({"searches": [], "title_filter": [], "blacklist": [], "company_blacklist": []})
     return jsonify(_read_config_yaml(config_p))
@@ -607,7 +618,7 @@ def api_profile_config_get(slug):
 @app.route("/api/profiles/<slug>/config", methods=["POST"])
 def api_profile_config_save(slug):
     if err := _require_profile_dir(slug): return err
-    profile_dir = PROFILES_DIR / slug
+    profile_dir = safe_profile_dir(slug)
     data = request.get_json() or {}
     if not isinstance(data.get("searches"), list) or not data["searches"]:
         return jsonify({"error": "At least one search entry required"}), 400
@@ -794,7 +805,7 @@ def api_ai_settings_get():
     anthropic_ok = _get_anthropic_client() is not None
     gemini_ok    = _get_gemini_client() is not None or bool(shutil.which("gemini"))
 
-    preferred = os.environ.get("PREFERRED_PROVIDER", "").strip().lower()
+    preferred = _env_get("PREFERRED_PROVIDER", "").strip().lower()
 
     # active = preferred if it's available, else first available in default order
     if preferred == "groq" and groq_ok:           active = "groq"
@@ -813,13 +824,10 @@ def api_ai_settings_get():
             models = [current] + models
         return models
 
-    # Actual stored keys, so the UI's show/hide (eye) toggle can reveal them.
-    # Local single-user app — keys already live in plaintext .env. Only real
-    # env keys are returned; CLI-detected availability (claude/gemini) has no
-    # key to show.
-    groq_key      = os.environ.get("GROQ_API_KEY", "")
-    anthropic_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN") or ""
-    gemini_key    = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or ""
+    # Masked keys only — never return full secrets over the network.
+    groq_key      = _env_get("GROQ_API_KEY", "")
+    anthropic_key = _env_get("ANTHROPIC_API_KEY") or _env_get("ANTHROPIC_AUTH_TOKEN") or ""
+    gemini_key    = _env_get("GEMINI_API_KEY") or _env_get("GOOGLE_API_KEY") or ""
 
     # Token-usage counter: what THIS app has spent per provider, scoped to the
     # currently-active API key (limits are per-key/org, so switching keys must
@@ -845,7 +853,7 @@ def api_ai_settings_get():
 
     from job.ai_providers import embedding_provider
     emb_available = embedding_provider() is not None
-    semantic_on = os.environ.get("SEMANTIC_MATCH", "on").strip().lower() != "off"
+    semantic_on = _env_get("SEMANTIC_MATCH", "on").strip().lower() != "off"
 
     return jsonify({
         "active_provider":    active,
@@ -856,24 +864,24 @@ def api_ai_settings_get():
             "groq": {
                 "configured": groq_ok,
                 "model":   _get_model("groq"),
-                "key_set": bool(os.environ.get("GROQ_API_KEY")),
-                "key":     groq_key,
+                "key_set": bool(groq_key),
+                "key":     mask_secret(groq_key),
                 "models":  _models_for("groq"),
                 "usage":   _usage_for("groq"),
             },
             "anthropic": {
                 "configured": anthropic_ok,
                 "model":   _get_model("anthropic"),
-                "key_set": bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN") or shutil.which("claude")),
-                "key":     anthropic_key,
+                "key_set": bool(anthropic_key or shutil.which("claude")),
+                "key":     mask_secret(anthropic_key),
                 "models":  _models_for("anthropic"),
                 "usage":   _usage_for("anthropic"),
             },
             "gemini": {
                 "configured": gemini_ok,
                 "model":   _get_model("gemini"),
-                "key_set": bool(os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or shutil.which("gemini")),
-                "key":     gemini_key,
+                "key_set": bool(gemini_key or shutil.which("gemini")),
+                "key":     mask_secret(gemini_key),
                 "models":  _models_for("gemini"),
                 "usage":   _usage_for("gemini"),
             },
@@ -892,39 +900,29 @@ def api_ai_settings_get():
 @app.route("/api/ai-settings", methods=["POST"])
 def api_ai_settings_save():
     data = request.get_json() or {}
-    env_path = BASE / ".env"
     updated_keys = set()
 
     for field, env_key in [("groq_model", "GROQ_MODEL"), ("anthropic_model", "ANTHROPIC_MODEL"), ("gemini_model", "GEMINI_MODEL")]:
         val = (data.get(field) or "").strip()
         if val:
-            _write_env_var(env_path, env_key, val)
-            os.environ[env_key] = val
+            write_user_env_var(env_key, val)
             updated_keys.add(env_key)
 
     preferred = (data.get("preferred_provider") or "").strip().lower()
     if preferred in ("groq", "anthropic", "gemini", "claude", ""):
         if preferred == "anthropic" and not (data.get("anthropic_model") or "").strip():
             default_model = _MODEL_DEFAULTS["anthropic"]
-            _write_env_var(env_path, "ANTHROPIC_MODEL", default_model)
-            os.environ["ANTHROPIC_MODEL"] = default_model
+            write_user_env_var("ANTHROPIC_MODEL", default_model)
             updated_keys.add("ANTHROPIC_MODEL")
         if preferred:
-            _write_env_var(env_path, "PREFERRED_PROVIDER", preferred)
-            os.environ["PREFERRED_PROVIDER"] = preferred
+            write_user_env_var("PREFERRED_PROVIDER", preferred)
         else:
-            _write_env_var(env_path, "PREFERRED_PROVIDER", "")
-            # _write_env_var writes KEY= which we then strip to a clean removal
-            if env_path.exists():
-                lines = [l for l in env_path.read_text(encoding="utf-8").splitlines() if l != "PREFERRED_PROVIDER="]
-                env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-            os.environ.pop("PREFERRED_PROVIDER", None)
+            remove_user_env_var("PREFERRED_PROVIDER")
         updated_keys.add("PREFERRED_PROVIDER")
 
     if "semantic_match" in data:
         val = "on" if data.get("semantic_match") else "off"
-        _write_env_var(env_path, "SEMANTIC_MATCH", val)
-        os.environ["SEMANTIC_MATCH"] = val
+        write_user_env_var("SEMANTIC_MATCH", val)
         updated_keys.add("SEMANTIC_MATCH")
 
     clear_task_state()
@@ -940,23 +938,17 @@ def api_ai_settings_test():
     try:
         # Surface diagnostic errors before attempting the real call
         if provider == "groq":
-            from job.ai_providers import _load_env
-            _load_env()
-            if not os.environ.get("GROQ_API_KEY"):
+            if not _env_get("GROQ_API_KEY"):
                 return jsonify({"ok": False, "error": "GROQ_API_KEY is not set. Add your key in AI Settings."})
             try:
                 from groq import Groq  # noqa: F401
             except ImportError:
                 return jsonify({"ok": False, "error": "groq package not installed. Close the app, run setup.bat (Windows) or ./setup.sh (Mac/Linux), then try again."})
         elif provider == "anthropic":
-            from job.ai_providers import _load_env
-            _load_env()
-            if not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN") or shutil.which("claude")):
+            if not (_env_get("ANTHROPIC_API_KEY") or _env_get("ANTHROPIC_AUTH_TOKEN") or shutil.which("claude")):
                 return jsonify({"ok": False, "error": "No Anthropic credentials found. Add an API key or install Claude Code."})
         elif provider == "gemini":
-            from job.ai_providers import _load_env
-            _load_env()
-            if not (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or shutil.which("gemini")):
+            if not (_env_get("GEMINI_API_KEY") or _env_get("GOOGLE_API_KEY") or shutil.which("gemini")):
                 return jsonify({"ok": False, "error": "No Gemini credentials found. Add an API key or install the Gemini CLI."})
         elif provider == "claude":
             if not shutil.which("claude"):
@@ -1033,11 +1025,11 @@ def api_setup_status():
         "has_pdflatex": bool(shutil.which("pdflatex")),
         "has_node": bool(shutil.which("node")),
         "has_profile": bool(profile_p and profile_p.exists()),
-        "gemini_key_set": bool(os.environ.get("GEMINI_API_KEY")),
-        "groq_key_set": bool(os.environ.get("GROQ_API_KEY")),
-        # Actual keys so the wizard's show/hide (eye) toggle can reveal them.
-        "gemini_key": os.environ.get("GEMINI_API_KEY", ""),
-        "groq_key": os.environ.get("GROQ_API_KEY", ""),
+        "gemini_key_set": bool(_env_get("GEMINI_API_KEY") or _env_get("GOOGLE_API_KEY")),
+        "groq_key_set": bool(_env_get("GROQ_API_KEY")),
+        # Masked keys only — full secrets are never returned over the API.
+        "gemini_key": mask_secret(_env_get("GEMINI_API_KEY") or _env_get("GOOGLE_API_KEY")),
+        "groq_key": mask_secret(_env_get("GROQ_API_KEY")),
     })
 
 
@@ -1327,18 +1319,20 @@ def api_setup_save_profile():
     name = name_from_markdown(content) or "default"
 
     profile_dir = active_profile_dir()
+    root = ensure_user_dir()
 
     # Check if we have a pending new profile from the "Add new profile" flow
     from flask import session
     pending_slug = session.pop("pending_profile_slug", None)
 
-    if pending_slug and (PROFILES_DIR / pending_slug).is_dir():
-        profile_dir = PROFILES_DIR / pending_slug
+    pending_dir = safe_profile_dir(pending_slug) if pending_slug else None
+    if pending_dir:
+        profile_dir = pending_dir
         set_active(pending_slug)
         clear_task_state()
     elif not profile_dir:
         slug = create_profile(name)
-        profile_dir = PROFILES_DIR / slug
+        profile_dir = safe_profile_dir(slug)
         set_active(slug)
 
     profile_dir.mkdir(parents=True, exist_ok=True)
@@ -1349,10 +1343,10 @@ def api_setup_save_profile():
     proper_slug = slugify(name)
     if current_slug != proper_slug and current_slug.startswith("new-profile-"):
         # Ensure no collision
-        target = PROFILES_DIR / proper_slug
+        target = root / proper_slug
         counter = 1
         while target.exists():
-            target = PROFILES_DIR / f"{proper_slug}-{counter}"
+            target = root / f"{proper_slug}-{counter}"
             counter += 1
         profile_dir.rename(target)
         profile_dir = target
@@ -1368,13 +1362,22 @@ def api_setup_save_profile():
 _FRONTEND_DIST = Path(__file__).parent / "frontend" / "dist"
 
 
-@app.route("/app", defaults={"path": ""})
-@app.route("/app/<path:path>")
-def serve_spa(path: str):
+def _serve_spa_index():
     index = _FRONTEND_DIST / "index.html"
     if index.exists():
         return send_file(str(index))
     return "React app not built. Run: cd frontend && npm run build", 404
+
+
+@app.route("/app", defaults={"path": ""})
+@app.route("/app/<path:path>")
+def serve_spa(path: str):
+    return _serve_spa_index()
+
+
+@app.route("/login")
+def serve_login():
+    return _serve_spa_index()
 
 
 @app.route("/spa-assets/<path:filename>")

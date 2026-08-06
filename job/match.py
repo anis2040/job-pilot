@@ -15,10 +15,8 @@ def semantic_enabled() -> bool:
     (SEMANTIC_MATCH env, default on) AND an embedding provider is available.
     When False, all embedding calls are skipped and match falls back to the
     (free, deterministic) keyword score."""
-    import os
-    from .ai_providers import _load_env, embedding_provider
-    _load_env()
-    if os.environ.get("SEMANTIC_MATCH", "on").strip().lower() == "off":
+    from .ai_providers import _env_get, embedding_provider
+    if _env_get("SEMANTIC_MATCH", "on").strip().lower() == "off":
         return False
     return embedding_provider() is not None
 

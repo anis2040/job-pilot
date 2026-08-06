@@ -5,9 +5,42 @@ import sys
 import subprocess
 import shutil
 import json as _json
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
+from typing import Iterator
 
 from . import paths
+
+# Temporary per-task overrides (e.g. verifier model selection) — not process-global.
+_env_overrides: ContextVar[dict[str, str | None]] = ContextVar("ai_env_overrides", default={})
+
+
+def _env_get(key: str, default: str = "") -> str:
+    """Read AI settings: task overrides → per-user .env → process env."""
+    overrides = _env_overrides.get()
+    if key in overrides:
+        val = overrides[key]
+        return default if val is None else val
+    try:
+        from .user_env import read_user_env
+        user = read_user_env()
+        if key in user:
+            return user[key]
+    except Exception:
+        pass
+    return os.environ.get(key, default)
+
+
+@contextmanager
+def env_override(**kwargs: str | None) -> Iterator[None]:
+    """Temporarily override AI env keys for the current task/request."""
+    merged = {**_env_overrides.get(), **kwargs}
+    token = _env_overrides.set(merged)
+    try:
+        yield
+    finally:
+        _env_overrides.reset(token)
 
 
 def strip_llm_fences(text: str) -> str:
@@ -100,31 +133,31 @@ def _parse_groq_limit(msg: str) -> dict | None:
 
 
 def _load_env() -> None:
-    """Load .env file from project root into os.environ."""
+    """Load server .env (non-user secrets) into os.environ. AI keys live per-user."""
     env_path = paths.BASE / ".env"
     if not env_path.exists():
         return
+    ai_keys = {
+        "ANTHROPIC_API_KEY", "GROQ_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY",
+        "ANTHROPIC_AUTH_TOKEN", "PREFERRED_PROVIDER", "GROQ_MODEL",
+        "ANTHROPIC_MODEL", "GEMINI_MODEL", "SEMANTIC_MATCH",
+    }
     for line in env_path.read_text(encoding="utf-8").splitlines():
         if "=" in line and not line.startswith("#"):
             k, v = line.split("=", 1)
             k, v = k.strip(), v.strip()
-            # Always overwrite API keys and provider preference from .env
-            # so that keys saved via the UI take effect without a restart
-            if k in ("ANTHROPIC_API_KEY", "GROQ_API_KEY", "GEMINI_API_KEY",
-                     "GOOGLE_API_KEY", "ANTHROPIC_AUTH_TOKEN", "PREFERRED_PROVIDER",
-                     "GROQ_MODEL", "ANTHROPIC_MODEL", "GEMINI_MODEL", "SEMANTIC_MATCH"):
-                os.environ[k] = v
-            else:
-                os.environ.setdefault(k, v)
+            # Do not push user AI keys into process env (multi-user race).
+            if k in ai_keys:
+                continue
+            os.environ.setdefault(k, v)
 
 
 def _get_anthropic_client():
     """Return an Anthropic client pointed at the public API, or None."""
-    _load_env()
     try:
         import anthropic
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-        auth_token = os.environ.get("ANTHROPIC_AUTH_TOKEN")
+        api_key = _env_get("ANTHROPIC_API_KEY") or None
+        auth_token = _env_get("ANTHROPIC_AUTH_TOKEN") or None
 
         if api_key:
             # Force the public API URL — ignore ANTHROPIC_BASE_URL proxy overrides
@@ -161,9 +194,8 @@ _MODEL_DEFAULTS = {
 
 def _get_model(provider: str) -> str:
     """Return the configured model for a provider, falling back to the default."""
-    _load_env()
     key = f"{provider.upper()}_MODEL"
-    val = os.environ.get(key, "").strip()
+    val = _env_get(key, "").strip()
     return val or _MODEL_DEFAULTS.get(provider, "")
 
 
@@ -253,11 +285,11 @@ def _key_fingerprint(provider: str) -> str:
     Returns "" when there's no key (e.g. CLI-only auth)."""
     import hashlib
     if provider == "groq":
-        key = os.environ.get("GROQ_API_KEY", "")
+        key = _env_get("GROQ_API_KEY", "")
     elif provider == "gemini":
-        key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or ""
+        key = _env_get("GEMINI_API_KEY") or _env_get("GOOGLE_API_KEY") or ""
     elif provider == "anthropic":
-        key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN") or ""
+        key = _env_get("ANTHROPIC_API_KEY") or _env_get("ANTHROPIC_AUTH_TOKEN") or ""
     else:
         key = ""
     return hashlib.sha256(key.encode()).hexdigest()[:12] if key else ""
@@ -282,8 +314,7 @@ def _log_tokens(tag: str, model: str, **counts: int) -> None:
 
 def _get_groq_client():
     """Return a Groq client if GROQ_API_KEY is set, else None."""
-    _load_env()
-    api_key = os.environ.get("GROQ_API_KEY")
+    api_key = _env_get("GROQ_API_KEY")
     if not api_key:
         return None
     try:
@@ -425,8 +456,7 @@ def _build_with_claude_cli(system_text: str, user_prompt: str, cwd: str, stage_f
 
 def _get_gemini_client():
     """Return a configured Gemini client, or None if no credentials available."""
-    _load_env()  # keys saved via the UI live in .env — load them like the other getters
-    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    api_key = _env_get("GEMINI_API_KEY") or _env_get("GOOGLE_API_KEY")
     if not api_key:
         return None
     try:
@@ -608,7 +638,7 @@ def _generate_content(system_text: str, user_prompt: str, cwd: str, stage_fn=Non
 
     `on_delta(text_so_far)` streams a live preview when the chosen provider
     supports it (currently Claude); other providers ignore it."""
-    preferred = os.environ.get("PREFERRED_PROVIDER", "").strip().lower()
+    preferred = _env_get("PREFERRED_PROVIDER", "").strip().lower()
 
     def _try_groq():
         if _get_groq_client() is not None:
@@ -663,7 +693,7 @@ def call_ai_fast(prompt: str, system: str = "") -> str:
     Falls back to call_ai if no API provider is configured."""
     sys_text = system or "Return only the requested output as valid JSON. No explanation."
 
-    preferred = os.environ.get("PREFERRED_PROVIDER", "").strip().lower()
+    preferred = _env_get("PREFERRED_PROVIDER", "").strip().lower()
 
     def _try_groq():
         if _get_groq_client() is not None:

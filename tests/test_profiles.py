@@ -1,12 +1,12 @@
 """Smoke tests for the profile management module.
 
-All tests run fully offline. PROFILES_DIR and ACTIVE_FILE are monkeypatched to
-a tmp_path directory, and _update_symlinks is stubbed to avoid touching the
-real filesystem outside the test sandbox.
+All tests run fully offline. PROFILES_DIR is monkeypatched under the `_local`
+user, and _update_symlinks is stubbed.
 """
 import pytest
 
 import job.profiles as profiles
+from job.user_context import LOCAL_USER_ID
 
 
 @pytest.fixture
@@ -14,9 +14,10 @@ def temp_profiles(tmp_path, monkeypatch):
     pdir = tmp_path / "profiles"
     pdir.mkdir()
     monkeypatch.setattr(profiles, "PROFILES_DIR", pdir)
-    monkeypatch.setattr(profiles, "ACTIVE_FILE", pdir / ".active")
     monkeypatch.setattr(profiles, "_update_symlinks", lambda d: None)
-    return pdir
+    monkeypatch.setenv("AUTH_DISABLED", "1")
+    monkeypatch.setattr(profiles, "get_current_user_id", lambda: LOCAL_USER_ID)
+    return pdir / LOCAL_USER_ID
 
 
 # ── list / create ─────────────────────────────────────────────────────────────
@@ -124,6 +125,7 @@ def test_label_defaults_to_name(temp_profiles):
     info = profiles.list_profiles()[0]
     assert info.label == "John Doe"
 
+
 def test_set_label_overrides_display(temp_profiles):
     slug = profiles.create_profile("John Doe")
     (temp_profiles / slug / "profile.md").write_text("# John Doe")
@@ -133,6 +135,7 @@ def test_set_label_overrides_display(temp_profiles):
     assert info.name == "John Doe"          # candidate name unchanged
     assert info.slug == slug                # slug immutable
 
+
 def test_set_label_empty_clears(temp_profiles):
     slug = profiles.create_profile("John Doe")
     (temp_profiles / slug / "profile.md").write_text("# John Doe")
@@ -141,8 +144,10 @@ def test_set_label_empty_clears(temp_profiles):
     info = profiles.list_profiles()[0]
     assert info.label == "John Doe"          # falls back to name
 
+
 def test_set_label_unknown_slug_returns_false(temp_profiles):
     assert profiles.set_label("nope", "X") is False
+
 
 def test_two_profiles_same_name_distinct_labels(temp_profiles):
     s1 = profiles.create_profile("John Doe")
@@ -154,3 +159,27 @@ def test_two_profiles_same_name_distinct_labels(temp_profiles):
     labels = {p.slug: p.label for p in profiles.list_profiles()}
     assert labels[s1] == "US search"
     assert labels[s2] == "EU search"
+
+
+def test_path_escape_rejected(temp_profiles):
+    assert profiles.safe_profile_dir("../etc") is None
+    assert profiles.safe_profile_dir("..") is None
+    assert profiles.safe_profile_dir("foo/bar") is None
+
+
+def test_users_isolated(tmp_path, monkeypatch):
+    pdir = tmp_path / "profiles"
+    pdir.mkdir()
+    monkeypatch.setattr(profiles, "PROFILES_DIR", pdir)
+    monkeypatch.setattr(profiles, "_update_symlinks", lambda d: None)
+
+    monkeypatch.setattr(profiles, "get_current_user_id", lambda: "google_aaa")
+    profiles.create_profile("Alice")
+    profiles.set_active("alice")
+    assert len(profiles.list_profiles()) == 1
+
+    monkeypatch.setattr(profiles, "get_current_user_id", lambda: "google_bbb")
+    assert profiles.list_profiles() == []
+    profiles.create_profile("Bob")
+    assert profiles.list_profiles()[0].slug == "bob"
+    assert profiles.safe_profile_dir("alice") is None

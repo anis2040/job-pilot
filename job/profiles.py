@@ -1,6 +1,11 @@
 from __future__ import annotations
 """
-Profile management for multi-profile support.
+Profile management for multi-profile, multi-user support.
+
+Layout:
+  profiles/<user_id>/.active
+  profiles/<user_id>/.env
+  profiles/<user_id>/<slug>/profile.md, config.yaml, state.db, ...
 """
 
 import sys
@@ -10,9 +15,13 @@ import shutil
 from pathlib import Path
 from typing import NamedTuple
 
+from .user_context import LOCAL_USER_ID, get_current_user_id
+
 _BASE = Path(__file__).parent.parent
 PROFILES_DIR = _BASE / "profiles"
-ACTIVE_FILE = PROFILES_DIR / ".active"
+
+_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+_USER_ID_RE = re.compile(r"^[a-zA-Z0-9_.:|-]+$")
 
 _PALETTE = [
     "#3b82f6", "#8b5cf6", "#ec4899", "#f97316", "#14b8a6",
@@ -35,6 +44,67 @@ def slugify(name: str) -> str:
     return slug.strip("-") or "default"
 
 
+def validate_slug(slug: str) -> bool:
+    return bool(slug) and bool(_SLUG_RE.match(slug)) and not slug.startswith(".")
+
+
+def validate_user_id(user_id: str) -> bool:
+    if not user_id or user_id.startswith(".") or ".." in user_id or "/" in user_id or "\\" in user_id:
+        return False
+    return bool(_USER_ID_RE.match(user_id))
+
+
+def user_profiles_dir(user_id: str | None = None) -> Path:
+    uid = user_id or get_current_user_id()
+    if not validate_user_id(uid):
+        raise ValueError(f"Invalid user id: {uid!r}")
+    return PROFILES_DIR / uid
+
+
+def ensure_user_dir(user_id: str | None = None) -> Path:
+    d = user_profiles_dir(user_id)
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def active_file(user_id: str | None = None) -> Path:
+    return user_profiles_dir(user_id) / ".active"
+
+
+def user_env_path(user_id: str | None = None) -> Path:
+    return user_profiles_dir(user_id) / ".env"
+
+
+def _is_inside(root: Path, candidate: Path) -> bool:
+    try:
+        candidate.resolve().relative_to(root.resolve())
+        return True
+    except (ValueError, OSError):
+        return False
+
+
+def safe_profile_dir(slug: str, user_id: str | None = None) -> Path | None:
+    """Return profiles/<user>/<slug> if it exists and stays inside the user root."""
+    if not validate_slug(slug):
+        return None
+    root = user_profiles_dir(user_id)
+    candidate = (root / slug).resolve()
+    if not _is_inside(root, candidate):
+        return None
+    if not candidate.is_dir():
+        return None
+    return candidate
+
+
+def safe_under_user(rel_path: str | Path, user_id: str | None = None) -> Path | None:
+    """Resolve a relative path under the user root; None if it escapes."""
+    root = user_profiles_dir(user_id).resolve()
+    candidate = (root / Path(rel_path)).resolve()
+    if not _is_inside(root, candidate) and candidate != root:
+        return None
+    return candidate
+
+
 def _meta_path(profile_dir: Path) -> Path:
     return profile_dir / "meta.json"
 
@@ -53,12 +123,12 @@ def _read_label(profile_dir: Path) -> str | None:
     return None
 
 
-def set_label(slug: str, label: str) -> bool:
+def set_label(slug: str, label: str, user_id: str | None = None) -> bool:
     """Set (or clear, if empty) the display label for a profile. Slug is never
     touched — it remains the permanent internal ID."""
     import json
-    profile_dir = PROFILES_DIR / slug
-    if not profile_dir.is_dir():
+    profile_dir = safe_profile_dir(slug, user_id)
+    if not profile_dir:
         return False
     mp = _meta_path(profile_dir)
     data = {}
@@ -219,47 +289,57 @@ def _profile_info(profile_dir: Path) -> ProfileInfo:
     )
 
 
-def list_profiles() -> list[ProfileInfo]:
-    if not PROFILES_DIR.exists():
+def list_profiles(user_id: str | None = None) -> list[ProfileInfo]:
+    root = user_profiles_dir(user_id)
+    if not root.exists():
         return []
     return [
         _profile_info(e)
-        for e in sorted(PROFILES_DIR.iterdir())
-        if e.is_dir() and not e.name.startswith(".")
+        for e in sorted(root.iterdir())
+        if e.is_dir() and not e.name.startswith(".") and validate_slug(e.name)
     ]
 
 
-def has_any_profiles() -> bool:
-    return bool(list_profiles())
+def has_any_profiles(user_id: str | None = None) -> bool:
+    return bool(list_profiles(user_id))
 
 
-def get_active_slug() -> str | None:
-    if not ACTIVE_FILE.exists():
+def get_active_slug(user_id: str | None = None) -> str | None:
+    af = active_file(user_id)
+    if not af.exists():
         return None
-    slug = ACTIVE_FILE.read_text(encoding="utf-8").strip()
-    if slug and (PROFILES_DIR / slug).is_dir():
+    slug = af.read_text(encoding="utf-8").strip()
+    if slug and safe_profile_dir(slug, user_id):
         return slug
     return None
 
 
-def get_active_profile() -> ProfileInfo | None:
-    slug = get_active_slug()
+def get_active_profile(user_id: str | None = None) -> ProfileInfo | None:
+    slug = get_active_slug(user_id)
     if not slug:
         return None
-    return _profile_info(PROFILES_DIR / slug)
+    d = safe_profile_dir(slug, user_id)
+    return _profile_info(d) if d else None
 
 
-def set_active(slug: str) -> bool:
-    profile_dir = PROFILES_DIR / slug
-    if not profile_dir.is_dir():
-        return False
-    PROFILES_DIR.mkdir(parents=True, exist_ok=True)
-    ACTIVE_FILE.write_text(slug, encoding="utf-8")
+def set_active(slug: str, user_id: str | None = None) -> bool:
+    profile_dir = safe_profile_dir(slug, user_id)
+    if not profile_dir:
+        # allow activating a just-created dir that exists under user root
+        if not validate_slug(slug):
+            return False
+        root = ensure_user_dir(user_id)
+        profile_dir = root / slug
+        if not profile_dir.is_dir() or not _is_inside(root, profile_dir.resolve()):
+            return False
+    ensure_user_dir(user_id)
+    active_file(user_id).write_text(slug, encoding="utf-8")
     _update_symlinks(profile_dir)
     return True
 
 
 def _update_symlinks(profile_dir: Path) -> None:
+    """Best-effort skill refs for CLI tools. Not a security boundary."""
     profile_md = profile_dir / "profile.md"
     for skill in ["resume-skill", "cover-letter-skill"]:
         refs = _BASE / skill / "references"
@@ -268,24 +348,26 @@ def _update_symlinks(profile_dir: Path) -> None:
         if link.is_symlink() or link.exists():
             link.unlink()
         if sys.platform == "win32":
-            # Symlinks require admin/Developer Mode on Windows — copy instead
             if profile_md.exists():
                 shutil.copy2(profile_md, link)
         else:
-            link.symlink_to(profile_md)
+            if profile_md.exists():
+                link.symlink_to(profile_md)
 
 
-def create_profile(name: str) -> str:
+def create_profile(name: str, user_id: str | None = None) -> str:
+    root = ensure_user_dir(user_id)
     slug = slugify(name)
-    profile_dir = PROFILES_DIR / slug
+    if not validate_slug(slug):
+        slug = "default"
+    profile_dir = root / slug
     counter = 1
     while profile_dir.exists():
         slug = f"{slugify(name)}-{counter}"
-        profile_dir = PROFILES_DIR / slug
+        profile_dir = root / slug
         counter += 1
     profile_dir.mkdir(parents=True, exist_ok=True)
 
-    # Write a minimal config.yaml so fetch doesn't fail on a brand-new profile
     config_path = profile_dir / "config.yaml"
     if not config_path.exists():
         config_path.write_text(
@@ -296,30 +378,41 @@ def create_profile(name: str) -> str:
     return slug
 
 
-def delete_profile(slug: str) -> bool:
-    if slug == get_active_slug():
+def delete_profile(slug: str, user_id: str | None = None) -> bool:
+    if slug == get_active_slug(user_id):
         return False
-    profile_dir = PROFILES_DIR / slug
-    if not profile_dir.is_dir():
+    profile_dir = safe_profile_dir(slug, user_id)
+    if not profile_dir:
         return False
     shutil.rmtree(profile_dir)
     return True
 
 
-def active_profile_dir() -> Path | None:
-    slug = get_active_slug()
-    return PROFILES_DIR / slug if slug else None
+def active_profile_dir(user_id: str | None = None) -> Path | None:
+    slug = get_active_slug(user_id)
+    return safe_profile_dir(slug, user_id) if slug else None
 
 
-def _active_profile_subpath(filename: str) -> Path | None:
-    d = active_profile_dir()
+def _active_profile_subpath(filename: str, user_id: str | None = None) -> Path | None:
+    d = active_profile_dir(user_id)
     return d / filename if d else None
 
 
-def get_profile_path() -> Path | None:  return _active_profile_subpath("profile.md")
-def get_profile_json_path() -> Path | None:  return _active_profile_subpath("profile.json")
-def get_config_path()  -> Path | None:  return _active_profile_subpath("config.yaml")
-def get_db_path()      -> str  | None:  return str(_active_profile_subpath("state.db")) if active_profile_dir() else None
+def get_profile_path(user_id: str | None = None) -> Path | None:
+    return _active_profile_subpath("profile.md", user_id)
+
+
+def get_profile_json_path(user_id: str | None = None) -> Path | None:
+    return _active_profile_subpath("profile.json", user_id)
+
+
+def get_config_path(user_id: str | None = None) -> Path | None:
+    return _active_profile_subpath("config.yaml", user_id)
+
+
+def get_db_path(user_id: str | None = None) -> str | None:
+    d = active_profile_dir(user_id)
+    return str(d / "state.db") if d else None
 
 
 def write_profile_json(profile_dir: Path) -> None:
@@ -337,17 +430,17 @@ def write_profile_json(profile_dir: Path) -> None:
         pass
 
 
-def get_profile_json() -> dict | None:
+def get_profile_json(user_id: str | None = None) -> dict | None:
     """Return the active profile's structured JSON, or None if unavailable.
     Regenerates from profile.md if profile.json is missing/stale-safe fallback."""
     import json as _json
-    p = get_profile_json_path()
+    p = get_profile_json_path(user_id)
     if p and p.exists():
         try:
             return _json.loads(p.read_text(encoding="utf-8"))
         except Exception:
             pass
-    md = get_profile_path()
+    md = get_profile_path(user_id)
     if md and md.exists():
         try:
             return parse_profile_md(md.read_text(encoding="utf-8"))
@@ -355,14 +448,77 @@ def get_profile_json() -> dict | None:
             pass
     return None
 
-def get_resumes_path() -> Path | None:
-    d = active_profile_dir()
-    return d if d else None
 
-def company_resumes_path(company: str) -> Path | None:
-    d = active_profile_dir()
+def get_resumes_path(user_id: str | None = None) -> Path | None:
+    return active_profile_dir(user_id)
+
+
+def company_resumes_path(company: str, user_id: str | None = None) -> Path | None:
+    d = active_profile_dir(user_id)
     return d / company / "resumes" if d else None
 
-def company_cover_letters_path(company: str) -> Path | None:
-    d = active_profile_dir()
+
+def company_cover_letters_path(company: str, user_id: str | None = None) -> Path | None:
+    d = active_profile_dir(user_id)
     return d / company / "cover-letters" if d else None
+
+
+def migrate_legacy_profiles_layout() -> bool:
+    """Move flat profiles/<slug>/ layout into profiles/_local/<slug>/.
+
+    Returns True if a migration ran. Idempotent.
+    """
+    if not PROFILES_DIR.exists():
+        return False
+
+    local = PROFILES_DIR / LOCAL_USER_ID
+    # Already migrated if _local exists with profile dirs or .active
+    if local.is_dir() and (
+        (local / ".active").exists()
+        or any(e.is_dir() and validate_slug(e.name) for e in local.iterdir())
+    ):
+        return False
+
+    # Detect legacy: profile-looking dirs or .active directly under PROFILES_DIR
+    legacy_active = PROFILES_DIR / ".active"
+    legacy_dirs = [
+        e for e in PROFILES_DIR.iterdir()
+        if e.is_dir()
+        and not e.name.startswith(".")
+        and e.name != LOCAL_USER_ID
+        and (
+            (e / "profile.md").exists()
+            or (e / "config.yaml").exists()
+            or (e / "state.db").exists()
+            or e.name.startswith("new-profile-")
+        )
+    ]
+    if not legacy_dirs and not legacy_active.exists():
+        return False
+
+    local.mkdir(parents=True, exist_ok=True)
+    for d in legacy_dirs:
+        dest = local / d.name
+        if not dest.exists():
+            shutil.move(str(d), str(dest))
+    if legacy_active.exists() and not (local / ".active").exists():
+        shutil.move(str(legacy_active), str(local / ".active"))
+    # Move root AI .env into user dir if present and user .env missing
+    root_env = _BASE / ".env"
+    user_env = local / ".env"
+    if root_env.exists() and not user_env.exists():
+        # Copy AI-related keys only into user .env; leave root for server config
+        ai_keys = {
+            "ANTHROPIC_API_KEY", "GROQ_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY",
+            "ANTHROPIC_AUTH_TOKEN", "PREFERRED_PROVIDER", "GROQ_MODEL",
+            "ANTHROPIC_MODEL", "GEMINI_MODEL", "SEMANTIC_MATCH",
+        }
+        lines = []
+        for line in root_env.read_text(encoding="utf-8").splitlines():
+            if "=" in line and not line.startswith("#"):
+                k = line.split("=", 1)[0].strip()
+                if k in ai_keys:
+                    lines.append(line)
+        if lines:
+            user_env.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return True
