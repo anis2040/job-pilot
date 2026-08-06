@@ -174,6 +174,8 @@ function Step1({ onNext }: { onNext: () => void }) {
                 {p === 'claude' && 'By Anthropic. Free tier available. Login with your Anthropic account.'}
                 {p === 'gemini' && 'By Google. Free API key from Google AI Studio. No credit card required.'}
               </p>
+              {p === 'groq' && <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" style={{ fontSize: 'var(--text-xs)', color: 'var(--blue-light)' }} onClick={e => e.stopPropagation()}>Get API key ↗</a>}
+              {p === 'gemini' && <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style={{ fontSize: 'var(--text-xs)', color: 'var(--blue-light)' }} onClick={e => e.stopPropagation()}>Get API key ↗</a>}
             </div>
           ))}
         </div>

@@ -6,10 +6,10 @@ import { BackButton } from '../../components/layout/BackButton';
 import { fmtK } from '../../utils/format';
 import type { AiSettings, ProviderInfo } from '../../api/types';
 
-const PROVIDER_META: Record<string, { label: string; sub: string; badge: string; badgeClass: string; placeholder: string; noKey?: string }> = {
-  groq:      { label: 'Groq', sub: 'Free API key · fast LLaMA models', badge: 'Free tier', badgeClass: 'badge badge-green', placeholder: 'gsk_…' },
-  anthropic: { label: 'Claude (API)', sub: 'Anthropic API key · Claude models', badge: 'API key', badgeClass: 'badge', placeholder: 'sk-ant-…' },
-  gemini:    { label: 'Gemini', sub: 'Google AI Studio key · Gemini models', badge: 'Free tier', badgeClass: 'badge badge-green', placeholder: 'AIza…' },
+const PROVIDER_META: Record<string, { label: string; sub: string; badge: string; badgeClass: string; placeholder: string; noKey?: string; keyUrl?: string }> = {
+  groq:      { label: 'Groq', sub: 'Free API key · fast LLaMA models', badge: 'Free tier', badgeClass: 'badge badge-green', placeholder: 'gsk_…', keyUrl: 'https://console.groq.com/keys' },
+  anthropic: { label: 'Claude (API)', sub: 'Anthropic API key · Claude models', badge: 'API key', badgeClass: 'badge', placeholder: 'sk-ant-…', keyUrl: 'https://console.anthropic.com/settings/keys' },
+  gemini:    { label: 'Gemini', sub: 'Google AI Studio key · Gemini models', badge: 'Free tier', badgeClass: 'badge badge-green', placeholder: 'AIza…', keyUrl: 'https://aistudio.google.com/app/apikey' },
   claude:    { label: 'Claude Pro', sub: 'Uses local Claude CLI (claude.ai subscription)', badge: 'CLI', badgeClass: 'badge', placeholder: '', noKey: 'No CLI' },
 };
 
@@ -168,6 +168,9 @@ function ProviderCard({
                 </div>
                 <div className="sub text-xs" style={{ marginTop: 6 }}>
                   Paste to save instantly, or type and click away.
+                  {meta.keyUrl && (
+                    <> · <a href={meta.keyUrl} target="_blank" rel="noopener noreferrer">Get API key ↗</a></>
+                  )}
                 </div>
                 <div
                   className={`alert-slot${keyAlert ? ' is-visible' : ''}${keyAlertFading ? ' is-fading' : ''}`}
