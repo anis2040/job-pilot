@@ -13,13 +13,8 @@ interface JobRowProps {
 
 export function JobRow({ job, selected, onClick, onStatusChange }: JobRowProps) {
   const match = job.match;
-  const matchPct = match
-    ? (typeof match.semantic_score === 'number' ? match.semantic_score : null)
-    : null;
   const skillCount = match?.matched_count ?? 0;
-  const badgeCls = matchPct !== null
-    ? (matchPct >= 70 ? 'high' : matchPct >= 45 ? 'mid' : 'low')
-    : (skillCount >= 5 ? 'high' : skillCount >= 3 ? 'mid' : 'low');
+  const badgeCls = skillCount >= 5 ? 'high' : skillCount >= 3 ? 'mid' : 'low';
 
   return (
     <div
@@ -54,10 +49,7 @@ export function JobRow({ job, selected, onClick, onStatusChange }: JobRowProps) 
 
       <div className="job-row-right" onClick={e => e.stopPropagation()}>
         <div className="job-row-score-row">
-          {matchPct !== null && (
-            <span className={`match-badge ${badgeCls}`}>{matchPct}% fit</span>
-          )}
-          {matchPct === null && skillCount > 0 && (
+          {skillCount > 0 && (
             <span className={`match-badge ${badgeCls}`}>{skillCount} skills</span>
           )}
           {job.source && <SourceBadge source={job.source} />}
