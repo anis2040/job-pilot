@@ -70,6 +70,28 @@ if errorlevel 1 (
     exit /b 1
 )
 for /f "tokens=*" %%V in ('node --version 2^>^&1') do echo   Node.js: %%V
+where npm >nul 2>&1
+if errorlevel 1 (
+    echo   npm not found after Node.js check. Refreshing PATH again...
+    call :refresh_node_path
+)
+where npm >nul 2>&1
+if errorlevel 1 (
+    echo   npm still not found. Installing or repairing Node.js LTS with winget...
+    where winget >nul 2>&1
+    if not errorlevel 1 (
+        winget install --id OpenJS.NodeJS.LTS --exact --silent --accept-package-agreements --accept-source-agreements
+        call :refresh_node_path
+    )
+)
+where npm >nul 2>&1
+if errorlevel 1 (
+    echo.
+    echo  [WARN] npm is not visible on PATH yet.
+    echo         The app launcher will try Node.js's bundled npm directly.
+) else (
+    for /f "tokens=*" %%V in ('npm --version 2^>^&1') do echo   npm: %%V
+)
 
 :: ── 5. Install MiKTeX (pdflatex) if missing ──────────────────────────────────
 where pdflatex >nul 2>&1
