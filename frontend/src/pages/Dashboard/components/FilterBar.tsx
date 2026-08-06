@@ -81,11 +81,13 @@ export function FilterBar({
         </select>
       </div>
       <div className="filter-spacer" />
-      <span className="filter-results">{resultCount} jobs</span>
+      <span className="filter-results" data-testid="filter-result-count">{resultCount} jobs</span>
       <button
         className={`filter-save${isSaved ? ' is-saved' : ''}`}
         onClick={onSaveSearch}
         disabled={!hasFilters}
+        aria-label={isSaved ? 'Search saved' : 'Save this search'}
+        aria-pressed={isSaved}
         title={!hasFilters ? 'Set a filter to save this search' : isSaved ? 'Remove saved search' : 'Save this search'}
       >
         {isSaved ? '★' : '☆'} Save

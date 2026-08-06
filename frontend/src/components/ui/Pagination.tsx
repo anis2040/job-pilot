@@ -14,14 +14,41 @@ export function Pagination({ page, total, pageSize, onChange }: PaginationProps)
     else if (items[items.length - 1] !== '…') items.push('…');
   }
   return (
-    <div className="pagination-bar">
-      <button className="page-btn" disabled={page === 1} onClick={() => onChange(page - 1)}>‹</button>
+    <nav className="pagination-bar" aria-label="Pagination">
+      <button
+        type="button"
+        className="page-btn"
+        disabled={page === 1}
+        aria-label="Previous page"
+        onClick={() => onChange(page - 1)}
+      >
+        ‹
+      </button>
       {items.map((item, i) =>
         item === '…'
-          ? <span key={`e${i}`} className="page-ellipsis">…</span>
-          : <button key={item} className={`page-btn${item === page ? ' active' : ''}`} onClick={() => onChange(item as number)}>{item}</button>
+          ? <span key={`e${i}`} className="page-ellipsis" aria-hidden="true">…</span>
+          : (
+            <button
+              key={item}
+              type="button"
+              className={`page-btn${item === page ? ' active' : ''}`}
+              aria-label={`Page ${item}`}
+              aria-current={item === page ? 'page' : undefined}
+              onClick={() => onChange(item as number)}
+            >
+              {item}
+            </button>
+          )
       )}
-      <button className="page-btn" disabled={page === pages} onClick={() => onChange(page + 1)}>›</button>
-    </div>
+      <button
+        type="button"
+        className="page-btn"
+        disabled={page === pages}
+        aria-label="Next page"
+        onClick={() => onChange(page + 1)}
+      >
+        ›
+      </button>
+    </nav>
   );
 }

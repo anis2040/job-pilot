@@ -117,21 +117,6 @@ export default function DashboardPage() {
     setPage(1);
   }, [sourceOptions]);
 
-  useEffect(() => {
-    const profileKey = activeProfile?.slug ?? '';
-    if (syncedSettingsProfileRef.current === profileKey) return;
-    syncedSettingsProfileRef.current = profileKey;
-    let cancelled = false;
-    configApi.get()
-      .then(data => {
-        if (cancelled) return;
-        const rows = groupSearchEntries(data.searches || []);
-        if (rows.length) setFilters(current => deriveFiltersFromSearchRows(rows, current, sourceOptions));
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [activeProfile?.slug, sourceOptions]);
-
   const closePanel = useCallback(() => {
     setSelectedJobId(null);
     setRenderedPanelJobId(null);
@@ -322,6 +307,8 @@ export default function DashboardPage() {
           <aside
             key={renderedPanelJobId}
             className={`detail-panel detail-panel-${panelState}`}
+            data-testid="detail-panel"
+            aria-label="Job details"
             aria-live="polite"
             onAnimationEnd={handlePanelAnimationEnd}
           >

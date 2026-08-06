@@ -112,7 +112,12 @@ export function DetailPanel({ jobId, initialJob, onClose, onJobUpdated }: Detail
           </div>
         </div>
         <div className="panel-header-actions">
-          <button className="panel-action-btn" title="Open full detail" onClick={() => navigate(`/job/${jobId}`)}>
+          <button
+            className="panel-action-btn"
+            title="Open full detail"
+            aria-label="Open full detail"
+            onClick={() => navigate(`/job/${jobId}`)}
+          >
             <Icon name="maximize" size={14} />
           </button>
           <button className="panel-action-btn panel-action-close" onClick={onClose} aria-label="Close panel">

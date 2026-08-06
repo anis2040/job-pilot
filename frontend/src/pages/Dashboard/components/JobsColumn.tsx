@@ -41,7 +41,7 @@ export function JobsColumn({
 }: JobsColumnProps) {
   if (loading) {
     return (
-      <div className="jobs-skeleton">
+      <div className="jobs-skeleton" data-testid="jobs-skeleton" aria-busy="true" aria-label="Loading jobs">
         {Array.from({ length: 8 }).map((_, i) => (
           <div key={i} className="skel-row">
             <div className="skel-line skel-title skeleton" />

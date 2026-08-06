@@ -28,10 +28,15 @@ export function SearchBarRow({
 }: SearchBarRowProps) {
   return (
     <div className="search-bar-row">
-      <div className="tab-pill-group">
+      <div className="tab-pill-group" role="tablist" aria-label="Job status">
         {(['pending', 'applied', 'skipped'] as Tab[]).map(t => (
-          <button key={t} className={`tab-pill${tab === t ? ' active' : ''}`}
-            onClick={() => onTabChange(t)}>
+          <button
+            key={t}
+            role="tab"
+            aria-selected={tab === t}
+            className={`tab-pill${tab === t ? ' active' : ''}`}
+            onClick={() => onTabChange(t)}
+          >
             {t.charAt(0).toUpperCase() + t.slice(1)}
             <span className="tab-pill-count">{counts[t]}</span>
           </button>
@@ -67,12 +72,17 @@ export function SearchBarRow({
         className={`search-action-btn search-action-fetch${fetchRunning ? ' fetching' : ''}`}
         onClick={onFetch}
         disabled={fetchRunning}
+        aria-label={fetchRunning ? 'Fetching jobs' : 'Fetch jobs'}
       >
         <Icon name="refresh" size={15} className={fetchRunning ? 'spin' : ''} />
         {fetchRunning ? 'Fetching…' : 'Fetch jobs'}
       </button>
 
-      <button className="search-action-btn search-action-settings" onClick={onOpenSettings}>
+      <button
+        className="search-action-btn search-action-settings"
+        onClick={onOpenSettings}
+        aria-label="Search settings"
+      >
         <Icon name="settings" size={15} /> Search settings
       </button>
     </div>

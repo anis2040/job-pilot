@@ -27,6 +27,9 @@ export function JobRow({ job, selected, onClick, onStatusChange }: JobRowProps) 
       onClick={onClick}
       role="button"
       tabIndex={0}
+      aria-label={job.title}
+      aria-pressed={selected}
+      data-testid={`job-row-${job.job_id}`}
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onClick(); }}
     >
       <div className="job-row-main">
