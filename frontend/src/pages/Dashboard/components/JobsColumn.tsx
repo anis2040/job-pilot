@@ -2,7 +2,7 @@ import type { Job } from '../../../api/types';
 import type { Tab } from '../types';
 import { PAGE_SIZE } from '../constants';
 import { JobRow } from './JobRow';
-import { Pagination } from './Pagination';
+import { Pagination } from '../../../components/ui/Pagination';
 
 interface JobsColumnProps {
   loading: boolean;

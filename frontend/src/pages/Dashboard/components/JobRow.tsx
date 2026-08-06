@@ -2,7 +2,7 @@ import { Icon } from '../../../components/ui/Icon';
 import { SourceBadge } from '../../../components/ui/SourceBadge';
 import { safeUrl } from '../../../utils/format';
 import type { Job } from '../../../api/types';
-import { REMOTE_CSS } from '../constants';
+import { REMOTE_CSS } from '../../../constants/jobMeta';
 
 interface JobRowProps {
   job: Job;

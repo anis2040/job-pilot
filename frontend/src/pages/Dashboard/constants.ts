@@ -3,13 +3,6 @@ export const SPLIT_MIN = 1200;
 export const LS_SAVED = 'jobpilot_saved_searches';
 export const LS_RECENT = 'jobpilot_recent_searches';
 
-export const REMOTE_CSS: Record<string, string> = {
-  Remote: 'remote',
-  Hybrid: 'hybrid',
-  'On-site': 'onsite',
-  'On-Site': 'onsite',
-};
-
 export const SOURCE_DOMAINS: Record<string, string> = {
   linkedin: 'linkedin.com',
   stepstone: 'stepstone.de',

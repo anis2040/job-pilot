@@ -8,7 +8,7 @@ import { formatDescription, isLongDescription } from '../../../utils/description
 import { shouldFetchFullDescription } from '../../../utils/jobDescription';
 import { safeUrl } from '../../../utils/format';
 import type { Job, JobDetail } from '../../../api/types';
-import { REMOTE_CSS } from '../constants';
+import { REMOTE_CSS } from '../../../constants/jobMeta';
 import { ProviderIcon } from './ProviderIcon';
 
 interface DetailPanelProps {
