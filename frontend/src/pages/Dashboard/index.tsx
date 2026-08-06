@@ -245,7 +245,7 @@ export default function DashboardPage() {
     <AppShell>
       <h1 className="visually-hidden">Job Listings</h1>
 
-      {fetchRunning && allJobs.length === 0 && createPortal(
+      {fetchRunning && !loading && counts.pending + counts.applied + counts.skipped === 0 && createPortal(
         <div className="fetch-overlay" role="status" aria-live="polite">
           <div className="fetch-overlay-card">
             <span className="spinner fetch-overlay-spinner" />
