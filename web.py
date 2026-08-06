@@ -1102,7 +1102,7 @@ Profile:
         work_styles = ['Remote', 'Hybrid', 'On-site'] if not remote else ['Remote', 'Hybrid']
         searches = [
             {
-                "group_id": f"search-{i + 1}",
+                "group_id": f"search-{title_idx + 1}",
                 "name": f"{src} - {title}",
                 "source": src,
                 "query": title,
@@ -1111,9 +1111,8 @@ Profile:
                 "remote": remote,
                 "work_styles": work_styles,
             }
-            for i, (title, (src, mp)) in enumerate(
-                (title, src_mp) for title in titles for src_mp in SOURCES
-            )
+            for title_idx, title in enumerate(titles)
+            for src, mp in SOURCES
         ]
 
         new_config = {
