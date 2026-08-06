@@ -2,7 +2,7 @@
   "name": "job-scraper",
   "private": true,
   "scripts": {
-    "setup:react": "npm ci --prefix frontend --include=optional",
+    "setup:react": "npm ci --prefix frontend --include=optional --force",
     "start:react": "npm --prefix frontend run dev",
     "backend": "node scripts/dev.mjs --backend-only",
     "frontend": "node scripts/dev.mjs --frontend-only",

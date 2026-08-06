@@ -85,18 +85,17 @@ function ensureFrontendDeps() {
   }
 
   console.log('\nInstalling frontend dependencies...')
-  runChecked(npmCmd, ['install', '--prefix', 'frontend', '--include=optional'])
+  // --force ensures npm installs rolldown native bindings even when the local
+  // Node version is slightly below the package engine range (npm otherwise
+  // skips optional dependencies — see https://github.com/npm/cli/issues/4828).
+  runChecked(npmCmd, ['install', '--prefix', 'frontend', '--include=optional', '--force'])
 
   if (frontendToolWorks()) {
     return
   }
 
   console.log('\nFrontend native dependencies are incomplete. Reinstalling cleanly...')
-  if (exists(path.join(frontendDir, 'package-lock.json'))) {
-    runChecked(npmCmd, ['ci', '--prefix', 'frontend', '--include=optional'])
-  } else {
-    runChecked(npmCmd, ['install', '--prefix', 'frontend', '--include=optional', '--force'])
-  }
+  runChecked(npmCmd, ['ci', '--prefix', 'frontend', '--include=optional', '--force'])
 
   if (!frontendToolWorks(true)) {
     throw new Error(
