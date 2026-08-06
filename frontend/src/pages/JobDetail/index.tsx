@@ -12,6 +12,7 @@ import { safeUrl, fmtDate } from '../../utils/format';
 import { formatDescription, isLongDescription } from '../../utils/descriptionRenderer';
 import { shouldFetchFullDescription } from '../../utils/jobDescription';
 import { buildBackState } from '../../utils/backNavigation';
+import { REMOTE_CSS } from '../../constants/jobMeta';
 import type { JobDetail, Job } from '../../api/types';
 
 // ── Job description with show-more ────────────────────────────────────────────
@@ -261,7 +262,6 @@ function SimilarJobs({ jobId }: { jobId: string }) {
         {similar.map((j, i) => {
           const score = j.match && typeof j.match.semantic_score === 'number' ? j.match.semantic_score : null;
           const badgeCls = score !== null ? (score >= 70 ? 'high' : score >= 45 ? 'mid' : 'low') : null;
-          const REMOTE_CSS: Record<string, string> = { Remote: 'remote', Hybrid: 'hybrid', 'On-site': 'onsite', 'On-Site': 'onsite' };
           return (
             <a
               key={j.job_id}

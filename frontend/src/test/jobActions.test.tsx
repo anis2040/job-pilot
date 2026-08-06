@@ -47,7 +47,7 @@ describe('Applying to a job', () => {
 
     // Applied tab count becomes 1, pending becomes 0
     await waitFor(() => {
-      const appliedTab = screen.getByRole('button', { name: /Applied/ })
+      const appliedTab = screen.getByRole('tab', { name: /Applied/ })
       expect(within(appliedTab).getByText('1')).toBeInTheDocument()
     })
   })

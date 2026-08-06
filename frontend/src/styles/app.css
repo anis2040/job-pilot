@@ -2755,10 +2755,23 @@ select option {
   color: var(--blue-light);
   background: rgba(79, 126, 247, 0.08);
   border-color: rgba(79, 126, 247, 0.2);
+  padding: 0;
+  gap: 0;
 }
 .search-chip.saved:hover {
   background: rgba(79, 126, 247, 0.14);
   border-color: rgba(79, 126, 247, 0.35);
+}
+.search-chip-apply {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 6px 4px 10px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
 }
 .search-chip.recent {
   color: var(--text-faint);
@@ -2771,8 +2784,12 @@ select option {
 .chip-x {
   font-size: 9px;
   opacity: 0.5;
-  padding-left: 3px;
+  padding: 4px 8px 4px 3px;
   line-height: 1;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
   transition:
     opacity var(--dur-fast) var(--ease-standard),
     color var(--dur-fast) var(--ease-standard);
