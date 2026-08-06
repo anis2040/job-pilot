@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { setup as setupApi, fetcher as fetcherApi } from '../../api/client';
+import { setup as setupApi } from '../../api/client';
 import { useProfile } from '../../hooks/useProfile';
 import { useToast } from '../../components/ui/useToast';
+import { markProfileNeedsFetch } from '../../hooks/profileFetchSignal';
 import type { SetupStatus } from '../../api/types';
 import {
   buildProfileMd, DEFAULT_FORM, EMPTY_EXP, EMPTY_EDU,
@@ -474,12 +475,11 @@ function Step3({ onBack }: { onBack: () => void }) {
     setFetching(true);
     setFetchMsg('Starting fetch…');
     try {
-      await fetcherApi.trigger();
-      setFetchMsg('Fetch started! Redirecting…');
+      markProfileNeedsFetch();
       await refetch();
-      setTimeout(() => navigate('/'), 1500);
+      setTimeout(() => navigate('/'), 300);
     } catch {
-      setFetchMsg('Failed to start fetch — go to dashboard and try manually.');
+      setFetchMsg('Failed to redirect — go to dashboard and fetch manually.');
       setFetching(false);
     }
   };
