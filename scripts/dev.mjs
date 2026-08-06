@@ -171,14 +171,14 @@ function ensureFrontendDeps() {
   // --force ensures npm installs rolldown native bindings even when the local
   // Node version is slightly below the package engine range (npm otherwise
   // skips optional dependencies — see https://github.com/npm/cli/issues/4828).
-  runChecked(npmCmd, ['install', '--prefix', 'frontend', '--include=optional', '--force'])
+  runChecked(npmCmd, npmArgs(['install', '--prefix', 'frontend', '--include=optional', '--force']))
 
   if (frontendToolWorks()) {
     return
   }
 
   console.log('\nFrontend native dependencies are incomplete. Reinstalling cleanly...')
-  runChecked(npmCmd, ['ci', '--prefix', 'frontend', '--include=optional', '--force'])
+  runChecked(npmCmd, npmArgs(['ci', '--prefix', 'frontend', '--include=optional', '--force']))
 
   if (!frontendToolWorks(true)) {
     throw new Error(

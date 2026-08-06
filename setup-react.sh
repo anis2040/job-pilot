@@ -172,19 +172,7 @@ source .venv/bin/activate || {
     exit 1
 }
 
-# ── 8. Install Python dependencies ────────────────────────────────────────────
-info "Installing Python dependencies..."
-pip install -r requirements.txt -q || { err "pip install failed. Check your internet connection and try again."; exit 1; }
-
-# ── 9. Install frontend dependencies ──────────────────────────────────────────
-info "Installing frontend dependencies..."
-if [[ -f "frontend/package-lock.json" ]]; then
-    npm ci --prefix frontend --include=optional || { err "npm ci failed. Check your internet connection and try again."; exit 1; }
-else
-    npm install --prefix frontend --include=optional || { err "npm install failed. Check your internet connection and try again."; exit 1; }
-fi
-
-# ── 10. Open browser once the frontend server is actually ready ───────────────
+# ── 8. Open browser once the frontend server is actually ready ────────────────
 if [[ "$OS" == "Darwin" ]]; then
     (until curl -s http://localhost:5173 >/dev/null 2>&1; do sleep 1; done; open "http://localhost:5173") &
 else
@@ -194,7 +182,7 @@ else
      x-www-browser "http://localhost:5173" 2>/dev/null || true) &
 fi
 
-# ── 11. Launch both servers ────────────────────────────────────────────────────
+# ── 9. Launch both servers ────────────────────────────────────────────────────
 echo ""
 info "Setup complete. Starting JobPilot AI..."
 info "  Backend:  http://localhost:5050"
