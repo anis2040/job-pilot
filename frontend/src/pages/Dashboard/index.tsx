@@ -245,6 +245,17 @@ export default function DashboardPage() {
     <AppShell>
       <h1 className="visually-hidden">Job Listings</h1>
 
+      {fetchRunning && allJobs.length === 0 && createPortal(
+        <div className="fetch-overlay" role="status" aria-live="polite">
+          <div className="fetch-overlay-card">
+            <span className="spinner fetch-overlay-spinner" />
+            <p className="fetch-overlay-title">Fetching jobs…</p>
+            {fetchMessage && <p className="fetch-overlay-msg">{fetchMessage}</p>}
+          </div>
+        </div>,
+        document.body
+      )}
+
       <SearchBarRow
         tab={tab}
         counts={counts}

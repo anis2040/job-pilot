@@ -537,6 +537,49 @@
   border-width: 1.5px;
 }
 
+/* ── Fetch overlay (first-run / empty) ── */
+.fetch-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-backdrop);
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: backdropIn var(--dur-slow) var(--ease-out) both;
+}
+.fetch-overlay-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  background: var(--bg-card);
+  border: 1px solid var(--border-faint);
+  border-radius: var(--radius-lg);
+  padding: var(--space-10) var(--space-12);
+  box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+  min-width: 260px;
+  text-align: center;
+}
+.fetch-overlay-spinner {
+  width: 36px;
+  height: 36px;
+  border-width: 3px;
+  color: var(--blue-light);
+}
+.fetch-overlay-title {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
+.fetch-overlay-msg {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin: 0;
+}
+
 /* ── Filter bar ── */
 .filter-bar {
   padding: 8px var(--space-8);
