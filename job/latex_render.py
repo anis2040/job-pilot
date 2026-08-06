@@ -171,23 +171,28 @@ _PREAMBLE = r"""\documentclass[11pt,a4paper]{{article}}
 \usepackage[hidelinks]{{hyperref}}
 \usepackage{{microtype}}
 
+% Slightly open line height for readability (1.0 reads cramped at 11pt).
+\linespread{{1.12}}
+
 \definecolor{{headerblue}}{{HTML}}{{4472C4}}
 
 \titleformat{{\section}}
   {{\bfseries\large\color{{headerblue}}}}
   {{}}{{0em}}{{}}
   [\color{{headerblue}}\titlerule]
-\titlespacing{{\section}}{{0pt}}{{10pt}}{{4pt}}
+\titlespacing{{\section}}{{0pt}}{{14pt}}{{6pt}}
 
 \pagestyle{{empty}}
 
-\setlist[itemize]{{leftmargin=*, itemsep={itemsep}, parsep=0pt, topsep=3pt}}
+% Roomier list spacing: gap between bullets (itemsep), space above the list
+% (topsep), and space between wrapped lines within one bullet (parsep).
+\setlist[itemize]{{leftmargin=*, itemsep={itemsep}, parsep=2pt, topsep=5pt}}
 
 \begin{{document}}
 """
 
 _ALLOWED_MARGINS = {"1in", "0.75in", "0.5in"}
-_ALLOWED_ITEMSEP = {"3pt", "2pt", "1pt", "0pt"}
+_ALLOWED_ITEMSEP = {"6pt", "5pt", "4pt", "3pt", "2pt"}
 
 
 def _render_header(contact: dict) -> str:
@@ -397,7 +402,7 @@ def render_resume_latex(content: dict, profile_text: str) -> str:
     contact = _parse_contact_from_profile(profile_text)
 
     margin = content.get("margin") if content.get("margin") in _ALLOWED_MARGINS else "0.75in"
-    itemsep = content.get("itemsep") if content.get("itemsep") in _ALLOWED_ITEMSEP else "1pt"
+    itemsep = content.get("itemsep") if content.get("itemsep") in _ALLOWED_ITEMSEP else "4pt"
 
     parts = [_PREAMBLE.format(margin=margin, itemsep=itemsep)]
     parts.append(_render_header(contact))

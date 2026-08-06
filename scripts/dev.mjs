@@ -7,7 +7,8 @@ import { fileURLToPath } from 'node:url'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const frontendDir = path.join(root, 'frontend')
 const isWindows = process.platform === 'win32'
-const npmCmd = isWindows ? 'npm.cmd' : 'npm'
+let npmCmd = isWindows ? 'npm.cmd' : 'npm'
+let npmPrefixArgs = []
 const mode = process.argv.includes('--backend-only')
   ? 'backend'
   : process.argv.includes('--frontend-only')
@@ -31,7 +32,7 @@ function runChecked(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: root,
     stdio: 'inherit',
-    shell: false,
+    shell: usesShell(command),
     ...options,
   })
 
@@ -44,8 +45,75 @@ function runChecked(command, args, options = {}) {
 }
 
 function canRun(command, args = ['--version']) {
-  const result = spawnSync(command, args, { stdio: 'ignore', shell: false })
+  const result = spawnSync(command, args, { stdio: 'ignore', shell: usesShell(command) })
   return !result.error && result.status === 0
+}
+
+function usesShell(command) {
+  return isWindows && /\.(cmd|bat)$/i.test(command)
+}
+
+function findNpmCommand() {
+  if (!isWindows) {
+    return canRun('npm') ? { command: 'npm', prefixArgs: [] } : null
+  }
+
+  const nodeDirs = [
+    path.dirname(process.execPath),
+    path.join(process.env.ProgramFiles || '', 'nodejs', 'npm.cmd'),
+    path.join(process.env['ProgramFiles(x86)'] || '', 'nodejs', 'npm.cmd'),
+    path.join(process.env.LOCALAPPDATA || '', 'Programs', 'nodejs', 'npm.cmd'),
+    path.join(process.env.APPDATA || '', 'nvm', 'current', 'npm.cmd'),
+  ]
+    .filter(Boolean)
+    .map((candidate) => candidate.replace(/[\\/]npm\.cmd$/i, ''))
+
+  for (const dir of nodeDirs) {
+    const npmCli = path.join(dir, 'node_modules', 'npm', 'bin', 'npm-cli.js')
+    if (exists(npmCli) && canRun(process.execPath, [npmCli, '--version'])) {
+      return { command: process.execPath, prefixArgs: [npmCli] }
+    }
+  }
+
+  const candidates = [
+    'npm.cmd',
+    ...nodeDirs.map((dir) => path.join(dir, 'npm.cmd')),
+  ]
+
+  for (const candidate of candidates) {
+    if (canRun(candidate)) {
+      return { command: candidate, prefixArgs: [] }
+    }
+  }
+
+  return null
+}
+
+function installNodeWithWinget() {
+  if (!isWindows || !canRun('winget', ['--version'])) {
+    return false
+  }
+
+  console.log('\nnpm was not found, but Node.js is running. Installing or repairing Node.js LTS with winget...')
+  const result = spawnSync(
+    'winget',
+    [
+      'install',
+      '--id',
+      'OpenJS.NodeJS.LTS',
+      '--exact',
+      '--silent',
+      '--accept-package-agreements',
+      '--accept-source-agreements',
+    ],
+    { cwd: root, stdio: 'inherit', shell: false },
+  )
+
+  return !result.error && result.status === 0
+}
+
+function npmArgs(args) {
+  return [...npmPrefixArgs, ...args]
 }
 
 function findPythonLauncher() {
@@ -80,9 +148,20 @@ function ensureBackendDeps() {
 }
 
 function ensureFrontendDeps() {
-  if (!canRun(npmCmd)) {
-    throw new Error('npm was not found. Install Node.js and try again.')
+  let resolvedNpm = findNpmCommand()
+  if (!resolvedNpm) {
+    installNodeWithWinget()
+    resolvedNpm = findNpmCommand()
   }
+
+  if (!resolvedNpm) {
+    const setupScript = isWindows ? 'setup-react.bat' : './setup-react.sh'
+    throw new Error(
+      `npm was not found. Install Node.js LTS from https://nodejs.org/, then open a new terminal and run ${setupScript} again.`,
+    )
+  }
+  npmCmd = resolvedNpm.command
+  npmPrefixArgs = resolvedNpm.prefixArgs
 
   console.log('\nInstalling frontend dependencies...')
   // --force ensures npm installs rolldown native bindings even when the local
@@ -106,10 +185,10 @@ function ensureFrontendDeps() {
 }
 
 function frontendToolWorks(verbose = false) {
-  const result = spawnSync(npmCmd, ['--prefix', 'frontend', 'exec', '--', 'vite', '--version'], {
+  const result = spawnSync(npmCmd, npmArgs(['--prefix', 'frontend', 'exec', '--', 'vite', '--version']), {
     cwd: root,
     stdio: verbose ? 'inherit' : 'ignore',
-    shell: false,
+    shell: usesShell(npmCmd),
   })
 
   return !result.error && result.status === 0
@@ -123,14 +202,14 @@ function ensureFrontendBuild() {
     return
   }
   console.log('\nBuilding frontend (frontend/dist/ for the backend-served /app route)...')
-  runChecked(npmCmd, ['run', 'build', '--prefix', 'frontend'])
+  runChecked(npmCmd, npmArgs(['run', 'build', '--prefix', 'frontend']))
 }
 
 function startProcess(command, args, name) {
   const child = spawn(command, args, {
     cwd: root,
     stdio: 'inherit',
-    shell: false,
+    shell: usesShell(command),
   })
 
   child.on('error', (error) => {
@@ -205,13 +284,13 @@ try {
     backend = startProcess(venvPython, ['web.py'], 'Backend')
   } else if (mode === 'frontend') {
     console.log('\nStarting frontend on http://localhost:5173')
-    frontend = startProcess(npmCmd, ['--prefix', 'frontend', 'run', 'dev'], 'Frontend')
+    frontend = startProcess(npmCmd, npmArgs(['--prefix', 'frontend', 'run', 'dev']), 'Frontend')
   } else {
     console.log('\nStarting backend on http://localhost:5050')
     backend = startProcess(venvPython, ['web.py'], 'Backend')
 
     console.log('Starting frontend on http://localhost:5173')
-    frontend = startProcess(npmCmd, ['--prefix', 'frontend', 'run', 'dev'], 'Frontend')
+    frontend = startProcess(npmCmd, npmArgs(['--prefix', 'frontend', 'run', 'dev']), 'Frontend')
   }
 
   console.log('\nDev mode is running:')

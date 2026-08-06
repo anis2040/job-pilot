@@ -108,6 +108,29 @@ if ! command -v node &>/dev/null; then
     exit 1
 fi
 info "Node.js: $(node --version)"
+if ! command -v npm &>/dev/null; then
+    info "npm not found. Installing npm/Node.js package manager automatically..."
+    if [[ "$OS" == "Darwin" ]]; then
+        brew install node
+    elif command -v apt-get &>/dev/null; then
+        sudo apt-get install -y npm
+    elif command -v dnf &>/dev/null; then
+        sudo dnf install -y npm
+    elif command -v yum &>/dev/null; then
+        sudo yum install -y npm
+    elif command -v pacman &>/dev/null; then
+        sudo pacman -Sy --noconfirm npm
+    else
+        err "npm is not available. Install Node.js LTS from https://nodejs.org/ then run ./setup-react.sh again."
+        exit 1
+    fi
+    hash -r 2>/dev/null || true
+fi
+if ! command -v npm &>/dev/null; then
+    err "npm not found after install. Open a new terminal and run ./setup-react.sh again, or install Node.js LTS from https://nodejs.org/"
+    exit 1
+fi
+info "npm: $(npm --version)"
 
 # ── 5. Install pdflatex if missing ────────────────────────────────────────────
 if ! command -v pdflatex &>/dev/null; then
