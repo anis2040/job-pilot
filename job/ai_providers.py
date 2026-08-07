@@ -672,8 +672,8 @@ def _generate_content(system_text: str, user_prompt: str, cwd: str, stage_fn=Non
             return result
 
     raise RuntimeError(
-        "No AI provider configured. Add a GROQ_API_KEY to .env "
-        "(free at console.groq.com) or install Gemini CLI."
+        "No AI provider configured. In Setup step 1 (or AI Settings), "
+        "save a GEMINI_API_KEY or GROQ_API_KEY, then try again."
     )
 
 

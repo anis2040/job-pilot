@@ -39,7 +39,6 @@ def web_client(tmp_path, monkeypatch):
     monkeypatch.setattr(profs, "PROFILES_DIR", pdir)
     monkeypatch.setattr(profs, "_update_symlinks", lambda d: None)
     monkeypatch.setattr(profs, "get_current_user_id", lambda: LOCAL_USER_ID)
-    monkeypatch.setattr(web, "PROFILES_DIR", pdir)
 
     # Create a test profile and activate it
     user_dir = pdir / LOCAL_USER_ID
@@ -243,9 +242,16 @@ def test_setup_status_booleans(web_client):
     r = web_client.get("/api/setup/status")
     assert r.status_code == 200
     data = r.get_json()
-    for key in ("has_claude", "has_gemini", "has_pdflatex", "has_node",
-                "has_profile", "gemini_key_set", "groq_key_set"):
+    for key in ("debug", "has_claude", "has_gemini", "has_pdflatex", "has_node",
+                "has_profile", "gemini_key_set", "groq_key_set", "anthropic_key_set"):
         assert isinstance(data[key], bool), f"{key} should be bool"
+
+
+def test_setup_installs_blocked_when_not_debug(web_client, monkeypatch):
+    monkeypatch.setenv("FLASK_DEBUG", "false")
+    r = web_client.post("/api/setup/install-node")
+    assert r.status_code == 403
+    assert "development" in r.get_json()["error"].lower()
 
 
 # ── /api/config ───────────────────────────────────────────────────────────────

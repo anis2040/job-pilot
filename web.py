@@ -44,6 +44,32 @@ app.config["PERMANENT_SESSION_LIFETIME"] = 60 * 60 * 24 * 30  # 30 days
 init_oauth(app)
 register_auth_routes(app)
 
+_FRONTEND_DIST = Path(__file__).parent / "frontend" / "dist"
+
+
+def _spa_built() -> bool:
+    return (_FRONTEND_DIST / "index.html").is_file()
+
+
+def _serve_spa_index():
+    index = _FRONTEND_DIST / "index.html"
+    if index.is_file():
+        return send_file(str(index))
+    return "React app not built. Run: npm --prefix frontend run build", 404
+
+
+def _serve_spa_file(rel_path: str):
+    """Serve a file from frontend/dist if it exists; otherwise SPA index (client router)."""
+    if rel_path:
+        candidate = (_FRONTEND_DIST / rel_path).resolve()
+        try:
+            candidate.relative_to(_FRONTEND_DIST.resolve())
+        except ValueError:
+            abort(404)
+        if candidate.is_file():
+            return send_file(str(candidate))
+    return _serve_spa_index()
+
 
 @app.errorhandler(404)
 def _handle_404(e):
@@ -109,10 +135,23 @@ def _run_install(cmd: list, timeout: int) -> dict:
 
 
 def _call_ai_with_timeout(prompt: str, *, timeout: int = 90) -> str:
-    """Guard AI extraction routes so the UI is never left waiting forever."""
+    """Guard AI extraction routes so the UI is never left waiting forever.
+
+    Runs in a worker thread, so Flask ``g`` is unavailable there — copy the
+    current user into a contextvar so per-user ``.env`` keys (Gemini/Groq)
+    still resolve.
+    """
+    from job.user_context import get_current_user_id, user_context
+
+    uid = get_current_user_id()
+
+    def _run() -> str:
+        with user_context(uid):
+            return call_ai(prompt)
+
     executor = futures.ThreadPoolExecutor(max_workers=1)
     try:
-        future = executor.submit(call_ai, prompt)
+        future = executor.submit(_run)
         return future.result(timeout=timeout)
     finally:
         executor.shutdown(wait=False, cancel_futures=True)
@@ -220,6 +259,10 @@ def _save_api_key(env_key: str, provider: str):
     if not key:
         return jsonify({"error": "No key provided"}), 400
     write_user_env_var(env_key, key)
+    # Prefer the provider the user just configured (setup + AI settings).
+    pref = {"groq": "groq", "gemini": "gemini", "anthropic": "anthropic"}.get(provider)
+    if pref:
+        write_user_env_var("PREFERRED_PROVIDER", pref)
     _clear_model_cache(provider)
     return jsonify({"ok": True})
 
@@ -426,6 +469,8 @@ def _maybe_update_remote_from_text(job_id: str, title: str, location: str,
 
 @app.route("/")
 def index():
+    if _spa_built():
+        return _serve_spa_index()
     if not has_any_profiles():
         return redirect(url_for("setup"))
     if not get_active_slug():
@@ -454,6 +499,8 @@ def index():
 
 @app.route("/profiles")
 def profile_picker():
+    if _spa_built():
+        return _serve_spa_index()
     profiles = list_profiles()
     if not profiles:
         return redirect(url_for("setup"))
@@ -482,6 +529,8 @@ def api_profile_clear_jobs(slug):
 
 @app.route("/profile-settings/<slug>")
 def profile_settings(slug):
+    if _spa_built():
+        return _serve_spa_index()
     from job.profiles import _profile_info
     profile_dir = safe_profile_dir(slug)
     if not profile_dir:
@@ -493,11 +542,15 @@ def profile_settings(slug):
 
 @app.route("/manage-profiles")
 def manage_profiles():
+    if _spa_built():
+        return _serve_spa_index()
     return render_template("manage_profiles.html")
 
 
 @app.route("/ai-settings")
 def ai_settings_page():
+    if _spa_built():
+        return _serve_spa_index()
     providers = [
         {"id": "groq",      "label": "Groq",             "sub": "Fast free inference — llama, mixtral, gemma",  "badge_class": "badge-free",  "badge_text": "Free ⚡",  "placeholder": "gsk_…",    "hint": 'Get a free key at <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys ↗</a>. Saved locally in <code>.env</code>.'},
         {"id": "anthropic", "label": "Claude (Anthropic)","sub": "High quality — Haiku, Sonnet, Opus",          "badge_class": "badge-paid",  "badge_text": "API key",  "placeholder": "sk-ant-…", "hint": 'Get a key at <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com ↗</a>. Saved locally in <code>.env</code>.'},
@@ -633,6 +686,8 @@ def api_profile_config_save(slug):
 
 @app.route("/job/<job_id>")
 def job_detail_page(job_id):
+    if _spa_built():
+        return _serve_spa_index()
     row = get_job(job_id)
     if not row:
         return "Job not found", 404
@@ -1010,16 +1065,31 @@ def serve_pdf(rel_path):
 
 @app.route("/setup")
 def setup():
+    if _spa_built():
+        return _serve_spa_index()
     resp = make_response(render_template("setup.html"))
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
     return resp
 
 
+def _flask_debug() -> bool:
+    return os.environ.get("FLASK_DEBUG", "true").lower() in ("1", "true", "yes")
+
+
+def _require_setup_dev():
+    """Block host-install setup actions outside FLASK_DEBUG (Docker/Fly prod)."""
+    if _flask_debug():
+        return None
+    return jsonify({"ok": False, "error": "Install helpers are only available in development mode."}), 403
+
+
 @app.route("/api/setup/status")
 def api_setup_status():
     profile_p = get_profile_path()
+    anthropic_key = _env_get("ANTHROPIC_API_KEY") or _env_get("ANTHROPIC_AUTH_TOKEN") or ""
     return jsonify({
         "platform": sys.platform,
+        "debug": _flask_debug(),
         "has_claude": bool(shutil.which("claude")),
         "has_gemini": bool(shutil.which("gemini")),
         "has_pdflatex": bool(shutil.which("pdflatex")),
@@ -1027,9 +1097,11 @@ def api_setup_status():
         "has_profile": bool(profile_p and profile_p.exists()),
         "gemini_key_set": bool(_env_get("GEMINI_API_KEY") or _env_get("GOOGLE_API_KEY")),
         "groq_key_set": bool(_env_get("GROQ_API_KEY")),
+        "anthropic_key_set": bool(anthropic_key),
         # Masked keys only — full secrets are never returned over the API.
         "gemini_key": mask_secret(_env_get("GEMINI_API_KEY") or _env_get("GOOGLE_API_KEY")),
         "groq_key": mask_secret(_env_get("GROQ_API_KEY")),
+        "anthropic_key": mask_secret(anthropic_key),
     })
 
 
@@ -1127,6 +1199,9 @@ Profile:
 
 @app.route("/api/setup/claude-login", methods=["POST"])
 def api_setup_claude_login():
+    blocked = _require_setup_dev()
+    if blocked:
+        return blocked
     if not shutil.which("claude"):
         return jsonify({"error": "Claude Code is not installed yet."}), 400
     try:
@@ -1147,6 +1222,9 @@ def api_setup_claude_login():
 
 @app.route("/api/setup/install-node", methods=["POST"])
 def api_setup_install_node():
+    blocked = _require_setup_dev()
+    if blocked:
+        return blocked
     if sys.platform == "darwin":
         return jsonify(_run_install(["brew", "install", "node"], 300))
     if sys.platform == "linux":
@@ -1169,6 +1247,9 @@ def api_setup_install_node():
 
 @app.route("/api/setup/install-cli", methods=["POST"])
 def api_setup_install_cli():
+    blocked = _require_setup_dev()
+    if blocked:
+        return blocked
     data = request.get_json() or {}
     provider = data.get("provider")
     if provider not in ("claude", "gemini"):
@@ -1196,6 +1277,9 @@ def api_setup_save_anthropic_key():
 
 @app.route("/api/setup/install-pdflatex", methods=["POST"])
 def api_setup_install_pdflatex():
+    blocked = _require_setup_dev()
+    if blocked:
+        return blocked
     if sys.platform == "darwin":
         return jsonify(_run_install(["brew", "install", "--cask", "basictex"], 600))
     if sys.platform == "linux":
@@ -1359,20 +1443,11 @@ def api_setup_save_profile():
     return jsonify({"ok": True})
 
 
-_FRONTEND_DIST = Path(__file__).parent / "frontend" / "dist"
-
-
-def _serve_spa_index():
-    index = _FRONTEND_DIST / "index.html"
-    if index.exists():
-        return send_file(str(index))
-    return "React app not built. Run: cd frontend && npm run build", 404
-
-
 @app.route("/app", defaults={"path": ""})
 @app.route("/app/<path:path>")
 def serve_spa(path: str):
-    return _serve_spa_index()
+    # Prefer real files (e.g. /app/assets/…) so Vite builds work; fall back to index.
+    return _serve_spa_file(path)
 
 
 @app.route("/login")
@@ -1380,12 +1455,30 @@ def serve_login():
     return _serve_spa_index()
 
 
+@app.route("/assets/<path:filename>")
+def serve_vite_assets(filename: str):
+    """Vite default asset path (/assets/…) for production builds."""
+    return _serve_spa_file(f"assets/{filename}")
+
+
 @app.route("/spa-assets/<path:filename>")
 def serve_spa_assets(filename: str):
-    assets_dir = _FRONTEND_DIST / "assets"
-    if assets_dir.exists():
-        return send_file(str(assets_dir / filename))
-    return "", 404
+    """Legacy alias used by older docs / auth public-path list."""
+    return _serve_spa_file(f"assets/{filename}")
+
+
+@app.route("/favicon.svg")
+@app.route("/favicon.ico")
+def serve_favicon():
+    for name in ("favicon.svg", "favicon.ico"):
+        candidate = _FRONTEND_DIST / name
+        if candidate.is_file():
+            return send_file(str(candidate))
+    # Fall through to Flask static/
+    static = Path(app.static_folder or "static") / "favicon.svg"
+    if static.is_file():
+        return send_file(str(static))
+    abort(404)
 
 
 if __name__ == "__main__":
@@ -1393,4 +1486,6 @@ if __name__ == "__main__":
     run_startup()
 
     debug = os.environ.get("FLASK_DEBUG", "true").lower() in ("1", "true", "yes")
-    app.run(debug=debug, port=5050)
+    host = os.environ.get("FLASK_HOST", "127.0.0.1")
+    port = int(os.environ.get("PORT", "5050"))
+    app.run(host=host, debug=debug, port=port)

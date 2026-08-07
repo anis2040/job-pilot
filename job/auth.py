@@ -87,9 +87,9 @@ def _is_public_path(path: str) -> bool:
         return True
     if path.startswith("/static/"):
         return True
-    if path.startswith("/spa-assets/"):
+    if path.startswith("/assets/") or path.startswith("/spa-assets/"):
         return True
-    # Login SPA shell (Vite builds assets under /spa-assets; index is /app or /login via SPA)
+    # Login / SPA shell (index is /app or /login; Vite assets under /assets)
     if path in ("/app", "/login", "/favicon.svg", "/favicon.ico"):
         return True
     if path.startswith("/app/"):

@@ -463,6 +463,29 @@ def company_cover_letters_path(company: str, user_id: str | None = None) -> Path
     return d / company / "cover-letters" if d else None
 
 
+def _is_legacy_profile_dir(path: Path) -> bool:
+    """True if path looks like a pre-multi-user profile directory.
+
+    Skips volume system dirs (e.g. Fly/ext ``lost+found``) and ignores
+    PermissionError from root-owned entries on mounted disks.
+    """
+    if not path.is_dir() or path.name.startswith(".") or path.name == LOCAL_USER_ID:
+        return False
+    # ext* volumes always create this; app user cannot read it
+    if path.name == "lost+found":
+        return False
+    if path.name.startswith("new-profile-"):
+        return True
+    try:
+        return (
+            (path / "profile.md").exists()
+            or (path / "config.yaml").exists()
+            or (path / "state.db").exists()
+        )
+    except OSError:
+        return False
+
+
 def migrate_legacy_profiles_layout() -> bool:
     """Move flat profiles/<slug>/ layout into profiles/_local/<slug>/.
 
@@ -481,18 +504,7 @@ def migrate_legacy_profiles_layout() -> bool:
 
     # Detect legacy: profile-looking dirs or .active directly under PROFILES_DIR
     legacy_active = PROFILES_DIR / ".active"
-    legacy_dirs = [
-        e for e in PROFILES_DIR.iterdir()
-        if e.is_dir()
-        and not e.name.startswith(".")
-        and e.name != LOCAL_USER_ID
-        and (
-            (e / "profile.md").exists()
-            or (e / "config.yaml").exists()
-            or (e / "state.db").exists()
-            or e.name.startswith("new-profile-")
-        )
-    ]
+    legacy_dirs = [e for e in PROFILES_DIR.iterdir() if _is_legacy_profile_dir(e)]
     if not legacy_dirs and not legacy_active.exists():
         return False
 

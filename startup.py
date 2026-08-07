@@ -93,11 +93,25 @@ def _migrate_active_profile(active_slug: str) -> None:
 def _cleanup_orphan_profiles() -> None:
     if not PROFILES_DIR.exists():
         return
+    from job.profiles import validate_user_id
+
     for user_dir in PROFILES_DIR.iterdir():
-        if not user_dir.is_dir() or user_dir.name.startswith("."):
+        if not user_dir.is_dir() or not validate_user_id(user_dir.name):
             continue
-        for d in user_dir.iterdir():
-            if d.is_dir() and d.name.startswith("new-profile-") and not (d / "profile.md").exists():
+        try:
+            children = list(user_dir.iterdir())
+        except OSError:
+            continue
+        for d in children:
+            try:
+                orphan = (
+                    d.is_dir()
+                    and d.name.startswith("new-profile-")
+                    and not (d / "profile.md").exists()
+                )
+            except OSError:
+                continue
+            if orphan:
                 shutil.rmtree(d, ignore_errors=True)
 
 

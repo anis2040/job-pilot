@@ -44,7 +44,14 @@ function CheckRow({ ok, label, detail, children }: { ok: boolean | null; label: 
   );
 }
 
-type ProviderChoice = 'groq' | 'claude' | 'gemini' | null;
+type ApiProvider = 'groq' | 'gemini' | 'anthropic';
+type ProviderChoice = ApiProvider | 'claude' | null;
+
+const API_PROVIDERS: { id: ApiProvider; title: string; blurb: string; placeholder: string }[] = [
+  { id: 'groq', title: 'Groq', blurb: 'Free tier, very fast (~5s). API key from console.groq.com — no credit card.', placeholder: 'gsk_…' },
+  { id: 'gemini', title: 'Gemini', blurb: 'By Google. Free API key from Google AI Studio. No credit card required.', placeholder: 'AIza…' },
+  { id: 'anthropic', title: 'Anthropic', blurb: 'Claude via API key from console.anthropic.com.', placeholder: 'sk-ant-…' },
+];
 
 function Step1({ onNext }: { onNext: () => void }) {
   const [status, setStatus] = useState<SetupStatus | null>(null);
@@ -59,7 +66,26 @@ function Step1({ onNext }: { onNext: () => void }) {
 
   useEffect(() => { setupApi.status().then(setStatus); }, []);
 
-  const ready = status && (status.has_claude || status.has_gemini || status.groq_key_set) && status.has_node;
+  const isDev = !!status?.debug;
+
+  const aiReady = !!(
+    status &&
+    (status.groq_key_set ||
+      status.gemini_key_set ||
+      status.anthropic_key_set ||
+      (isDev && (status.has_claude || status.has_gemini)))
+  );
+
+  const selectProvider = (p: ProviderChoice) => {
+    setProvider(p);
+    setActionStatus('');
+    setTestResult(null);
+    setKeyVisible(false);
+    if (p === 'groq') setKeyInput(status?.groq_key || '');
+    else if (p === 'gemini') setKeyInput(status?.gemini_key || '');
+    else if (p === 'anthropic') setKeyInput(status?.anthropic_key || '');
+    else setKeyInput('');
+  };
 
   const handleInstallNode = async () => {
     setNodeInstallLog('Installing…');
@@ -69,15 +95,21 @@ function Step1({ onNext }: { onNext: () => void }) {
   };
 
   const handleInstallCli = async () => {
-    if (!provider) return;
+    if (provider !== 'claude' && provider !== 'gemini') return;
     setActionStatus('Installing…');
     const res = await setupApi.installCli(provider);
     setActionStatus(res.output || (res.ok ? '✓ Installed' : '⚠ Failed'));
-    if (res.ok) setStatus(s => s ? { ...s, has_claude: provider === 'claude' || s.has_claude, has_gemini: provider === 'gemini' || s.has_gemini } : s);
+    if (res.ok) {
+      setStatus(s => s ? {
+        ...s,
+        has_claude: provider === 'claude' || s.has_claude,
+        has_gemini: provider === 'gemini' || s.has_gemini,
+      } : s);
+    }
   };
 
   const handleSaveKey = async () => {
-    if (!provider) return;
+    if (provider !== 'groq' && provider !== 'gemini' && provider !== 'anthropic') return;
     const trimmed = keyInput.trim();
     if (!trimmed || trimmed.startsWith('•')) {
       setActionStatus('✓ Using previously saved key');
@@ -87,9 +119,16 @@ function Step1({ onNext }: { onNext: () => void }) {
     let res: { ok: boolean };
     if (provider === 'groq') res = await setupApi.saveGroqKey(trimmed);
     else if (provider === 'gemini') res = await setupApi.saveGeminiKey(trimmed);
-    else res = { ok: false };
+    else res = await setupApi.saveAnthropicKey(trimmed);
     setActionStatus(res.ok ? '✓ Key saved' : '⚠ Failed to save key');
-    if (res.ok) setStatus(s => s ? { ...s, groq_key_set: provider === 'groq' || s.groq_key_set, gemini_key_set: provider === 'gemini' || s.gemini_key_set } : s);
+    if (res.ok) {
+      setStatus(s => s ? {
+        ...s,
+        groq_key_set: provider === 'groq' || s.groq_key_set,
+        gemini_key_set: provider === 'gemini' || s.gemini_key_set,
+        anthropic_key_set: provider === 'anthropic' || s.anthropic_key_set,
+      } : s);
+    }
   };
 
   const handleClaudeLogin = async () => {
@@ -104,7 +143,8 @@ function Step1({ onNext }: { onNext: () => void }) {
     setTesting(true);
     setTestResult(null);
     try {
-      const res = await setupApi.testProvider(provider) as { ok: boolean; model?: string; latency_ms?: number; error?: string };
+      const testProvider = provider === 'claude' ? 'claude' : provider;
+      const res = await setupApi.testProvider(testProvider) as { ok: boolean; model?: string; latency_ms?: number; error?: string };
       if (res.ok) setTestResult({ ok: true, msg: `✓ Connected${res.model ? ` · ${res.model}` : ''}${res.latency_ms ? ` · ${res.latency_ms}ms` : ''}` });
       else setTestResult({ ok: false, msg: `✗ ${res.error || 'Connection failed'}` });
     } catch {
@@ -123,66 +163,78 @@ function Step1({ onNext }: { onNext: () => void }) {
 
   return (
     <div id="step-1" className="card">
-      <h2>Prerequisites</h2>
-      <p className="subtitle">Let's make sure everything needed is installed on your machine.</p>
+      <h2>{isDev ? 'Prerequisites' : 'AI provider'}</h2>
+      <p className="subtitle">
+        {isDev
+          ? "Let's make sure everything needed is installed on your machine."
+          : 'Add an API key so JobPilot can generate resumes and cover letters. Keys stay in your account and are never shared.'}
+      </p>
 
-      <div id="check-list" style={{ marginBottom: 20 }}>
-        <CheckRow ok={true} label="Python" detail="Running — you're already here!" />
-        <CheckRow ok={status?.has_node ?? null} label="Node.js" detail="Required to install the AI CLI">
-          {status && !status.has_node && (
-            <div style={{ marginTop: 8 }}>
-              <div className="alert alert-error" style={{ marginBottom: 10 }}>
-                ⚠ Node.js is not installed. Required to install the AI CLI.
-              </div>
-              <button className="btn btn-sm btn-ghost" onClick={handleInstallNode}>Install Node.js</button>
-              {nodeInstallLog && <pre style={{ fontSize: '0.75rem', marginTop: 6, color: 'var(--text-muted)' }}>{nodeInstallLog}</pre>}
-            </div>
-          )}
-        </CheckRow>
-        <CheckRow ok={status ? (status.has_claude || status.has_gemini || status.groq_key_set) : null} label="AI CLI" detail="Claude Code, Gemini CLI, or API key" />
-        <CheckRow ok={status?.has_pdflatex ?? null} label="pdflatex" detail="Required to compile resumes to PDF">
-          {status && !status.has_pdflatex && (
-            <div style={{ marginTop: 8 }}>
-              <button className="btn btn-sm btn-ghost" onClick={handleInstallPdflatex}>Install pdflatex</button>
-              {pdfStatus && (
-                <div className={`alert ${pdfStatus.startsWith('✓') ? 'alert-ok' : 'alert-error'}`} style={{ marginTop: 8 }}>
-                  {pdfStatus}
+      {isDev && (
+        <div id="check-list" style={{ marginBottom: 20 }}>
+          <CheckRow ok={true} label="Python" detail="Running — you're already here!" />
+          <CheckRow
+            ok={status ? (status.has_node || status.groq_key_set || status.gemini_key_set || status.anthropic_key_set) : null}
+            label="Node.js"
+            detail="Only needed to install Claude/Gemini CLIs (not required for API keys)"
+          >
+            {status && !status.has_node && !(status.groq_key_set || status.gemini_key_set || status.anthropic_key_set) && (
+              <div style={{ marginTop: 8 }}>
+                <div className="alert alert-error" style={{ marginBottom: 10 }}>
+                  ⚠ Node.js is not installed. Required only if you use the Claude or Gemini CLI.
                 </div>
-              )}
-            </div>
-          )}
-        </CheckRow>
-      </div>
+                <button className="btn btn-sm btn-ghost" onClick={handleInstallNode}>Install Node.js</button>
+                {nodeInstallLog && <pre style={{ fontSize: '0.75rem', marginTop: 6, color: 'var(--text-muted)' }}>{nodeInstallLog}</pre>}
+              </div>
+            )}
+          </CheckRow>
+          <CheckRow
+            ok={status ? (status.has_claude || status.has_gemini || status.groq_key_set || status.gemini_key_set || status.anthropic_key_set) : null}
+            label="AI provider"
+            detail="API key, or Claude/Gemini CLI"
+          />
+          <CheckRow ok={status?.has_pdflatex ?? null} label="pdflatex" detail="Required to compile resumes to PDF">
+            {status && !status.has_pdflatex && (
+              <div style={{ marginTop: 8 }}>
+                <button className="btn btn-sm btn-ghost" onClick={handleInstallPdflatex}>Install pdflatex</button>
+                {pdfStatus && (
+                  <div className={`alert ${pdfStatus.startsWith('✓') ? 'alert-ok' : 'alert-error'}`} style={{ marginTop: 8 }}>
+                    {pdfStatus}
+                  </div>
+                )}
+              </div>
+            )}
+          </CheckRow>
+        </div>
+      )}
 
-      <div style={{ borderTop: '1px solid var(--border-faint)', paddingTop: 'var(--space-5)', marginBottom: 'var(--space-5)' }}>
-        <p style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>Choose Your AI</p>
-        <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', marginBottom: 'var(--space-3)' }}>The AI generates your tailored resumes and cover letters.</p>
+      <div style={{ borderTop: isDev ? '1px solid var(--border-faint)' : undefined, paddingTop: isDev ? 'var(--space-5)' : undefined, marginBottom: 'var(--space-5)' }}>
+        {isDev && (
+          <>
+            <p style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>Choose Your AI</p>
+            <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', marginBottom: 'var(--space-3)' }}>The AI generates your tailored resumes and cover letters.</p>
+          </>
+        )}
         <div className="provider-grid cols-3">
-          {(['groq', 'claude', 'gemini'] as const).map(p => (
-            <div key={p} className={`provider-card${provider === p ? ' selected' : ''}`} onClick={() => {
-              setProvider(p);
-              setActionStatus('');
-              setTestResult(null);
-              setKeyVisible(false);
-              if (p === 'groq') setKeyInput(status?.groq_key || '');
-              else if (p === 'gemini') setKeyInput(status?.gemini_key || '');
-              else setKeyInput('');
-            }}>
-              <h3>{p === 'groq' ? 'Groq' : p === 'claude' ? 'Claude' : 'Gemini'}</h3>
-              <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
-                {p === 'groq' && 'Free tier, very fast (~5s). API key from console.groq.com — no credit card.'}
-                {p === 'claude' && 'By Anthropic. Free tier available. Login with your Anthropic account.'}
-                {p === 'gemini' && 'By Google. Free API key from Google AI Studio. No credit card required.'}
-              </p>
+          {API_PROVIDERS.map(p => (
+            <div key={p.id} className={`provider-card${provider === p.id ? ' selected' : ''}`} onClick={() => selectProvider(p.id)}>
+              <h3>{p.title}</h3>
+              <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>{p.blurb}</p>
             </div>
           ))}
+          {isDev && (
+            <div className={`provider-card${provider === 'claude' ? ' selected' : ''}`} onClick={() => selectProvider('claude')}>
+              <h3>Claude CLI</h3>
+              <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
+                Local Claude Code CLI (dev only). Login with your Anthropic account.
+              </p>
+            </div>
+          )}
         </div>
 
         {provider && (
           <div id="provider-action" style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-
-            {/* Claude — login + optional install if CLI missing */}
-            {provider === 'claude' && (
+            {isDev && provider === 'claude' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {status && !status.has_claude && (
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -196,29 +248,26 @@ function Step1({ onNext }: { onNext: () => void }) {
               </div>
             )}
 
-            {/* Groq / Gemini — API key input */}
-            {(provider === 'groq' || provider === 'gemini') && (
+            {(provider === 'groq' || provider === 'gemini' || provider === 'anthropic') && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                   <input
                     type={keyVisible ? 'text' : 'password'}
-                    placeholder={provider === 'groq' ? 'gsk_…' : 'AIza…'}
+                    placeholder={API_PROVIDERS.find(p => p.id === provider)?.placeholder}
                     value={keyInput}
                     onChange={e => setKeyInput(e.target.value)}
                     style={{ flex: 1 }}
                   />
                   <button className="btn btn-ghost btn-sm" type="button" title={keyVisible ? 'Hide key' : 'Show key'} style={{ padding: '5px 8px' }} onClick={() => setKeyVisible(v => !v)}>👁</button>
                   <button className="btn btn-primary btn-sm" onClick={handleSaveKey}>Save key</button>
-                  {/* Gemini only: show install button if CLI is missing */}
-                  {provider === 'gemini' && status && !status.has_gemini && (
+                  {isDev && provider === 'gemini' && status && !status.has_gemini && (
                     <button className="btn btn-ghost btn-sm" onClick={handleInstallCli}>Install CLI</button>
                   )}
                 </div>
-                <div className="hint">Your key is saved locally in .env and never shared.</div>
+                <div className="hint">Your key is saved in your account and never shared.</div>
               </div>
             )}
 
-            {/* Test connection row — always shown once a provider is selected */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <button className="btn btn-ghost btn-sm" onClick={handleTest} disabled={testing}>
                 {testing ? 'Testing…' : 'Test connection'}
@@ -243,7 +292,7 @@ function Step1({ onNext }: { onNext: () => void }) {
         <span className="step-hint">Step 1 of 3</span>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-ghost" onClick={onNext}>Skip →</button>
-          <button className="btn btn-primary" onClick={onNext} disabled={!ready}>Continue →</button>
+          <button className="btn btn-primary" onClick={onNext} disabled={!aiReady}>Continue →</button>
         </div>
       </div>
     </div>

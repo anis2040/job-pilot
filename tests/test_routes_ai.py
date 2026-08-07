@@ -231,3 +231,18 @@ class TestSetupParseResume:
 
         assert r.status_code == 504
         assert r.get_json()["error"] == "AI extraction timed out. Try again."
+
+    def test_timeout_helper_preserves_user_context(self, monkeypatch):
+        """Worker thread must see the same user as the request (per-user AI keys)."""
+        from job.user_context import get_current_user_id, user_context
+
+        seen: list[str] = []
+
+        def fake_call_ai(prompt: str) -> str:
+            seen.append(get_current_user_id())
+            return "{}"
+
+        monkeypatch.setattr(web, "call_ai", fake_call_ai)
+        with user_context("google_abc123"):
+            assert web._call_ai_with_timeout("hi", timeout=5) == "{}"
+        assert seen == ["google_abc123"]

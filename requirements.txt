@@ -10,5 +10,6 @@ pypdf>=4
 anthropic>=0.120
 google-genai>=1.0
 groq>=1.0
+gunicorn>=22
 pytest>=8
 

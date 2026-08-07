@@ -2,6 +2,19 @@
 
 JobPilot AI helps you search jobs, score them against your profile, and generate tailored resumes and cover letters.
 
+## Docker (hosted / friends)
+
+See [docs/HOSTING.md](docs/HOSTING.md) for the full guide. Short version:
+
+```bash
+cp .env.example .env   # set SECRET_KEY + Google OAuth
+mkdir -p data/profiles # durable user data (survives rebuilds)
+docker compose up -d --build
+# open http://localhost:5050/login
+```
+
+Profiles, SQLite DBs, and generated PDFs live in `./data/profiles` on the host.
+
 ## React Dev Mode
 
 Use the root dev launcher when you want the React app and Flask backend together.

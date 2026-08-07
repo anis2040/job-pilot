@@ -183,3 +183,20 @@ def test_users_isolated(tmp_path, monkeypatch):
     profiles.create_profile("Bob")
     assert profiles.list_profiles()[0].slug == "bob"
     assert profiles.safe_profile_dir("alice") is None
+
+
+def test_migrate_skips_lost_plus_found(tmp_path, monkeypatch):
+    """Fly/ext volumes ship a root-owned lost+found; startup must not crash."""
+    import os
+
+    pdir = tmp_path / "profiles"
+    pdir.mkdir()
+    lost = pdir / "lost+found"
+    lost.mkdir()
+    os.chmod(lost, 0o000)
+    monkeypatch.setattr(profiles, "PROFILES_DIR", pdir)
+    monkeypatch.setattr(profiles, "_update_symlinks", lambda d: None)
+    try:
+        assert profiles.migrate_legacy_profiles_layout() is False
+    finally:
+        os.chmod(lost, 0o755)
