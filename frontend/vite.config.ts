@@ -22,6 +22,8 @@ export default defineConfig({
   build: { outDir: 'dist', emptyOutDir: true },
   test: {
     environment: 'jsdom',
+    // Node ≥25 exposes a non-functional global localStorage that blocks jsdom's Storage.
+    execArgv: ['--no-experimental-webstorage'],
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/test/**/*.{test,spec}.{ts,tsx}'],

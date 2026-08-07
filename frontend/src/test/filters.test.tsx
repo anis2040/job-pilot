@@ -50,7 +50,7 @@ describe('Loading and rendering jobs', () => {
     renderApp('/')
     await waitFor(() => expect(screen.getByText('React Developer')).toBeInTheDocument())
 
-    fireEvent.click(screen.getByRole('button', { name: /Applied/ }))
+    fireEvent.click(screen.getByRole('tab', { name: /Applied/ }))
 
     await waitFor(() => {
       expect(screen.getByText('Applied Role')).toBeInTheDocument()

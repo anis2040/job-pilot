@@ -70,11 +70,16 @@ export function groupSearchEntries(entries: SearchEntry[]): SearchRowEntry[] {
   const groups: Record<string, SearchRowEntry> = {};
   for (const e of entries) {
     const workStyles = normalizeWorkStyles(e.work_styles, e.remote);
-    const key = e.group_id || `${e.query}||${workStyleKey(workStyles)}`;
+    const location = (e.location || 'United States').trim();
+    // Key on semantic content (query + location + work styles) so that entries
+    // sharing the same search intent but different sources are merged into one
+    // row — regardless of what group_id was saved. This also self-heals configs
+    // where every entry got a unique group_id (the old bug).
+    const key = `${e.query.trim().toLowerCase()}||${location.toLowerCase()}||${workStyleKey(workStyles)}`;
     if (!groups[key]) groups[key] = { id: e.group_id, titles: [], locations: [], workStyles, sources: [] };
     groups[key].titles = addUniqueTitle(groups[key].titles, e.query);
     if (!groups[key].sources.includes(e.source)) groups[key].sources.push(e.source);
-    groups[key].locations = addUniqueLocation(groups[key].locations, e.location || 'United States');
+    groups[key].locations = addUniqueLocation(groups[key].locations, location);
     for (const style of workStyles) {
       if (!groups[key].workStyles.includes(style)) groups[key].workStyles.push(style);
     }

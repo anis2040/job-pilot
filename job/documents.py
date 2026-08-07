@@ -44,7 +44,7 @@ Return ONLY a JSON object with this exact structure — no explanation, no markd
   "education": [{"degree": "Full Degree Name", "institution": "School", "year": "2020"}],
   "certifications": [{"name": "Certification", "issuer": "Issuer"}],
   "margin": "0.75in",
-  "itemsep": "1pt"
+  "itemsep": "4pt"
 }
 
 Rules:
@@ -52,7 +52,7 @@ Rules:
 - Use straight quotes, not curly quotes.
 - "dates": use "Mon YYYY - Mon YYYY" or "Mon YYYY - Present".
 - "projects" and "certifications" are optional (omit or use []). "company", "summary", "core_competencies", "experiences", "education" are required.
-- "margin": "1in" for light content, "0.75in" normally, "0.5in" only if needed to fit one page. "itemsep": "2pt" normally, "1pt" for dense content.
+- "margin": "1in" for light content, "0.75in" normally, "0.5in" only if needed to fit one page. "itemsep": "4pt" normally (readable spacing between bullets), "3pt" or "2pt" only for dense content that must fit one page.
 - Contact details and the candidate's name are added by the application from the profile — do NOT include them.
 - Output ONLY the JSON object.
 """

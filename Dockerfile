@@ -1,11 +1,13 @@
 # syntax=docker/dockerfile:1
 
 # ── Stage 1: build React SPA ─────────────────────────────────────────────────
-FROM node:20-bookworm-slim AS frontend-build
+FROM node:22-bookworm-slim AS frontend-build
 
 WORKDIR /src/frontend
 COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci --include=optional
+# Platform optional bindings (rolldown/oxlint) resolve for the build OS — do not
+# pin host-specific packages like @rolldown/binding-darwin-arm64 in package.json.
+RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 

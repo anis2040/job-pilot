@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { setup as setupApi, fetcher as fetcherApi } from '../../api/client';
+import { setup as setupApi } from '../../api/client';
 import { useProfile } from '../../hooks/useProfile';
 import { useToast } from '../../components/ui/useToast';
+import { markProfileNeedsFetch } from '../../hooks/profileFetchSignal';
 import type { SetupStatus } from '../../api/types';
 import {
   buildProfileMd, DEFAULT_FORM, EMPTY_EXP, EMPTY_EDU,
@@ -216,10 +217,24 @@ function Step1({ onNext }: { onNext: () => void }) {
           </>
         )}
         <div className="provider-grid cols-3">
-          {API_PROVIDERS.map(p => (
-            <div key={p.id} className={`provider-card${provider === p.id ? ' selected' : ''}`} onClick={() => selectProvider(p.id)}>
-              <h3>{p.title}</h3>
-              <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>{p.blurb}</p>
+          {(['groq', 'claude', 'gemini'] as const).map(p => (
+            <div key={p} className={`provider-card${provider === p ? ' selected' : ''}`} onClick={() => {
+              setProvider(p);
+              setActionStatus('');
+              setTestResult(null);
+              setKeyVisible(false);
+              if (p === 'groq') setKeyInput(status?.groq_key || '');
+              else if (p === 'gemini') setKeyInput(status?.gemini_key || '');
+              else setKeyInput('');
+            }}>
+              <h3>{p === 'groq' ? 'Groq' : p === 'claude' ? 'Claude' : 'Gemini'}</h3>
+              <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
+                {p === 'groq' && 'Free tier, very fast (~5s). API key from console.groq.com — no credit card.'}
+                {p === 'claude' && 'By Anthropic. Free tier available. Login with your Anthropic account.'}
+                {p === 'gemini' && 'By Google. Free API key from Google AI Studio. No credit card required.'}
+              </p>
+              {p === 'groq' && <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" style={{ fontSize: 'var(--text-xs)', color: 'var(--blue-light)' }} onClick={e => e.stopPropagation()}>Get API key ↗</a>}
+              {p === 'gemini' && <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style={{ fontSize: 'var(--text-xs)', color: 'var(--blue-light)' }} onClick={e => e.stopPropagation()}>Get API key ↗</a>}
             </div>
           ))}
           {isDev && (
@@ -521,12 +536,11 @@ function Step3({ onBack }: { onBack: () => void }) {
     setFetching(true);
     setFetchMsg('Starting fetch…');
     try {
-      await fetcherApi.trigger();
-      setFetchMsg('Fetch started! Redirecting…');
+      markProfileNeedsFetch();
       await refetch();
-      setTimeout(() => navigate('/'), 1500);
+      setTimeout(() => navigate('/'), 300);
     } catch {
-      setFetchMsg('Failed to start fetch — go to dashboard and try manually.');
+      setFetchMsg('Failed to redirect — go to dashboard and fetch manually.');
       setFetching(false);
     }
   };

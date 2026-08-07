@@ -279,7 +279,7 @@ describe('Pagination scroll behavior (regression guard)', () => {
     renderApp('/')
     await waitFor(() => expect(screen.getByText('Paged Job 1')).toBeInTheDocument())
 
-    fireEvent.click(screen.getByRole('button', { name: '›' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next page' }))
 
     await waitFor(() => expect(screen.getByText('Paged Job 26')).toBeInTheDocument())
     expect(scrollTo).not.toHaveBeenCalled()

@@ -108,6 +108,29 @@ if ! command -v node &>/dev/null; then
     exit 1
 fi
 info "Node.js: $(node --version)"
+if ! command -v npm &>/dev/null; then
+    info "npm not found. Installing npm/Node.js package manager automatically..."
+    if [[ "$OS" == "Darwin" ]]; then
+        brew install node
+    elif command -v apt-get &>/dev/null; then
+        sudo apt-get install -y npm
+    elif command -v dnf &>/dev/null; then
+        sudo dnf install -y npm
+    elif command -v yum &>/dev/null; then
+        sudo yum install -y npm
+    elif command -v pacman &>/dev/null; then
+        sudo pacman -Sy --noconfirm npm
+    else
+        err "npm is not available. Install Node.js LTS from https://nodejs.org/ then run ./setup-react.sh again."
+        exit 1
+    fi
+    hash -r 2>/dev/null || true
+fi
+if ! command -v npm &>/dev/null; then
+    err "npm not found after install. Open a new terminal and run ./setup-react.sh again, or install Node.js LTS from https://nodejs.org/"
+    exit 1
+fi
+info "npm: $(npm --version)"
 
 # ── 5. Install pdflatex if missing ────────────────────────────────────────────
 if ! command -v pdflatex &>/dev/null; then
@@ -149,28 +172,17 @@ source .venv/bin/activate || {
     exit 1
 }
 
-# ── 8. Install Python dependencies ────────────────────────────────────────────
-info "Installing Python dependencies..."
-pip install -r requirements.txt -q || { err "pip install failed. Check your internet connection and try again."; exit 1; }
-
-# ── 9. Install frontend dependencies ──────────────────────────────────────────
-info "Installing frontend dependencies..."
-if [[ -f "frontend/package-lock.json" ]]; then
-    npm ci --prefix frontend --include=optional || { err "npm ci failed. Check your internet connection and try again."; exit 1; }
-else
-    npm install --prefix frontend --include=optional || { err "npm install failed. Check your internet connection and try again."; exit 1; }
-fi
-
-# ── 10. Open browser after servers start ──────────────────────────────────────
+# ── 8. Open browser once the frontend server is actually ready ────────────────
 if [[ "$OS" == "Darwin" ]]; then
-    (sleep 6 && open "http://localhost:5173") &
+    (until curl -s http://localhost:5173 >/dev/null 2>&1; do sleep 1; done; open "http://localhost:5173") &
 else
-    (sleep 6 && (xdg-open "http://localhost:5173" 2>/dev/null || \
-                 sensible-browser "http://localhost:5173" 2>/dev/null || \
-                 x-www-browser "http://localhost:5173" 2>/dev/null || true)) &
+    (until curl -s http://localhost:5173 >/dev/null 2>&1; do sleep 1; done
+     xdg-open "http://localhost:5173" 2>/dev/null || \
+     sensible-browser "http://localhost:5173" 2>/dev/null || \
+     x-www-browser "http://localhost:5173" 2>/dev/null || true) &
 fi
 
-# ── 11. Launch both servers ────────────────────────────────────────────────────
+# ── 9. Launch both servers ────────────────────────────────────────────────────
 echo ""
 info "Setup complete. Starting JobPilot AI..."
 info "  Backend:  http://localhost:5050"

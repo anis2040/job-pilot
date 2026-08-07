@@ -15,6 +15,13 @@ if not exist ".venv\Scripts\python.exe" (
     exit /b 1
 )
 
+where node >nul 2>&1
+if errorlevel 1 (
+    echo  [ERROR] Node.js is not available. Run setup-react.bat first.
+    pause
+    exit /b 1
+)
+
 start "" powershell -NoProfile -WindowStyle Hidden -Command "Start-Sleep 6; Start-Process 'http://localhost:5173'"
 
 echo   Backend:  http://localhost:5050
