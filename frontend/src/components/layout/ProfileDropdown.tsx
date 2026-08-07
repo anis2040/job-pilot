@@ -1,6 +1,7 @@
-import { useRef, useState } from 'react';
+import { useContext, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useProfile } from '../../hooks/useProfile';
+import { AuthContext } from '../../hooks/authContext';
 import { profiles as profilesApi } from '../../api/client';
 import { useClickOutside } from '../../hooks/useFocusTrap';
 import { markProfileNeedsFetch } from '../../hooks/profileFetchSignal';
@@ -9,6 +10,9 @@ import { buildBackState } from '../../utils/backNavigation';
 
 export function ProfileDropdown() {
   const { active, profiles, switchProfile, refetch } = useProfile();
+  const auth = useContext(AuthContext);
+  const user = auth?.user ?? null;
+  const logout = auth?.logout;
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -91,6 +95,23 @@ export function ProfileDropdown() {
             <Icon name="user" size={14} />
             <span>Manage profiles</span>
           </Link>
+
+          {user && !user.auth_disabled && logout && (
+            <>
+              <div className="profile-menu-divider" />
+              {user.email && (
+                <div className="profile-menu-section-label">{user.email}</div>
+              )}
+              <button
+                role="menuitem"
+                className="profile-menu-item"
+                onClick={() => { setOpen(false); void logout(); }}
+              >
+                <Icon name="logOut" size={14} />
+                <span>Sign out</span>
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

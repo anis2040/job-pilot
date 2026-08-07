@@ -2,6 +2,19 @@
 
 JobPilot AI helps you search jobs, score them against your profile, and generate tailored resumes and cover letters.
 
+## Docker (hosted / friends)
+
+See [docs/HOSTING.md](docs/HOSTING.md) for the full guide. Short version:
+
+```bash
+cp .env.example .env   # set SECRET_KEY + Google OAuth
+mkdir -p data/profiles # durable user data (survives rebuilds)
+docker compose up -d --build
+# open http://localhost:5050/login
+```
+
+Profiles, SQLite DBs, and generated PDFs live in `./data/profiles` on the host.
+
 ## React Dev Mode
 
 Use the root dev launcher when you want the React app and Flask backend together.
@@ -77,11 +90,30 @@ For Windows PDF generation, install [MiKTeX](https://miktex.org/download) and en
 - Builds ATS-oriented resumes and matching cover letters per job
 - Lets you manage AI providers, models, and token usage from the UI
 
+## Multi-user auth (Google)
+
+JobPilot supports Google sign-in for hosted / multi-user use. Each Google account gets an isolated data directory under `profiles/<user_id>/`.
+
+**Local development (default):** if `FLASK_DEBUG` is on and Google OAuth is not configured, auth is disabled and data lives under `profiles/_local/`.
+
+**Enable Google login** — create an OAuth 2.0 Web client in [Google Cloud Console](https://console.cloud.google.com/) and set:
+
+| Env var | Example |
+|---|---|
+| `GOOGLE_CLIENT_ID` | from Google Cloud |
+| `GOOGLE_CLIENT_SECRET` | from Google Cloud |
+| `SECRET_KEY` | long random string |
+| `OAUTH_REDIRECT_URI` | `http://localhost:5050/auth/callback/google` (dev) |
+| `AUTH_DISABLED` | `0` to force auth even in debug; `1` to force local mode |
+| `FLASK_DEBUG` | `false` in production |
+
+Authorized redirect URI in Google Cloud must match `OAUTH_REDIRECT_URI` (or the auto URL from Flask).
+
 ## AI Providers
 
-JobPilot can use Groq, Anthropic Claude, and Gemini. API keys are entered in the app and saved to `.env`.
+JobPilot can use Groq, Anthropic Claude, and Gemini. API keys are entered in the app and saved **per user** to `profiles/<user_id>/.env` (not the project root `.env`). Root `.env` is only for server config (OAuth, `SECRET_KEY`, etc.).
 
-| Provider | Env var |
+| Provider | Env var (per user) |
 |---|---|
 | Groq | `GROQ_API_KEY` |
 | Anthropic | `ANTHROPIC_API_KEY` |
@@ -89,9 +121,10 @@ JobPilot can use Groq, Anthropic Claude, and Gemini. API keys are entered in the
 
 ## Output
 
-Generated files are stored under the active profile, for example:
+Generated files are stored under the active profile for the signed-in user:
 
 ```text
-profiles/<name>/<CompanyName>/resumes/
-profiles/<name>/<CompanyName>/cover-letters/
+profiles/<user_id>/<profile-slug>/<CompanyName>/resumes/
+profiles/<user_id>/<profile-slug>/<CompanyName>/cover-letters/
 ```
+

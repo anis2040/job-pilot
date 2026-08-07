@@ -280,8 +280,9 @@ def _verify_providers() -> list[tuple[str, str]]:
     falls through this list on failure, so a configured-but-unfunded provider
     (e.g. Anthropic with no credits) no longer silently disables the guard.
     """
-    import os, shutil
-    pref = os.environ.get("PREFERRED_PROVIDER", "").strip().lower()
+    import shutil
+    from .ai_providers import _env_get
+    pref = _env_get("PREFERRED_PROVIDER", "").strip().lower()
     cands: list[tuple[str, str]] = []
 
     def add(provider, model):
@@ -314,19 +315,17 @@ def _run_verifier(system: str, prompt: str) -> dict | None:
     parsed dict, or None if no verifier succeeded. Shared by the summary and
     bullet fabrication guards.
     """
-    import os, json as _json
+    import json as _json
+    from .ai_providers import env_override
     for provider, model in _verify_providers():
-        saved_pref = os.environ.get("PREFERRED_PROVIDER")
-        saved_model = os.environ.get(f"{provider.upper()}_MODEL")
         try:
-            os.environ["PREFERRED_PROVIDER"] = provider
-            os.environ[f"{provider.upper()}_MODEL"] = model
-            raw = call_ai(prompt, system=system)
+            with env_override(
+                PREFERRED_PROVIDER=provider,
+                **{f"{provider.upper()}_MODEL": model},
+            ):
+                raw = call_ai(prompt, system=system)
         except Exception:
             continue  # this verifier failed — fall through to the next
-        finally:
-            _restore_env("PREFERRED_PROVIDER", saved_pref)
-            _restore_env(f"{provider.upper()}_MODEL", saved_model)
         try:
             return extract_json_from_llm(raw)
         except Exception:
@@ -424,14 +423,6 @@ def _verify_content(content: dict, profile_text: str) -> list[str]:
     return changed
 
 
-def _restore_env(key: str, value: str | None) -> None:
-    import os
-    if value is None:
-        os.environ.pop(key, None)
-    else:
-        os.environ[key] = value
-
-
 def _verify_cover_letter(content: dict, profile_text: str) -> bool:
     """Fabrication guard for cover-letter paragraphs (mirrors _verify_content).
 
@@ -484,7 +475,6 @@ def _verify_cover_letter(content: dict, profile_text: str) -> bool:
 def _build_document(job_id: str, doc_type: str) -> None:
     """Shared document builder for resumes and cover letters."""
     is_resume = doc_type == "resume"
-    status_dict = task_state._task_status if is_resume else task_state._cl_task_status
     stage_fn = task_state._set_stage if is_resume else task_state._set_cl_stage
     skill_dir = _skill_path() if is_resume else _cl_skill_path()
     tex_suffix = "Resume" if is_resume else "Cover_Letter"
@@ -617,16 +607,17 @@ def _build_document(job_id: str, doc_type: str) -> None:
         # Both are now rendered from fixed templates — always valid, no repair loop.
         pdf_path = _compile_latex(tex_path)
 
-        with task_state._lock:
-            status_dict[job_id] = {"status": "done", "pdf_path": str(pdf_path), "error": None}
+        task_state.set_job_result(
+            job_id, {"status": "done", "pdf_path": str(pdf_path), "error": None},
+            is_resume=is_resume,
+        )
 
     except Exception as e:
         from .ai_providers import RateLimitError
         entry = {"status": "error", "pdf_path": None, "error": str(e)}
         if isinstance(e, RateLimitError):
             entry["rate_limit"] = e.as_dict()
-        with task_state._lock:
-            status_dict[job_id] = entry
+        task_state.set_job_result(job_id, entry, is_resume=is_resume)
 
 
 def _build_resume(job_id: str) -> None:

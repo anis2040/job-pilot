@@ -1,0 +1,44 @@
+# JobPilot AI — local / VPS deploy with persistent profile data.
+#
+# Quick start:
+#   1. cp .env.example .env   # fill SECRET_KEY + Google OAuth
+#   2. docker compose up -d --build
+#   3. open http://localhost:5050/login
+#
+# Profiles (SQLite, PDFs, per-user AI keys) live on the host at ./data/profiles
+# so rebuilds and `docker compose down` do NOT wipe user data.
+# Only `docker compose down -v` or deleting ./data/profiles removes them.
+
+services:
+  app:
+    build:
+      context: .
+      args:
+        # Match the host user that owns ./data/profiles (defaults work on most Linux boxes)
+        APP_UID: "${HOST_UID:-1000}"
+        APP_GID: "${HOST_GID:-1000}"
+    image: jobpilot-ai:latest
+    container_name: jobpilot
+    restart: unless-stopped
+    # Same UID/GID as the image user — keeps bind-mounted files owned by you
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    ports:
+      - "${HOST_PORT:-5050}:5050"
+    env_file:
+      - .env
+    environment:
+      FLASK_DEBUG: "${FLASK_DEBUG:-false}"
+      AUTH_DISABLED: "${AUTH_DISABLED:-0}"
+      PORT: "5050"
+      # Longer timeout: resume/cover-letter generation can be slow
+      GUNICORN_TIMEOUT: "${GUNICORN_TIMEOUT:-180}"
+      GUNICORN_WORKERS: "${GUNICORN_WORKERS:-2}"
+    volumes:
+      # Host bind mount = easy backups + survives image rebuilds / compose down
+      - ./data/profiles:/app/profiles
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:5050/auth/status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s

@@ -16,11 +16,24 @@ import job.paths
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     """Flask test client with an isolated temp .env and stubbed AI backends."""
+    import job.profiles as profs
+    from job.user_context import LOCAL_USER_ID
+
     # Redirect all .env writes/reads to a temp file. The web.py routes write via
     # web.BASE; ai_providers._load_env reads via job.paths.BASE. Patch both so
     # _load_env() never re-reads the real project .env and repopulates keys.
     monkeypatch.setattr(web, "BASE", tmp_path)
     monkeypatch.setattr(job.paths, "BASE", tmp_path)
+    monkeypatch.setenv("AUTH_DISABLED", "1")
+    monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False)
+    monkeypatch.delenv("GOOGLE_CLIENT_SECRET", raising=False)
+
+    pdir = tmp_path / "profiles"
+    pdir.mkdir()
+    monkeypatch.setattr(profs, "PROFILES_DIR", pdir)
+    monkeypatch.setattr(profs, "get_current_user_id", lambda: LOCAL_USER_ID)
+    monkeypatch.setattr(profs, "_update_symlinks", lambda d: None)
+    (pdir / LOCAL_USER_ID).mkdir()
 
     # No real provider clients / no network model listing
     monkeypatch.setattr(web, "_get_groq_client", lambda: None)
@@ -43,6 +56,11 @@ def client(tmp_path, monkeypatch):
 
     web.app.config["TESTING"] = True
     return web.app.test_client()
+
+
+def _user_env(tmp_path):
+    from job.user_context import LOCAL_USER_ID
+    return tmp_path / "profiles" / LOCAL_USER_ID / ".env"
 
 
 class TestAiSettingsGet:
@@ -95,7 +113,7 @@ class TestAiSettingsSave:
         })
         assert r.status_code == 200
         assert r.get_json()["ok"] is True
-        env_text = (tmp_path / ".env").read_text()
+        env_text = _user_env(tmp_path).read_text()
         assert "GROQ_MODEL=llama-3.1-8b-instant" in env_text
         assert "PREFERRED_PROVIDER=groq" in env_text
 
@@ -110,7 +128,7 @@ class TestAiSettingsSave:
         assert data["ok"] is True
         assert "GEMINI_MODEL" in data["updated"]
         assert "GROQ_MODEL" not in data["updated"]
-        env_text = (tmp_path / ".env").read_text()
+        env_text = _user_env(tmp_path).read_text()
         assert "GEMINI_MODEL=gemini-3.5-flash" in env_text
         assert "PREFERRED_PROVIDER=gemini" in env_text
         assert "GROQ_MODEL=" not in env_text
@@ -124,34 +142,35 @@ class TestAiSettingsSave:
         data = r.get_json()
         assert data["ok"] is True
         assert "ANTHROPIC_MODEL" in data["updated"]
-        env_text = (tmp_path / ".env").read_text()
+        env_text = _user_env(tmp_path).read_text()
         assert "ANTHROPIC_MODEL=claude-haiku-4-5" in env_text
         assert "PREFERRED_PROVIDER=anthropic" in env_text
 
     def test_clearing_preferred_removes_it(self, client, tmp_path):
         client.post("/api/ai-settings", json={"preferred_provider": "gemini"})
-        assert "PREFERRED_PROVIDER=gemini" in (tmp_path / ".env").read_text()
+        assert "PREFERRED_PROVIDER=gemini" in _user_env(tmp_path).read_text()
         client.post("/api/ai-settings", json={"preferred_provider": ""})
-        assert "PREFERRED_PROVIDER=" not in (tmp_path / ".env").read_text()
+        assert "PREFERRED_PROVIDER=" not in _user_env(tmp_path).read_text()
 
     def test_semantic_match_persists(self, client, tmp_path):
         client.post("/api/ai-settings", json={"semantic_match": False})
-        assert "SEMANTIC_MATCH=off" in (tmp_path / ".env").read_text()
+        assert "SEMANTIC_MATCH=off" in _user_env(tmp_path).read_text()
         assert client.get("/api/ai-settings").get_json()["semantic_match"] is False
         client.post("/api/ai-settings", json={"semantic_match": True})
-        assert "SEMANTIC_MATCH=on" in (tmp_path / ".env").read_text()
+        assert "SEMANTIC_MATCH=on" in _user_env(tmp_path).read_text()
 
     def test_invalid_preferred_ignored(self, client, tmp_path):
         r = client.post("/api/ai-settings", json={"preferred_provider": "bogus"})
         assert r.status_code == 200
         # bogus value must not be written
-        env_text = (tmp_path / ".env").read_text() if (tmp_path / ".env").exists() else ""
+        env_path = _user_env(tmp_path)
+        env_text = env_path.read_text() if env_path.exists() else ""
         assert "bogus" not in env_text
 
     def test_does_not_duplicate_keys(self, client, tmp_path):
         client.post("/api/ai-settings", json={"groq_model": "a"})
         client.post("/api/ai-settings", json={"groq_model": "b"})
-        env_text = (tmp_path / ".env").read_text()
+        env_text = _user_env(tmp_path).read_text()
         assert env_text.count("GROQ_MODEL=") == 1
         assert "GROQ_MODEL=b" in env_text
 
@@ -166,7 +185,7 @@ class TestSaveKeys:
         r = client.post(endpoint, json={"key": "test-secret-123"})
         assert r.status_code == 200
         assert r.get_json()["ok"] is True
-        assert f"{env_key}=test-secret-123" in (tmp_path / ".env").read_text()
+        assert f"{env_key}=test-secret-123" in _user_env(tmp_path).read_text()
 
     def test_empty_key_rejected(self, client):
         r = client.post("/api/setup/save-groq-key", json={"key": ""})
@@ -212,3 +231,18 @@ class TestSetupParseResume:
 
         assert r.status_code == 504
         assert r.get_json()["error"] == "AI extraction timed out. Try again."
+
+    def test_timeout_helper_preserves_user_context(self, monkeypatch):
+        """Worker thread must see the same user as the request (per-user AI keys)."""
+        from job.user_context import get_current_user_id, user_context
+
+        seen: list[str] = []
+
+        def fake_call_ai(prompt: str) -> str:
+            seen.append(get_current_user_id())
+            return "{}"
+
+        monkeypatch.setattr(web, "call_ai", fake_call_ai)
+        with user_context("google_abc123"):
+            assert web._call_ai_with_timeout("hi", timeout=5) == "{}"
+        assert seen == ["google_abc123"]

@@ -105,6 +105,8 @@ export interface AiSettings {
 
 export interface SetupStatus {
   platform: string;
+  /** True when FLASK_DEBUG — enables Node/CLI/pdflatex install UI on setup. */
+  debug: boolean;
   has_claude: boolean;
   has_gemini: boolean;
   has_pdflatex: boolean;
@@ -112,8 +114,10 @@ export interface SetupStatus {
   has_profile: boolean;
   gemini_key_set: boolean;
   groq_key_set: boolean;
+  anthropic_key_set: boolean;
   gemini_key: string;
   groq_key: string;
+  anthropic_key: string;
 }
 
 export interface RateLimitInfo {

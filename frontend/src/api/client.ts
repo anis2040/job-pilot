@@ -2,22 +2,45 @@ import type {
   Job, JobCounts, JobDetail, MatchInfo, Profile, SearchConfig, AiSettings,
   SetupStatus, DocumentStatus, FetchStatus, AppConstants, SaveConfigResult,
 } from './types';
+import type { AuthUser } from '../hooks/authContext';
+
+function handleUnauthorized(url: string, status: number): void {
+  if (status !== 401) return;
+  if (url.startsWith('/auth/me') || url.startsWith('/auth/status')) return;
+  if (window.location.pathname === '/login') return;
+  window.location.href = '/login';
+}
 
 async function get<T>(url: string): Promise<T> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`GET ${url} → ${res.status}`);
+  const res = await fetch(url, { credentials: 'include' });
+  if (!res.ok) {
+    handleUnauthorized(url, res.status);
+    throw new Error(`GET ${url} → ${res.status}`);
+  }
   return res.json();
 }
 
 async function post<T>(url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, {
     method: 'POST',
+    credentials: 'include',
     headers: body !== undefined ? { 'Content-Type': 'application/json' } : {},
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
-  if (!res.ok) throw new Error(`POST ${url} → ${res.status}`);
+  if (!res.ok) {
+    handleUnauthorized(url, res.status);
+    throw new Error(`POST ${url} → ${res.status}`);
+  }
   return res.json();
 }
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
+export const auth = {
+  me: () => get<AuthUser>('/auth/me'),
+  status: () => get<{ google_configured: boolean; auth_disabled: boolean; authenticated: boolean }>('/auth/status'),
+  logout: () => post<{ ok: boolean }>('/auth/logout'),
+};
 
 // ── Jobs ─────────────────────────────────────────────────────────────────────
 
@@ -109,9 +132,17 @@ export const setup = {
     const form = new FormData();
     form.append('file', file);
     try {
-      const res = await fetch('/api/setup/parse-resume', { method: 'POST', body: form, signal: controller.signal });
+      const res = await fetch('/api/setup/parse-resume', {
+        method: 'POST',
+        body: form,
+        signal: controller.signal,
+        credentials: 'include',
+      });
       const payload = await res.json().catch(() => null) as { error?: string; ok?: boolean; data?: unknown } | null;
-      if (!res.ok) throw new Error(payload?.error || `POST /api/setup/parse-resume → ${res.status}`);
+      if (!res.ok) {
+        handleUnauthorized('/api/setup/parse-resume', res.status);
+        throw new Error(payload?.error || `POST /api/setup/parse-resume → ${res.status}`);
+      }
       return (payload || { ok: true, data: {} }) as { ok: boolean; data: unknown };
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {

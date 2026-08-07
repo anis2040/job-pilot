@@ -74,7 +74,7 @@ def test_build_resume_renders_and_writes_tex(wired):
     resumes = wired
     documents._build_resume("li_1")
 
-    status = task_state._task_status.get("li_1", {})
+    status = task_state.get_task_status("li_1")
     tex = resumes / "Acme" / "resumes" / "Anis_Helaoui_Resume.tex"
     assert tex.exists(), f"tex not written; status={status}"
     assert not (resumes / "TargetCompany" / "resumes" / "Anis_Helaoui_Resume.tex").exists()
@@ -91,7 +91,7 @@ def test_build_resume_compiles_pdf_if_pdflatex(wired):
         pytest.skip("pdflatex not installed")
     resumes = wired
     documents._build_resume("li_1")
-    status = task_state._task_status.get("li_1", {})
+    status = task_state.get_task_status("li_1")
     assert status.get("status") == "done", f"build failed: {status.get('error')}"
     assert status.get("pdf_path") and status["pdf_path"].endswith(".pdf")
 
@@ -254,7 +254,7 @@ def cl_wired(tmp_path, monkeypatch):
 def test_build_cover_letter_renders_json_to_tex(cl_wired):
     resumes = cl_wired
     documents._build_cover_letter("li_2")
-    st = task_state._cl_task_status.get("li_2", {})
+    st = task_state.get_cl_task_status("li_2")
     tex = resumes / "Acme" / "cover-letters" / "Anis_Helaoui_Cover_Letter.tex"
     assert tex.exists(), f"CL tex not written; status={st}"
     assert not (resumes / "TargetCompany" / "cover-letters" / "Anis_Helaoui_Cover_Letter.tex").exists()

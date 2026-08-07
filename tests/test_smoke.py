@@ -22,19 +22,24 @@ def _row_conn(path):
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
+    from job.user_context import LOCAL_USER_ID
     monkeypatch.setattr(web, "BASE", tmp_path)
     monkeypatch.setattr(job.paths, "BASE", tmp_path)
+    monkeypatch.setenv("AUTH_DISABLED", "1")
+    monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False)
+    monkeypatch.delenv("GOOGLE_CLIENT_SECRET", raising=False)
     pdir = tmp_path / "profiles"; pdir.mkdir()
     monkeypatch.setattr(profs, "PROFILES_DIR", pdir)
-    monkeypatch.setattr(profs, "ACTIVE_FILE", pdir / ".active")
     monkeypatch.setattr(profs, "_update_symlinks", lambda d: None)
+    monkeypatch.setattr(profs, "get_current_user_id", lambda: LOCAL_USER_ID)
     monkeypatch.setattr(web, "PROFILES_DIR", pdir)
 
-    prof = pdir / "smoke-user"; prof.mkdir()
+    user_dir = pdir / LOCAL_USER_ID
+    prof = user_dir / "smoke-user"; prof.mkdir(parents=True)
     (prof / "profile.md").write_text("# Smoke User\nSoftware Engineer")
     (prof / "config.yaml").write_text(
         "searches:\n  - name: t\n    source: linkedin\n    query: engineer\n    location: Germany\n")
-    (pdir / ".active").write_text("smoke-user")
+    (user_dir / ".active").write_text("smoke-user")
 
     db_file = prof / "state.db"
     monkeypatch.setattr(db, "_connect", lambda: _row_conn(db_file))

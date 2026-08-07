@@ -16,6 +16,7 @@ export default defineConfig({
     proxy: {
       '/api': { target: 'http://localhost:5050', changeOrigin: true },
       '/pdf': { target: 'http://localhost:5050', changeOrigin: true },
+      '/auth': { target: 'http://localhost:5050', changeOrigin: true },
     },
   },
   build: { outDir: 'dist', emptyOutDir: true },

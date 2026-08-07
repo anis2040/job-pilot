@@ -176,4 +176,13 @@ export const handlers = [
   http.get('/api/ai-settings', () => HttpResponse.json({
     active_provider: 'groq', preferred_provider: 'groq', semantic_match: false, embeddings_available: false, providers: {},
   })),
+
+  // ── Auth ──
+  http.get('/auth/me', () => HttpResponse.json({
+    id: '_local', email: '', name: 'Local', picture: '', auth_disabled: true,
+  })),
+  http.get('/auth/status', () => HttpResponse.json({
+    google_configured: false, auth_disabled: true, authenticated: true,
+  })),
+  http.post('/auth/logout', () => HttpResponse.json({ ok: true })),
 ]

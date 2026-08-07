@@ -41,8 +41,7 @@ def _run_fetch() -> None:
         total_new = 0
 
         for search in config.searches:
-            with task_state._lock:
-                task_state._fetch_status["message"] = f"Fetching {search.name}…"
+            task_state.set_fetch_message(f"Fetching {search.name}…")
 
             jobs = fetch_search(search)
             new_count = 0
@@ -80,14 +79,10 @@ def _run_fetch() -> None:
             except Exception:
                 pass
 
-        with task_state._lock:
-            task_state._fetch_status["status"] = "done"
-            task_state._fetch_status["message"] = f"Done — {total_new} new job(s) found"
+        task_state.set_fetch_done(f"Done — {total_new} new job(s) found")
 
     except Exception as e:
-        with task_state._lock:
-            task_state._fetch_status["status"] = "error"
-            task_state._fetch_status["message"] = str(e)
+        task_state.set_fetch_error(str(e))
 
 
 def _backfill_embeddings(batch: int = 100) -> None:
