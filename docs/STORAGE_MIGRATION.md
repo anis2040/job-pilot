@@ -25,37 +25,15 @@ When we deploy to the cloud (e.g. Fly.io with a persistent volume), the same lay
 
 This plan is the agreed path forward: **incremental refactors** that unlock cloud scaling without a risky big-bang rewrite.
 
-**Important constraint:** local development and “run on my machine” must **keep today’s behavior unchanged** — files on disk, SQLite per profile, `/pdf/...` served by Flask. Cloud deploys opt into external storage via configuration. Business logic must not branch on vendor names (`boto3`, R2, etc.) scattered across the codebase.
+**Important constraint:** **Dev** keeps saving files on disk exactly as today; **prod** stores PDFs in external object storage (see §2). Business logic must not branch on vendor names (`boto3`, R2, etc.) scattered across the codebase.
 
 ---
 
-## 2. Design principle: abstraction + local/cloud modes
+## 2. Design principle: abstraction + dev/prod split
 
-### Goal
+**Dev** continues to save PDFs under `profiles/` on the local filesystem; **prod** uploads PDFs to external object storage (S3-compatible). The factory in `job/storage/` picks the backend from `FLASK_DEBUG` — no separate deployment env var.
 
-| Runtime | PDFs | Database | Developer experience |
-|---------|------|----------|----------------------|
-| **Local** (laptop, `./dev.sh`, Docker Compose dev) | Files under `profiles/...` | SQLite `state.db` per profile | Same as today — zero cloud credentials |
-| **Cloud** (Fly, managed VPS in “production” mode) | Object storage (S3-compatible) | SQLite on volume *now* → shared SQL *later* | Configured via server `.env` only |
-
-Switching cloud storage vendor (AWS S3 → Cloudflare R2 → Supabase Storage → MinIO) should require **env var changes and at most one small adapter file**, not edits across `web.py`, `documents.py`, and tests.
-
-### Runtime mode
-
-Introduce an explicit deployment mode (exact env name TBD during implementation):
-
-```env
-# local  — default when unset in dev; filesystem + SQLite (current behavior)
-# cloud  — object storage for PDFs; optional shared SQL in later phases
-DEPLOYMENT_MODE=local
-```
-
-**Suggested defaults:**
-
-- `DEPLOYMENT_MODE=local` when `FLASK_DEBUG=true` or when no cloud storage config is present
-- `DEPLOYMENT_MODE=cloud` in production `.env` / Fly secrets
-
-Mode is resolved **once at startup** in a single factory module — not re-checked in every route.
+Switching prod storage vendor (AWS S3 → Cloudflare R2 → MinIO) should require **env var changes and at most one small adapter file**, not edits across `web.py`, `documents.py`, and tests.
 
 ### Layered abstractions (centralized)
 
@@ -72,11 +50,11 @@ All durable I/O goes through small interfaces in one package (proposed: `job/sto
 │  job/storage/__init__.py  →  get_blob_storage()            │
 │                             →  get_database()  (Phase 3)     │
 └────────────────────────────┬────────────────────────────────┘
-                             │ selects by DEPLOYMENT_MODE + env
+                             │ selects backend once at startup (dev vs prod)
         ┌────────────────────┼────────────────────┐
         ▼                    ▼                    ▼
  LocalFilesystemBackend   S3CompatibleBackend   PostgresBackend
- (local mode, Phase 1)    (cloud Phase 1)       (cloud Phase 3)
+ (dev)                    (prod)                (prod, Phase 3)
                           also: R2, MinIO,
                           Supabase via same SDK
 ```
@@ -97,10 +75,10 @@ One interface, multiple backends:
 
 | Backend | When | Behavior |
 |---------|------|----------|
-| `LocalFilesystemBackend` | `DEPLOYMENT_MODE=local` | Writes under `profiles/...`; `get_url` returns `/pdf/...` (current behavior) |
-| `S3CompatibleBackend` | `DEPLOYMENT_MODE=cloud` | S3 API (`boto3` or `aioboto3`); works with AWS S3, **R2**, MinIO, many others via endpoint URL |
+| `LocalFilesystemBackend` | **Dev** (`FLASK_DEBUG=true`) | Writes under `profiles/...`; `get_url` returns `/pdf/...` (current behavior) |
+| `S3CompatibleBackend` | **Prod** (`FLASK_DEBUG=false` + storage env) | S3 API (`boto3`); works with AWS S3, **R2**, MinIO, others via endpoint URL |
 
-**Vendor swap (cloud):** change env only — no app code changes:
+**Vendor swap (prod):** change env only — no app code changes:
 
 ```env
 STORAGE_BACKEND=s3          # registry key, not “AWS only”
@@ -113,39 +91,39 @@ STORAGE_SECRET_KEY=...
 
 Adding a new vendor with a non-S3 API (e.g. GCS native SDK) = **one new class** implementing `BlobStorage` + one line in the factory registry.
 
-**What business logic stores:** an opaque **`storage_key`** (and optionally a cached URL), never a vendor-specific path or bucket name. Local backend maps keys to relative paths under the profile tree; cloud backend maps keys to `s3://bucket/key`.
+**What business logic stores:** an opaque **`storage_key`** (and optionally a cached URL), never a vendor-specific path or bucket name. Dev backend maps keys to relative paths under the profile tree; prod backend maps keys to `s3://bucket/key`.
 
 #### Phase 3 — `Database` protocol (optional until shared SQL)
 
-Until Phase 3, `job/db.py` can keep calling SQLite directly in **local mode**. In **cloud mode** on a single volume, same SQLite file — no abstraction required yet.
+Until Phase 3, `job/db.py` keeps calling SQLite directly in **dev**. In **prod** on a single Fly volume, same SQLite file on disk — no abstraction required yet.
 
 When moving to Postgres/Turso:
 
 | Method area | Notes |
 |-------------|-------|
 | Connection / transactions | `get_database()` returns a backend with the same operations `job/db.py` needs today |
-| `LocalSqliteBackend` | Current `state.db` per profile — local mode only |
-| `PostgresBackend` / `TursoBackend` | Cloud mode; `user_id` + `profile_id` on every query |
+| `LocalSqliteBackend` | Current `state.db` per profile — **dev only** |
+| `PostgresBackend` / `TursoBackend` | **Prod**; `user_id` + `profile_id` on every query |
 
 Repository functions stay in `job/db.py` (or `job/repository.py`); only the **connection layer** is swappable.
 
 #### Profile/config files (Phase 4)
 
-Same pattern: `ProfileStore` protocol with `LocalProfileStore` (files) and optional `RemoteProfileStore` (DB or object storage). Local mode always uses files.
+Same pattern: `ProfileStore` protocol with `LocalProfileStore` (files, **dev**) and optional `RemoteProfileStore` (DB or object storage, **prod**).
 
 ### Rules for contributors
 
 1. **No direct `Path(...).write_bytes` for PDFs** in business logic — use `get_blob_storage()`.
 2. **No `boto3` imports** outside `job/storage/backends/s3.py` (or equivalent).
-3. **No `if fly.io` / `if cloud`** in routes — only `DEPLOYMENT_MODE` in the factory.
-4. **Tests** use `LocalFilesystemBackend` + temp dirs by default; cloud backends tested with mocks/fakes in CI (no real bucket).
-5. **Local mode is not a shim** — it remains a fully supported, first-class deployment target indefinitely.
+3. **No environment checks in routes** — backend selection lives only in `get_blob_storage()` (and later `get_database()`).
+4. **Tests** run in **dev** by default (`LocalFilesystemBackend` + temp dirs); prod backends tested with mocks in CI (no real bucket).
+5. **Dev mode is not a stub** — it is the permanent local development path and must stay behavior-identical to today.
 
 ### Benefits of this shape
 
 | Benefit | Why |
 |---------|-----|
-| Local dev unchanged | Default backend is filesystem; no API keys for storage |
+| Local dev unchanged | Dev backend is filesystem; no storage API keys |
 | Vendor portability | S3-compatible backends share one implementation |
 | Minimal blast radius | Swap vendor or fix SDK usage in one directory |
 | Incremental delivery | Phase 1 adds `BlobStorage` only; DB abstraction follows when needed |
@@ -157,7 +135,7 @@ Same pattern: `ProfileStore` protocol with `LocalProfileStore` (files) and optio
 |-----------|------------|
 | Two code paths to test | Shared integration tests against `LocalFilesystemBackend`; contract tests for `BlobStorage` interface |
 | URL shape differs ( `/pdf/...` vs signed HTTPS) | Frontend already uses `pdf_url` strings; backend normalizes in `get_url()` |
-| Existing on-disk PDFs in cloud | One-time migration script using the same `BlobStorage.put()` abstraction |
+| Existing on-disk PDFs in prod | One-time migration script using the same `BlobStorage.put()` abstraction |
 | Risk of “leaky” abstraction | Enforce via factory + lint/review; document in this file |
 
 ---
@@ -269,27 +247,27 @@ SQLite is a **single file** that expects a **local POSIX filesystem** with relia
 
 ## 6. Phased migration plan
 
-Each phase is independently valuable. Later phases do not block shipping earlier ones. **Every phase must preserve local mode** (§2) — cloud behavior is additive, selected by config.
+Each phase is independently valuable. Later phases do not block shipping earlier ones. **Dev behavior must not regress** (§2).
 
-### Phase 1 — `BlobStorage` abstraction + cloud PDFs (recommended first)
+### Phase 1 — `BlobStorage` abstraction + prod PDFs (recommended first)
 
-**Goal:** One interface for PDFs; local mode keeps filesystem behavior; cloud mode uploads to object storage.
+**Goal:** One interface for PDFs; **dev** keeps filesystem behavior; **prod** uploads to object storage.
 
 **Scope:**
 
 1. Add `job/storage/` with `BlobStorage` protocol, factory (`get_blob_storage()`), and backends:
-   - `LocalFilesystemBackend` — default; current `profiles/...` layout + `/pdf/...` URLs
-   - `S3CompatibleBackend` — cloud; endpoint URL makes R2/MinIO/AWS interchangeable
-2. Refactor `job/documents.py` to call `blob_storage.put(...)` after `pdflatex` (compile still uses local temp dir in **both** modes).
+   - `LocalFilesystemBackend` — **dev**; current `profiles/...` layout + `/pdf/...` URLs
+   - `S3CompatibleBackend` — **prod**; endpoint URL makes R2/MinIO/AWS interchangeable
+2. Refactor `job/documents.py` to call `blob_storage.put(...)` after `pdflatex` (compile still uses local temp dir in **both** envs).
 3. Refactor `web.py`:
-   - Local: keep `GET /pdf/<path>` for `LocalFilesystemBackend`
-   - Cloud: signed URLs from `get_url()`, or thin authenticated proxy using `blob_storage.open()`
+   - **Dev:** keep `GET /pdf/<path>` for `LocalFilesystemBackend`
+   - **Prod:** signed URLs from `get_url()`, or thin authenticated proxy using `blob_storage.open()`
 4. Store **`storage_key`** in task state / metadata; expose **`pdf_url`** to API (frontend unchanged).
-5. Env: `DEPLOYMENT_MODE`, `STORAGE_*` vars (see §2); document in `.env.example`.
+5. Env: `STORAGE_*` vars for prod (see below); document in `.env.example`. Prod already sets `FLASK_DEBUG=false` (Fly, Docker prod).
 
-**Benefits:** Unlocks multi-instance PDF access in cloud; local dev untouched; vendor changes are env-only.
+**Benefits:** Unlocks multi-instance PDF access in prod; dev untouched; vendor changes are env-only.
 
-**Challenges:** Contract tests for both backends; migrating existing cloud-volume PDFs via the same `put()` API.
+**Challenges:** Contract tests for both backends; migrating existing prod-volume PDFs via the same `put()` API.
 
 **Out of scope for phase 1:** SQLite abstraction, profile.md, config.yaml, per-user `.env`.
 
@@ -348,7 +326,7 @@ Each phase is independently valuable. Later phases do not block shipping earlier
 
 ## 7. Target end state (vision)
 
-### Cloud mode (production)
+### Prod
 
 ```
                     ┌─────────────────────────────────┐
@@ -367,33 +345,33 @@ Each phase is independently valuable. Later phases do not block shipping earlier
      └────────────────┘ └──────────────┘ └─────────────────┘
 ```
 
-### Local mode (development — permanent)
-
-```
-  Flask app  →  get_blob_storage()  →  LocalFilesystemBackend
-           →  job/db.py             →  SQLite state.db (unchanged)
-           →  profiles/... on disk  →  same tree as today
-```
-
 - **SQL:** source of truth for jobs, status, metadata, storage keys.
-- **Object storage (cloud):** source of truth for PDF bytes via `BlobStorage`.
-- **Local filesystem (local mode):** source of truth for everything durable — no regression.
-- **Local temp (both modes):** only for LaTeX compile.
+- **Object storage (prod):** source of truth for PDF bytes via `BlobStorage`.
+- **Filesystem (dev):** source of truth for everything durable — unchanged from today.
+- **Local temp (both envs):** only for LaTeX compile.
 
 ---
 
-## 8. What stays the same — permanently in local mode
+## 8. What stays the same in dev
 
-Local mode is **not** a temporary fallback. It remains the default developer experience:
+Dev (`FLASK_DEBUG=true`, e.g. `./dev.sh`) is the permanent local development path:
 
-- **`./dev.sh` / Docker Compose dev** — `DEPLOYMENT_MODE=local` (or unset)
+- **`./dev.sh` / `npm run dev`** — filesystem + SQLite, no storage credentials
 - **Filesystem layout** under `profiles/` — identical to today
-- **SQLite per profile** — no cloud DB required to hack on the app
+- **SQLite per profile** — no hosted DB required to work on the app
 - **`/pdf/...` routes** — served from disk via `LocalFilesystemBackend`
 
-Cloud mode adds alternate backends behind the same interfaces. Do not remove local backends when Phase 3 ships.
+Prod adds alternate backends behind the same interfaces. Do not remove dev backends when Phase 3 ships.
 
-For a **single-instance cloud VPS** that prefers simplicity, `DEPLOYMENT_MODE=local` with a bind mount is still valid (see [HOSTING.md](HOSTING.md)) — object storage is for when you need shared files across instances or smaller volumes.
+**Note:** A hosted deploy with friends is **prod** (`FLASK_DEBUG=false`) — configure `STORAGE_*` env vars once Phase 1 ships; do not rely on the dev filesystem path.
+
+### Dev target (unchanged)
+
+```
+  Flask app  →  get_blob_storage()  →  LocalFilesystemBackend
+           →  job/db.py             →  SQLite state.db
+           →  profiles/... on disk  →  same tree as today
+```
 
 ---
 
@@ -402,17 +380,17 @@ For a **single-instance cloud VPS** that prefers simplicity, `DEPLOYMENT_MODE=lo
 ### Phase 0 — Abstraction scaffolding
 
 - [ ] Create `job/storage/` package: `BlobStorage` protocol, `StoredObject` type, `get_blob_storage()` factory
-- [ ] Resolve `DEPLOYMENT_MODE` at startup (document in `.env.example`)
-- [ ] `LocalFilesystemBackend` — wrap current path logic; must pass all existing tests unchanged
+- [ ] `get_blob_storage()` picks dev vs prod backend at startup (`FLASK_DEBUG` + storage env)
+- [ ] `LocalFilesystemBackend` — wrap current path logic; all existing tests must pass unchanged (dev path)
 
-### Phase 1 — Cloud PDFs
+### Phase 1 — Prod PDFs
 
 - [ ] `S3CompatibleBackend` — single module; S3/R2/MinIO via endpoint + credentials env vars
 - [ ] Refactor `job/documents.py` to use `get_blob_storage().put()` (no direct PDF path writes)
-- [ ] Refactor `web.py` PDF serving through backend (`get_url` / proxy / local `/pdf/...`)
+- [ ] Refactor `web.py` PDF serving through backend (`get_url` / proxy in prod; `/pdf/...` in dev)
 - [ ] Store `storage_key` in task state; keep `pdf_url` in API responses
-- [ ] Migration script for existing PDFs on cloud volumes (uses `BlobStorage.put`)
-- [ ] Contract tests: local backend = current behavior; S3 backend = mocked client in CI
+- [ ] Migration script for existing PDFs on prod volumes (uses `BlobStorage.put`)
+- [ ] Contract tests: dev backend = current behavior; S3 backend = mocked client in CI
 
 ### Phase 2 — Backups
 
@@ -421,11 +399,11 @@ For a **single-instance cloud VPS** that prefers simplicity, `DEPLOYMENT_MODE=lo
 
 ### Phase 3 — Shared SQL
 
-- [ ] `get_database()` factory + `LocalSqliteBackend` (local mode) + `PostgresBackend` (cloud)
+- [ ] `get_database()` factory + `LocalSqliteBackend` (dev) + `PostgresBackend` (prod)
 - [ ] Schema design with `user_id` / `profile_id`
 - [ ] Repository layer in `job/db.py` (or `job/repository.py`) — no vendor SQL in routes
 - [ ] One-shot migration from per-profile SQLite files
-- [ ] Integration tests for tenant isolation; local mode tests still use file SQLite
+- [ ] Integration tests for tenant isolation; dev tests still use file SQLite
 
 ---
 
@@ -433,13 +411,13 @@ For a **single-instance cloud VPS** that prefers simplicity, `DEPLOYMENT_MODE=lo
 
 | Move | Do it? | When | Main benefit | Main challenge |
 |------|--------|------|--------------|----------------|
-| **`BlobStorage` abstraction** | **Yes** | Phase 0–1 | Local unchanged; vendor swap in one place | Two backends to test |
-| PDFs → object storage (cloud only) | **Yes** | Phase 1 | Scale files across instances | Signed URLs + migration |
-| Keep local filesystem (local mode) | **Yes** | Always | Zero-friction dev | Must not regress |
+| **`BlobStorage` abstraction** | **Yes** | Phase 0–1 | Dev unchanged; vendor swap in one place | Two backends to test |
+| PDFs → object storage (**prod only**) | **Yes** | Phase 1 | Scale files across instances | Signed URLs + migration |
+| Filesystem storage (**dev only**) | **Yes** | Always | Zero-friction local dev | Must not regress |
 | SQLite → S3 (live) | **No** | — | — | Corruption; not a filesystem |
-| SQLite on volume | **OK short-term** | Cloud now | Zero migration cost | Single instance only |
+| SQLite on prod volume | **OK short-term** | Prod now | Bridge until Phase 3 | Single instance only |
 | SQLite → object storage backup | **Yes** | Phase 2 | Disaster recovery | Not a scaling fix |
-| SQLite → Postgres/Turso (cloud) | **Yes** | Phase 3 | Multi-instance, ops | Largest code migration |
+| SQLite → Postgres/Turso (**prod**) | **Yes** | Phase 3 | Multi-instance, ops | Largest code migration |
 | Profile files → DB/storage | **Maybe** | Phase 4 | Fully stateless app | Setup/CLI changes |
 
 ---
@@ -459,4 +437,4 @@ For a **single-instance cloud VPS** that prefers simplicity, `DEPLOYMENT_MODE=lo
 
 ---
 
-*Last updated: 2026-08-08 — includes local/cloud mode split and centralized storage abstraction.*
+*Last updated: 2026-08-08 — dev uses local files, prod uses external storage; centralized abstraction.*
