@@ -29,8 +29,14 @@ Return ONLY a JSON object with this exact structure — no explanation, no markd
 
 {
   "company": "Company name inferred from the job description",
-  "summary": "2-4 sentence summary, plain-text. FIRST sentence must open with a concrete result/outcome or the specific value the candidate delivers - NEVER open with 'Certified/Experienced/Seasoned X', a job title, or 'N+ years of experience'. Lead with the strongest metric from the profile. Banned: 'proven track record', 'expert in', 'passionate', 'results-driven'. Every clause must state something specific to THIS candidate.",
-  "core_competencies": ["Competency 1", "Competency 2"],
+  "headline": "Professional title shown under the candidate's name. Use the JD's exact role title (e.g. 'Senior Frontend Engineer') WHEN profile.md supports that seniority/specialty — this is the single biggest ATS title-match lever. This is a headline, NOT a claim about any specific employer's HR title, so it is grounded as long as the profile's own summary/titles support the level. If the profile does not support the JD's seniority, use the candidate's closest real title.",
+  "summary": "3-4 sentence summary, plain-text, human voice. Sentence 1: introduce the person — their craft, the kind of product they work on, the scale or environment. Do NOT open with a bare metric, a job title, 'Specialized in…', 'Combines X with Y…', or 'N+ years of experience'. Sentence 2: one or two concrete achievements with the metric woven in as evidence, not as the subject ('Rebuilt the state layer for a platform used by 1M+ users, cutting render times by ~50%' — not 'Improved rendering performance by 50%'). Sentence 3: how they work and method, echoing Tier 1 JD language. Every clause must be specific to THIS candidate; no filler.",
+  "core_competencies": {
+    "Languages": ["TypeScript", "JavaScript"],
+    "Frameworks": ["React", "Angular", "Next.js"],
+    "Tools": ["Jest", "Cypress", "Nx"],
+    "Cloud / Infra": ["AWS", "GitHub Actions"]
+  },
   "experiences": [
     {
       "title": "Job Title",
@@ -52,6 +58,7 @@ Rules:
 - Use straight quotes, not curly quotes.
 - "dates": use "Mon YYYY - Mon YYYY" or "Mon YYYY - Present".
 - "projects" and "certifications" are optional (omit or use []). "company", "summary", "core_competencies", "experiences", "education" are required.
+- "core_competencies": must be an object mapping category labels to arrays of skills. Use only categories relevant to this candidate — omit empty ones. Suggested category names: "Languages", "Frameworks", "Tools", "State Management", "Testing", "Cloud / Infra", "Methodologies". Order categories so the ones most relevant to the JD come first. 4–6 items per category maximum.
 - "margin": "1in" for light content, "0.75in" normally, "0.5in" only if needed to fit one page. "itemsep": "4pt" normally (readable spacing between bullets), "3pt" or "2pt" only for dense content that must fit one page.
 - Contact details and the candidate's name are added by the application from the profile — do NOT include them.
 - Output ONLY the JSON object.
@@ -182,17 +189,12 @@ def _build_resume_prompt(row: dict, company: str, title: str, name_slug: str, sk
         f"Tailor the resume for a {title} role at {company} "
         f"based on typical responsibilities for this position."
     )
-    # Deterministic ATS hint: skills from our vocabulary that this JD mentions.
-    # Zero extra tokens vs an LLM pass; steers Tier-1 keyword coverage. Uses the
-    # centralized match_text (title + description) so title keywords count too.
-    from .skills_vocab import detect_keywords
-    from .match import match_text
-    detected = detect_keywords(match_text({"title": title, "description": desc}))
-    kw_hint = (
-        f"\n\nKey skills detected in this job description (prioritize covering "
-        f"these where profile.md supports them): {', '.join(detected)}"
-        if detected else ""
-    )
+    # No static keyword vocabulary here by design. The model receives the full JD
+    # and the full profile.md — extracting the JD's key skills and matching them
+    # to the candidate's real evidence is the model's job (SKILL.md Step 1 tier
+    # assignment + Step 1.5 Requirement Map drive this). A fixed vocab would cap
+    # coverage to a hand-maintained list and fail silently for any profile/role
+    # outside it; grounding + the fabrication guard keep the output honest instead.
     user_prompt = (
         f"Apply to this job for me. Here is the job description:\n\n"
         f"Company: {company}\n"
@@ -200,7 +202,6 @@ def _build_resume_prompt(row: dict, company: str, title: str, name_slug: str, sk
         f"Location: {row.get('location') or ''}\n"
         f"URL: {row.get('url') or ''}\n\n"
         f"{job_context}"
-        f"{kw_hint}"
     )
     return skill_text, user_prompt
 
@@ -290,10 +291,14 @@ def _verify_providers() -> list[tuple[str, str]]:
             cands.append((provider, model))
 
     # Strong model on the user's active provider first (proven reachable).
+    # For Gemini, prefer flash over flash-lite for the verification step so the
+    # guard isn't weak-verifying-weak. Falls through to the generation model if
+    # flash isn't available.
     if pref == "groq" and _get_groq_client() is not None:
         add("groq", "openai/gpt-oss-120b")
     if pref == "gemini" and (_get_gemini_client() is not None or shutil.which("gemini")):
-        add("gemini", _get_model("gemini"))
+        add("gemini", "gemini-3.5-flash")       # stronger than flash-lite for judgment
+        add("gemini", _get_model("gemini"))      # fallback to whatever is configured
     if pref == "anthropic" and _get_anthropic_client() is not None:
         add("anthropic", _get_model("anthropic"))
 
@@ -301,6 +306,7 @@ def _verify_providers() -> list[tuple[str, str]]:
     if _get_anthropic_client() is not None:
         add("anthropic", _get_model("anthropic"))
     if _get_gemini_client() is not None or shutil.which("gemini"):
+        add("gemini", "gemini-3.5-flash")
         add("gemini", _get_model("gemini"))
     if _get_groq_client() is not None:
         add("groq", "openai/gpt-oss-120b")
@@ -371,6 +377,12 @@ def _verify_content(content: dict, profile_text: str) -> list[str]:
         "stakeholder management'; profile 'REST APIs' -> 'RESTful API development'). "
         "Recognizing that a stated experience satisfies a differently-worded "
         "requirement is your job, not fabrication.\n"
+        "   - SCOPE PRECISION: adjacent or supporting work is not the same as direct "
+        "ownership. Do not allow a claim that implies expertise in a domain the profile "
+        "only touched. The test: would a specialist hiring manager feel misled? "
+        "Examples — consuming an API is not building backend services; attending roadmap "
+        "meetings is not owning product strategy; running reports is not data engineering. "
+        "Reframe only as far as the evidence genuinely reaches.\n"
         "   - CORRECT or drop ONLY: skills, tools, domains, titles, or metrics with "
         "NO basis anywhere in the profile (e.g. claiming Kubernetes or a data-"
         "engineering background the profile never evidences), and inflated scope or "
@@ -380,12 +392,10 @@ def _verify_content(content: dict, profile_text: str) -> list[str]:
         "result/outcome (ideally the strongest metric in the profile) or the specific "
         "value this candidate delivers - NOT a title, NOT 'Certified/Experienced/"
         "Seasoned X', NOT 'N+ years of experience'. If it opens weakly, rewrite the "
-        "opening to lead with the strongest supported metric. Remove filler and AI "
-        "tells anywhere they appear: 'proven track record', 'proven ability', 'expert "
-        "in', 'expertise in', 'proficient in', 'passionate', 'results-driven', "
-        "'enterprise', 'high-availability', 'seamless', 'robust'. Rewrite the whole "
-        "sentence cleanly rather than leaving a fragment. Editing for fit and impact "
-        "never licenses a claim the profile cannot support.\n"
+        "opening to lead with the strongest supported metric. Remove filler words "
+        "(see system prompt ban list) anywhere they appear. Rewrite the whole sentence "
+        "cleanly rather than leaving a fragment. Editing for fit and impact never "
+        "licenses a claim the profile cannot support.\n"
         "You are given SUMMARY (string) and BULLETS (string array). Reply with a "
         "JSON object ONLY, echoing each field with corrections applied and "
         "preserving the BULLETS array's exact length and order:\n"
@@ -482,6 +492,13 @@ def _build_document(job_id: str, doc_type: str) -> None:
 
     try:
         _validate_profile()
+        # Defense-in-depth: ensure profile.json is up to date before ground_competencies
+        # and the keyword hint both read it. get_profile_json() self-heals on mtime, but
+        # an explicit write here guarantees freshness even on the first build after an edit.
+        from .profiles import write_profile_json, active_profile_dir
+        _pdir = active_profile_dir()
+        if _pdir:
+            write_profile_json(_pdir)
         init_db()
         row = get_job(job_id)
         if not row:
@@ -498,8 +515,13 @@ def _build_document(job_id: str, doc_type: str) -> None:
             if not row.get("description"):
                 raise ValueError("No job description available — cannot build cover letter")
 
-        company = row.get("company") or "Unknown"
+        company = row.get("company") or ""
         title = row.get("title") or "Job"
+        if not company:
+            # Many scraped jobs store the employer inside the title as "Role @ Company [...]".
+            # Parse it out so the output folder and prompts get the real name, not "Unknown".
+            _at = re.search(r"\s@\s+(.+?)(?:\s+\[|$)", title)
+            company = _at.group(1).strip() if _at else "Unknown"
         name_slug = _candidate_name_slug()
 
         if is_resume:
@@ -536,15 +558,29 @@ def _build_document(job_id: str, doc_type: str) -> None:
             # competency not supported by the structured profile. Runs before
             # the LLM guard, which now only covers the prose fields.
             from .profiles import get_profile_json
-            from .latex_render import ground_competencies
+            from .latex_render import ground_competencies, _competencies_flat
             pj = get_profile_json()
             if pj:
                 orig = content.get("core_competencies", [])
-                kept, dropped = ground_competencies(orig, pj)
-                if kept != orig:
+                flat_orig = _competencies_flat(orig)
+                kept, dropped = ground_competencies(flat_orig, pj)
+                if isinstance(orig, dict):
+                    # Re-apply grounding to the dict: drop skills not in kept.
+                    kept_set = {k.lower() for k in kept}
+                    content["core_competencies"] = {
+                        cat: [s for s in items if s.lower() in kept_set]
+                        for cat, items in orig.items()
+                        if any(s.lower() in kept_set for s in items)
+                    }
+                elif kept != flat_orig:
                     content["core_competencies"] = kept
                 if dropped:
                     print(f"[resume-check] {job_id}: dropped unsupported competencies: {', '.join(dropped)}")
+
+            # Headline: trust the LLM's choice. The HR-suffix guard in
+            # clean_content already strips "(m/w/d)", "- All Genders" etc.
+            if not (content.get("headline") or "").strip():
+                content["headline"] = ""
 
             # Semantic guard: one strong-model call grounds the prose fields
             # (summary + bullets) — the fabrication regex can't judge.
@@ -553,22 +589,21 @@ def _build_document(job_id: str, doc_type: str) -> None:
             if fixed:
                 print(f"[resume-check] {job_id}: rewritten by fabrication guard: {', '.join(fixed)}")
 
-            # Deterministic cleanup (free, guaranteed): strip em-dashes the model
-            # was told to avoid, order bullets metrics-first. Runs last so it also
-            # normalizes anything the fabrication guard rewrote.
+            # Deterministic cleanup (free, guaranteed): strip em-dashes, order
+            # bullets metrics-first, and strip scope-inflation phrases the verifier
+            # may have missed (e.g. "full-stack features" on a frontend-only profile).
             from .latex_render import clean_content
-            clean_content(content)
+            clean_content(content, profile=pj)
 
             latex_content = render_resume_latex(content, profile_text)
             company_folder = _sanitize_folder_name(company, folder_fallback)
 
-            # Deterministic quality check (non-fatal): flag likely fabrication +
-            # ATS keyword coverage. Logged for visibility; doesn't block the build.
-            from .skills_vocab import detect_keywords
+            # Deterministic quality check (non-fatal): flag likely fabrication
+            # (employers not in profile.md). ATS keyword coverage is intentionally
+            # NOT computed here — that relied on a fixed vocabulary; the model owns
+            # JD keyword coverage now, guided by SKILL.md. Logged for visibility.
             from .latex_render import validate_resume_content
-            from .match import match_text
-            issues = validate_resume_content(content, profile_text,
-                                              detect_keywords(match_text(row)))
+            issues = validate_resume_content(content, profile_text)
             for w in issues:
                 print(f"[resume-check] {job_id}: {w}")
         else:

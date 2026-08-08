@@ -145,8 +145,8 @@ def _validate_resume_content(data: dict) -> None:
     for field in ("company", "summary", "core_competencies", "experiences", "education"):
         if field not in data or not data[field]:
             raise ResumeParseError(f"Missing or empty required field: {field}")
-    if not isinstance(data["core_competencies"], list):
-        raise ResumeParseError("core_competencies must be a list")
+    if not isinstance(data["core_competencies"], (list, dict)):
+        raise ResumeParseError("core_competencies must be a list or category object")
     if not isinstance(data["experiences"], list) or not data["experiences"]:
         raise ResumeParseError("experiences must be a non-empty list")
     for i, exp in enumerate(data["experiences"]):
@@ -170,6 +170,7 @@ _PREAMBLE = r"""\documentclass[11pt,a4paper]{{article}}
 \usepackage{{xcolor}}
 \usepackage[hidelinks]{{hyperref}}
 \usepackage{{microtype}}
+\usepackage{{multicol}}
 
 % Slightly open line height for readability (1.0 reads cramped at 11pt).
 \linespread{{1.12}}
@@ -195,7 +196,7 @@ _ALLOWED_MARGINS = {"1in", "0.75in", "0.5in"}
 _ALLOWED_ITEMSEP = {"6pt", "5pt", "4pt", "3pt", "2pt"}
 
 
-def _render_header(contact: dict) -> str:
+def _render_header(contact: dict, headline: str = "") -> str:
     name = _latex_escape(contact.get("name") or "Candidate")
     bits = []
     if contact.get("location"):
@@ -209,10 +210,17 @@ def _render_header(contact: dict) -> str:
         bits.append(rf"\href{{{_latex_escape_url(contact['linkedin_url'])}}}{{\color{{headerblue}}LinkedIn}}")
     sep = r"\ $\cdot$\ "
     contact_line = sep.join(bits)
+    # Optional headline (professional title) directly under the name — a strong
+    # ATS title-match signal and standard resume practice. Rendered only if set.
+    headline_line = ""
+    if headline and headline.strip():
+        headline_line = (
+            f"\\\\[3pt]\n  {{\\normalsize\\color{{headerblue}}\\textbf{{{_latex_escape(headline.strip())}}}}}"
+        )
     header = (
         "% ── HEADER ──\n"
         "\\begin{center}\n"
-        f"  {{\\LARGE\\textbf{{{name}}}}}\\\\[3pt]\n"
+        f"  {{\\LARGE\\textbf{{{name}}}}}{headline_line}\\\\[3pt]\n"
         f"  {{\\small\n    {contact_line}\n  }}\n"
         "\\end{center}"
     )
@@ -271,19 +279,54 @@ def _norm(s: str) -> str:
 _DASH_RE = re.compile(r"\s*—\s*|\s+–\s+|\s+--+\s+")
 _NUM_RE = re.compile(r"\d")
 
+# Banned adjectives/phrases that weak models inject despite the SKILL.md rule.
+# Each tuple is (compiled pattern, replacement). Patterns match whole words only
+# (non-alnum boundary) and are case-insensitive. Replacements are the minimal
+# grammatically-correct fix — usually just deletion of the adjective.
+_FILLER_SUBS: list[tuple[re.Pattern, str]] = [
+    # Standalone adjectives that can be dropped without changing meaning
+    (re.compile(r"\benterprise\b[\s-]", re.IGNORECASE), ""),
+    (re.compile(r"\brobust\b[\s-]", re.IGNORECASE), ""),
+    (re.compile(r"\bseamless(?:ly)?\b[\s-]?", re.IGNORECASE), ""),
+    (re.compile(r"\bscalable\b[\s-]", re.IGNORECASE), ""),
+    (re.compile(r"\bdynamic\b[\s-]", re.IGNORECASE), ""),
+    (re.compile(r"\bhigh[- ]performance\b[\s-]?", re.IGNORECASE), ""),
+    (re.compile(r"\bpassionate(?:ly)?\b[\s,]?", re.IGNORECASE), ""),
+    (re.compile(r"\bresults?[- ]driven\b[\s,]?", re.IGNORECASE), ""),
+    # Multi-word filler phrases — replace with nothing, trim surrounding space
+    (re.compile(r"\bproven track record\b[,\s]*(?:of\s+)?", re.IGNORECASE), ""),
+    (re.compile(r"\bproven ability\b[,\s]*(?:to\s+)?", re.IGNORECASE), ""),
+    (re.compile(r"\bexpert(?:ise)? in\b\s*", re.IGNORECASE), ""),
+    (re.compile(r"\bproficient in\b\s*", re.IGNORECASE), ""),
+    (re.compile(r"\bleveraging\b\s*", re.IGNORECASE), "using "),
+    (re.compile(r"\bend[- ]to[- ]end\b\s*", re.IGNORECASE), ""),
+    (re.compile(r"\bhigh[- ]availability\b[\s-]?", re.IGNORECASE), ""),
+    # Empty intensifiers/superlatives that add no information (adverbs + adjectives)
+    (re.compile(r"\bsignificantly\b\s*", re.IGNORECASE), ""),
+    (re.compile(r"\bdrastically\b\s*", re.IGNORECASE), ""),
+    (re.compile(r"\bcomprehensive\b\s*", re.IGNORECASE), ""),
+    (re.compile(r"\bcomplete\b\s+(?=visual|domain|architecture|documentation)", re.IGNORECASE), ""),
+    # "key architectural recommendations" → "architectural recommendations"
+    (re.compile(r"\bkey\b\s+(?=architectural|technical|strategic)", re.IGNORECASE), ""),
+]
+
 
 def _strip_ai_tells(text: str) -> str:
-    """Replace em/en-dashes (and spaced '--' runs) with a comma in prose content.
+    """Strip AI-tell patterns from prose: em/en-dashes and banned filler words/phrases.
 
-    The prompt bans em-dashes; weak models emit them anyway. Applied only to prose
-    fields (summary, bullets, competencies, project descriptions), never to dates.
-    Collapses any doubled comma or whitespace the substitution creates.
+    Dashes → comma (weak models emit them despite the rule).
+    Filler adjectives (enterprise, robust, seamless, etc.) → deleted.
+    Runs deterministically on every prose field so the LLM verifier doesn't need
+    to handle these mechanical cases. Collapses any whitespace artifacts left behind.
     """
     if not text:
         return text
     out = _DASH_RE.sub(", ", text)
-    out = re.sub(r",\s*,", ", ", out)   # ", ," → ", "
-    out = re.sub(r"\s{2,}", " ", out)   # collapse runs of spaces
+    for pat, repl in _FILLER_SUBS:
+        out = pat.sub(repl, out)
+    out = re.sub(r",\s*,", ", ", out)    # ", ," → ", "
+    out = re.sub(r"\s{2,}", " ", out)    # collapse runs of spaces
+    out = re.sub(r"\s+([,.])", r"\1", out)  # "word ," → "word,"
     return out.strip()
 
 
@@ -299,26 +342,229 @@ def _sort_bullets_metrics_first(bullets: list) -> list:
     return numbered + plain
 
 
-def clean_content(content: dict) -> dict:
+# Skills whose absence in the profile should prevent "backend"/"full-stack"
+# scope-inflation. These are server-side language tokens; if none appear in the
+# profile's competencies the candidate is frontend-only and the model must not
+# imply backend ownership in prose.
+_BACKEND_LANGUAGES = {
+    "java", "spring", "spring boot", "kotlin", "go", "golang", "rust",
+    "python", "django", "fastapi", "flask", "ruby", "rails", "php",
+    "laravel", "c#", ".net", "asp.net", "scala", "elixir", "node.js",
+    "nodejs", "express", "nestjs", "backend", "server-side",
+}
+
+# Patterns that imply backend *development* (not frontend consumption of an API).
+# If any pattern matches a prose field AND the profile has no backend language,
+# replace with a precision-reduced alternative.
+_SCOPE_INFLATION_REPLACEMENTS = [
+    # "backend service integrations" → "API integrations"
+    (re.compile(r"\bbackend service integrations?\b", re.IGNORECASE), "API integrations"),
+    # "AWS Serverless backend services" → "AWS Serverless services"
+    (re.compile(r"\bAWS Serverless backend services?\b", re.IGNORECASE), "AWS Serverless services"),
+    # "full-stack features" → "features" (the adjective is the overstatement)
+    (re.compile(r"\bfull[- ]stack features?\b", re.IGNORECASE), "features"),
+    # "full-stack development" / "full-stack engineer" → soften if no backend lang
+    (re.compile(r"\bfull[- ]stack (development|engineer|developer|work|experience)\b", re.IGNORECASE),
+     lambda m: m.group(1)),  # keep just the noun ("development", "engineer", etc.)
+    # "ship maintainable full-stack X" → "ship maintainable X"
+    (re.compile(r"\bmaintainable full[- ]stack\b", re.IGNORECASE), "maintainable"),
+    # Frontend consumption of a serverless/GraphQL endpoint doesn't establish
+    # ownership of "system scalability" (a backend/infra outcome). Drop that claim
+    # tail while keeping the real, frontend-scoped part of the sentence.
+    (re.compile(r"\s+and system scalability\b", re.IGNORECASE), ""),
+]
+
+
+def _guard_scope_inflation(text: str, profile_has_backend: bool) -> str:
+    """Strip scope-inflation phrases from prose when the profile lacks a backend language.
+
+    Only fires when the profile has no server-side language in its competencies —
+    i.e. the candidate is frontend-only. Leaves text unchanged for genuine full-stack
+    profiles. This catches what the LLM verifier misses: "API consumption from a
+    frontend" being silently reframed as "backend service integrations".
+    """
+    if not text or profile_has_backend:
+        return text
+    for pat, replacement in _SCOPE_INFLATION_REPLACEMENTS:
+        if callable(replacement):
+            text = pat.sub(replacement, text)
+        else:
+            text = pat.sub(replacement, text)
+    # Collapse any whitespace artifacts from multi-word removals.
+    text = re.sub(r"  +", " ", text).strip()
+    return text
+
+
+def _profile_has_backend(profile: dict | None) -> bool:
+    """Return True if the profile's competencies contain at least one backend language."""
+    if not profile:
+        return False
+    comps = " ".join(profile.get("competencies", []) or []).lower()
+    return any(lang in comps for lang in _BACKEND_LANGUAGES)
+
+
+# Verb forms that assert formal architect/lead authority. If the profile has no
+# architect/lead/principal/staff/head/manager title, these overstate an IC role
+# and a background check exposes the gap. Downgrade to build/deliver verbs.
+# Verb forms only — the noun "architecture" / competency "Frontend Architecture"
+# is untouched (it's a domain, not a claimed title).
+# Verb forms that assert formal architect/lead authority. If the profile has no
+# architect/lead/principal/staff/head/manager title, these overstate an IC role
+# and a background check exposes the gap. Downgrade to build/deliver verbs.
+# Verb forms only — the noun "architecture" / competency "Frontend Architecture"
+# is untouched (it's a domain, not a claimed title). Replacements are callables
+# so the original capitalization is preserved (these verbs often open a bullet).
+def _match_case(repl: str):
+    def _sub(m: re.Match) -> str:
+        word = m.group(0)
+        if word[:1].isupper():
+            return repl[:1].upper() + repl[1:]
+        return repl
+    return _sub
+
+
+_TITLE_INFLATION_REPLACEMENTS = [
+    (re.compile(r"\barchitecting\b", re.IGNORECASE), _match_case("building")),
+    (re.compile(r"\barchitected\b", re.IGNORECASE), _match_case("built")),
+    (re.compile(r"\bspearheaded\b", re.IGNORECASE), _match_case("drove")),
+    # "Led development of X" / "Led end-to-end development of X" → "Developed X"
+    (re.compile(r"\bled (?:end[- ]to[- ]end )?development of\b", re.IGNORECASE),
+     _match_case("developed")),
+]
+
+# Title tokens that license architect/lead-level ownership verbs.
+_LEAD_TITLE_TOKENS = (
+    "architect", "lead", "principal", "staff", "head of", "manager",
+    "director", "vp", "chief",
+)
+
+
+_HR_SUFFIX_RE = re.compile(
+    r"\s*[-–—(]\s*(?:"
+    r"all\s+genders?|"
+    r"[mwfdx/]{1,5}\s*[/|]\s*[mwfdx/]{1,5}(?:\s*[/|]\s*[mwfdx/]{1,5})*|"  # w/m/d, m/f/d, f/m/x
+    r"[mwf]\s*/\s*[mwf](?:\s*/\s*[mwf])?|"                                   # m/f, m/w
+    r"diverse\b|divers\b|any\s+gender"
+    r")\s*[)–—]?\s*$",
+    re.IGNORECASE,
+)
+
+
+def _strip_hr_suffixes(title: str) -> str:
+    """Remove gender/diversity suffixes job postings append to role titles.
+    '(w/m/d)', '- All Genders', '– m/f/d', etc. are HR artefacts, not the title."""
+    if not title:
+        return title
+    return _HR_SUFFIX_RE.sub("", title).strip(" -–—")
+
+
+def _profile_has_lead_title(profile: dict | None) -> bool:
+    """True if any experience title in the profile carries architect/lead-level authority."""
+    if not profile:
+        return False
+    titles = " ".join(
+        (e.get("title") or "") for e in (profile.get("experience") or [])
+    ).lower()
+    return any(tok in titles for tok in _LEAD_TITLE_TOKENS)
+
+
+def _guard_title_inflation(text: str, profile_has_lead_title: bool) -> str:
+    """Downgrade architect/lead-authority verbs to build/deliver verbs when the
+    profile has no architect/lead title. Frontend-only ICs get "architecting" →
+    "building", "spearheaded" → "drove", etc. Leaves genuine leads untouched.
+    Catches what the LLM verifier misses: verb-level seniority inflation that
+    reads impressive but contradicts the HR-of-record title."""
+    if not text or profile_has_lead_title:
+        return text
+    for pat, replacement in _TITLE_INFLATION_REPLACEMENTS:
+        text = pat.sub(replacement, text)
+    return re.sub(r"  +", " ", text).strip()
+
+
+
+def clean_content(content: dict, profile: dict | None = None) -> dict:
     """Apply deterministic post-generation cleanup to resume content, in place.
 
-    Enforces two SKILL.md rules weak models violate: strip em-dashes from prose,
-    and order each role's bullets metrics-first. Returns the same dict. Runs after
-    the fabrication guard so it also catches anything the verifier introduced.
+    Enforces SKILL.md rules weak models violate: strip em-dashes from prose,
+    order each role's bullets metrics-first, and remove scope-inflation phrases
+    (e.g. "full-stack features", "backend service integrations") when the profile
+    has no backend language. Returns the same dict. Runs after the fabrication
+    guard so it also catches anything the verifier introduced.
     """
+    has_backend = _profile_has_backend(profile)
+    has_lead_title = _profile_has_lead_title(profile)
+
+    def _guard(text: str) -> str:
+        return _guard_title_inflation(
+            _guard_scope_inflation(_strip_ai_tells(text), has_backend),
+            has_lead_title,
+        )
+
     if content.get("summary"):
-        content["summary"] = _strip_ai_tells(content["summary"])
+        content["summary"] = _guard(content["summary"])
+    if content.get("headline"):
+        content["headline"] = _strip_hr_suffixes(content["headline"])
     if content.get("core_competencies"):
-        content["core_competencies"] = [
-            _strip_ai_tells(c) for c in content["core_competencies"] if c and c.strip()
-        ]
+        cc = content["core_competencies"]
+        if isinstance(cc, dict):
+            content["core_competencies"] = {
+                cat: [_strip_ai_tells(c) for c in items if c and c.strip()]
+                for cat, items in cc.items()
+                if items
+            }
+        else:
+            content["core_competencies"] = [
+                _strip_ai_tells(c) for c in cc if c and c.strip()
+            ]
     for exp in content.get("experiences", []):
-        bullets = [_strip_ai_tells(b) for b in exp.get("bullets", []) if b and b.strip()]
+        bullets = [
+            _guard(b)
+            for b in exp.get("bullets", []) if b and b.strip()
+        ]
         exp["bullets"] = _sort_bullets_metrics_first(bullets)
         for p in exp.get("projects", []) or []:
             if p.get("description"):
-                p["description"] = _strip_ai_tells(p["description"])
+                p["description"] = _guard(p["description"])
     return content
+
+
+def _competencies_flat(cc) -> list[str]:
+    """Normalize either a flat list or a category-dict to a flat list of strings."""
+    if isinstance(cc, dict):
+        return [item for items in cc.values() for item in items if item and item.strip()]
+    return [c for c in (cc or []) if c and c.strip()]
+
+
+def _render_competencies(cc) -> str:
+    """Render core_competencies as categorized rows (dict) or a 2-column list (flat list)."""
+    if isinstance(cc, dict):
+        # Category label: Skill1 · Skill2 · Skill3
+        lines = ["\\section{Core Competencies}", "\\begin{description}[leftmargin=0pt, labelindent=0pt, itemsep=3pt, topsep=2pt]"]
+        for cat, items in cc.items():
+            if not items:
+                continue
+            skills = " $\\cdot$ ".join(_latex_escape(s) for s in items)
+            lines.append(f"  \\item[\\textbf{{{_latex_escape(cat)}:}}] {skills}")
+        lines.append("\\end{description}")
+        return "\n".join(lines)
+    # Flat list fallback: 2-column grid
+    comps = [c for c in (cc or []) if c and c.strip()]
+    if not comps:
+        return ""
+    if len(comps) >= 5:
+        block = [
+            "\\section{Core Competencies}",
+            "\\begin{multicols}{2}",
+            "\\begin{itemize}[itemsep=2pt, topsep=2pt, parsep=0pt]",
+        ]
+        block.extend(f"  \\item {_latex_escape(c)}" for c in comps)
+        block.append("\\end{itemize}")
+        block.append("\\end{multicols}")
+    else:
+        block = ["\\section{Core Competencies}", "\\begin{itemize}"]
+        block.extend(f"  \\item {_latex_escape(c)}" for c in comps)
+        block.append("\\end{itemize}")
+    return "\n".join(block)
 
 
 def ground_competencies(competencies: list, profile: dict, backfill_to: int = 6) -> tuple[list, list]:
@@ -358,14 +604,17 @@ def ground_competencies(competencies: list, profile: dict, backfill_to: int = 6)
     return kept, dropped
 
 
-def validate_resume_content(content: dict, profile_text: str, jd_keywords: list | None = None) -> list[str]:
-    """Deterministic post-generation checks. Returns a list of human-readable
-    warnings (empty = clean). Non-fatal: the resume is already rendered — these
-    surface likely fabrication and thin ATS coverage for logging/UI.
+def validate_resume_content(content: dict, profile_text: str) -> list[str]:
+    """Deterministic post-generation check. Returns human-readable warnings
+    (empty = clean). Non-fatal: the resume is already rendered — this surfaces
+    likely fabrication for logging/UI.
 
-    Two high-signal checks (chosen to avoid false positives):
-    - Every experience employer must appear in profile.md (catches invented jobs).
-    - Report which detected JD keywords the resume did NOT cover.
+    High-signal, vocabulary-free check (chosen to avoid false positives):
+    every experience employer must appear in profile.md (catches invented jobs).
+    ATS keyword coverage is intentionally NOT scored here: that would require a
+    fixed skill vocabulary that caps coverage to a hand-maintained list and fails
+    for any profile/role outside it. Keyword matching is the model's job now,
+    driven by the full JD + profile in the SKILL.md prompt.
     """
     warnings: list[str] = []
     prof = _norm(profile_text)
@@ -375,25 +624,6 @@ def validate_resume_content(content: dict, profile_text: str, jd_keywords: list 
         if employer and _norm(employer) not in prof:
             warnings.append(f"Employer not found in profile (possible fabrication): {employer!r}")
 
-    if jd_keywords:
-        # Use the alias-aware detector on the resume text so canonical forms
-        # match their variants ("owning backlogs" covers "Backlog Management",
-        # "RESTful" covers "REST") — a raw substring check under-counts and
-        # makes the coverage number misleadingly low.
-        from .skills_vocab import detect_keywords
-        blob = " ".join([
-            content.get("summary", ""),
-            " ".join(content.get("core_competencies", [])),
-            " ".join(b for e in content.get("experiences", []) for b in e.get("bullets", [])),
-        ])
-        covered_set = set(detect_keywords(blob))
-        missed = [k for k in jd_keywords if k not in covered_set]
-        if missed:
-            covered = len(jd_keywords) - len(missed)
-            warnings.append(
-                f"ATS: covered {covered}/{len(jd_keywords)} detected JD keywords; "
-                f"missing: {', '.join(missed)}"
-            )
     return warnings
 
 
@@ -405,16 +635,15 @@ def render_resume_latex(content: dict, profile_text: str) -> str:
     itemsep = content.get("itemsep") if content.get("itemsep") in _ALLOWED_ITEMSEP else "4pt"
 
     parts = [_PREAMBLE.format(margin=margin, itemsep=itemsep)]
-    parts.append(_render_header(contact))
+    parts.append(_render_header(contact, headline=content.get("headline", "")))
 
     parts.append("\\section{Professional Summary}\n\n" + _latex_escape(content["summary"]))
 
-    comps = [c for c in content["core_competencies"] if c and c.strip()]
-    if comps:
-        block = ["\\section{Core Competencies}", "\\begin{itemize}"]
-        block.extend(f"  \\item {_latex_escape(c)}" for c in comps)
-        block.append("\\end{itemize}")
-        parts.append("\n".join(block))
+    cc = content.get("core_competencies")
+    if cc:
+        rendered_cc = _render_competencies(cc)
+        if rendered_cc:
+            parts.append(rendered_cc)
 
     exp_block = ["\\section{Professional Experience}"]
     exp_block.extend(_render_experience(e) for e in content["experiences"])

@@ -130,7 +130,10 @@ def detect_keywords(text: str) -> list[str]:
     """Return the canonical skills mentioned in `text`, in vocab order.
 
     Alias-aware ('ReactJS' -> 'React'), deduplicated, order-stable. Used by the
-    match signal and the resume-prompt keyword hint.
+    deterministic job↔profile match signal (job/match.py) to rank hundreds of
+    postings without an LLM call. NOT used by the resume builder: resume keyword
+    coverage is the model's job (it sees the full JD + profile), so it isn't
+    capped by this hand-maintained list.
     """
     if not text:
         return []

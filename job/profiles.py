@@ -432,15 +432,26 @@ def write_profile_json(profile_dir: Path) -> None:
 
 def get_profile_json(user_id: str | None = None) -> dict | None:
     """Return the active profile's structured JSON, or None if unavailable.
-    Regenerates from profile.md if profile.json is missing/stale-safe fallback."""
+
+    Self-healing: regenerates profile.json when profile.md is newer (covers the
+    case where the user edits profile.md directly in the IDE without going through
+    the web UI, which is the only path that calls write_profile_json).
+    """
     import json as _json
     p = get_profile_json_path(user_id)
+    md = get_profile_path(user_id)
+    if p and p.exists() and md and md.exists():
+        try:
+            if md.stat().st_mtime > p.stat().st_mtime:
+                # profile.md was edited after profile.json was last written — regenerate
+                write_profile_json(p.parent)
+        except Exception:
+            pass
     if p and p.exists():
         try:
             return _json.loads(p.read_text(encoding="utf-8"))
         except Exception:
             pass
-    md = get_profile_path(user_id)
     if md and md.exists():
         try:
             return parse_profile_md(md.read_text(encoding="utf-8"))
