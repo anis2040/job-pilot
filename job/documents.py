@@ -29,7 +29,7 @@ Return ONLY a JSON object with this exact structure — no explanation, no markd
 
 {
   "company": "Company name inferred from the job description",
-  "headline": "Professional title shown under the candidate's name. Use the JD's exact role title (e.g. 'Senior Frontend Engineer') WHEN profile.md supports that seniority/specialty — this is the single biggest ATS title-match lever. This is a headline, NOT a claim about any specific employer's HR title, so it is grounded as long as the profile's own summary/titles support the level. If the profile does not support the JD's seniority, use the candidate's closest real title.",
+  "headline": "The candidate's actual title from profile.md — must match the experience section title exactly. Do NOT use the JD's role title here. Strip team names, org names, domain qualifiers, and HR suffixes. Role title only.",
   "summary": "3-4 sentence summary, plain-text, human voice. Sentence 1: introduce the person — their craft, the kind of product they work on, the scale or environment. Do NOT open with a bare metric, a job title, 'Specialized in…', 'Combines X with Y…', or 'N+ years of experience'. Sentence 2: one or two concrete achievements with the metric woven in as evidence, not as the subject ('Rebuilt the state layer for a platform used by 1M+ users, cutting render times by ~50%' — not 'Improved rendering performance by 50%'). Sentence 3: how they work and method, echoing Tier 1 JD language. Every clause must be specific to THIS candidate; no filler.",
   "core_competencies": {
     "Languages": ["TypeScript", "JavaScript"],

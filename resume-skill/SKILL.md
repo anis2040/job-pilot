@@ -64,9 +64,11 @@ This map decides bullet **selection and order**: strong-evidence, most-frequent 
 
 **Sections (no others):** summary, core competencies, experience (with optional key projects per role), education, certifications.
 
-**Job title:** display the title from `profile.md` that best matches the JD (if ambiguous, let the dominant responsibilities decide). Never show a per-employer title not grounded in the candidate's real experience — background checks return the HR-of-record title. When the profile supports it, use the JD's exact title wording (ATS ranking weights a literal title match) and echo that exact title once in the summary.
+**Job title (experience section):** in the experience section title line, use the title from `profile.md` — background checks return the HR-of-record title. Never show a title not grounded in the candidate's real profile.
 
-**Headline (title-match lever):** emit a `headline` — a professional title shown under the candidate's name — set to the JD's exact role title (e.g. "Senior Frontend Engineer") *when profile.md supports that seniority and specialty*. A headline is positioning, not an employer's HR title, so it is grounded as long as the candidate's own summary/titles carry that level; if they don't (e.g. JD says "Principal" but the profile is mid-level), drop the modifier to the closest supported level. This is the single strongest ATS title-match signal — engineer it deliberately.
+**Headline:** use the same title as the experience section — the candidate's actual title from `profile.md`. Do not use the JD's role title in the headline; the resume must read consistently from top to bottom. The summary can use the JD's role language naturally ("acting as the product manager for…", "in a product management capacity…") but the displayed title under the name must match the experience section.
+
+**Headline (format):** role title only — function and level. Strip team names, org names, domain qualifiers, product area names, and HR diversity suffixes ("Ads Creative", "Central Products", "- All Genders", "(w/m/d)"). If the profile has multiple roles, use the most recent or most relevant one.
 
 **Summary Formula** (write from scratch, no "I"; 3–4 sentences, plain human voice):
 1. **Who + what they build + context.** Open with the person: their craft, the kind of product they work on, and the scale or environment. Do NOT open with a bare metric or a job title. Do NOT open with "Specialized in…", "Combines X with Y…", "Passionate about…", or any variant of those. Write it as a human would say it out loud.
@@ -77,10 +79,10 @@ When the profile has both user/product-impact metrics (users served, adoption, f
 
 Every sentence must pass the **"so what?" test**: if cutting it doesn't reduce what a recruiter learns about this specific candidate's value, cut it. Ground every claim in `profile.md`.
 
-Example (profile has 30% velocity + 35% incident-resolution metrics, applying to a PO role):
+Example (profile title is "Product Owner", applying to a "Product Manager" JD, with 30% velocity + 35% incident-resolution metrics):
 - ❌ "Increased delivery velocity 30% and cut incident-resolution time 35% by owning backlogs." — opens with a raw number dump, no context for who this person is.
 - ❌ "Certified Product Owner with 4+ years delivering enterprise platforms. Expert in Scrum ceremonies. Proven track record of driving velocity." — generic filler, no specifics.
-- ✅ "Product Owner with five years shipping insurance platforms for regulated global carriers, owning backlogs end-to-end from PI Planning through UAT. Drove a 30% velocity increase and cut incident-resolution time by 35% by tightening story definition and removing cross-team blockers early. Fluent in Agile and SAFe; worked directly with engineering, QA, and business stakeholders in English across distributed teams." — introduces the person, then earns the metrics as evidence, then closes with method and JD match.
+- ✅ "Product Owner with five years shipping insurance platforms for regulated global carriers, acting in a full product management capacity from roadmap through UAT. Drove a 30% velocity increase and cut incident-resolution time by 35% by tightening story definition and removing cross-team blockers early. Fluent in Agile and SAFe; worked directly with engineering, QA, and business stakeholders across distributed teams." — uses the profile's actual title, bridges to PM language naturally in the sentence, earns the metrics as evidence.
 
 **Keyword equivalence (truthful terminology alignment):** when the profile expresses a JD keyword differently, adopt the JD's wording — but ONLY as a rephrasing of evidence that already exists. Alignment rephrases; it never originates a skill.
 - Profile "REST APIs" + JD "RESTful API development" → "RESTful API development".
