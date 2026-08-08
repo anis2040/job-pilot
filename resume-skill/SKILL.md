@@ -72,7 +72,7 @@ This map decides bullet **selection and order**: strong-evidence, most-frequent 
 
 **Summary Formula** (write from scratch, no "I"; 3–4 sentences, plain human voice):
 1. **Who + what they build + context.** Open with the person: their craft, the kind of product they work on, and the scale or environment. Do NOT open with a bare metric or a job title. Do NOT open with "Specialized in…", "Combines X with Y…", "Passionate about…", or any variant of those. Write it as a human would say it out loud.
-2. **One or two concrete achievements, metric woven in.** Bring in the strongest supported numbers as evidence of the sentence's claim — not as the subject of the sentence. "Rebuilt the state management layer for a reporting platform used by 1M+ users, cutting render times by ~50%" lands better than "Improved rendering performance by 50%."
+2. **One signature proof point — framed, not the number a bullet will prove.** Reference the single strongest achievement at a higher altitude than the bullet that owns it: name the scope and the arc, and let the bullet below deliver the metric and mechanism. "Rebuilt the state layer behind a high-traffic reporting platform used by 1M+ users" (summary) → "…improving render performance by ~50% via targeted memoization and change-detection tuning" (bullet). Carry at most **one** metric in the summary, and never reuse the same number or phrasing a bullet already uses — a stack of duplicated numbers reads as a preview reel, not seniority. The summary frames; the bullets prove.
 3. **Method / approach + JD keyword echo.** How they work, what distinguishes them. Mirror Tier 1 JD language here naturally.
 
 When the profile has both user/product-impact metrics (users served, adoption, features shipped) and pure-infrastructure metrics (pipeline speed, build times), surface the user/product one first for product-role JDs.
@@ -82,7 +82,7 @@ Every sentence must pass the **"so what?" test**: if cutting it doesn't reduce w
 Example (profile title is "Product Owner", applying to a "Product Manager" JD, with 30% velocity + 35% incident-resolution metrics):
 - ❌ "Increased delivery velocity 30% and cut incident-resolution time 35% by owning backlogs." — opens with a raw number dump, no context for who this person is.
 - ❌ "Certified Product Owner with 4+ years delivering enterprise platforms. Expert in Scrum ceremonies. Proven track record of driving velocity." — generic filler, no specifics.
-- ✅ "Product Owner with five years shipping insurance platforms for regulated global carriers, acting in a full product management capacity from roadmap through UAT. Drove a 30% velocity increase and cut incident-resolution time by 35% by tightening story definition and removing cross-team blockers early. Fluent in Agile and SAFe; worked directly with engineering, QA, and business stakeholders across distributed teams." — uses the profile's actual title, bridges to PM language naturally in the sentence, earns the metrics as evidence.
+- ✅ "Product Owner with five years shipping insurance platforms for regulated global carriers, acting in a full product management capacity from roadmap through UAT. Turned around delivery on a stalled enterprise rollout by tightening story definition and removing cross-team blockers early — the kind of ownership that lifted velocity ~30%. Fluent in Agile and SAFe; works directly with engineering, QA, and business stakeholders across distributed teams." — uses the profile's actual title, bridges to PM language naturally, carries ONE framed metric (the 35% incident-resolution figure stays in its bullet, so nothing is echoed).
 
 **Keyword equivalence (truthful terminology alignment):** when the profile expresses a JD keyword differently, adopt the JD's wording — but ONLY as a rephrasing of evidence that already exists. Alignment rephrases; it never originates a skill.
 - Profile "REST APIs" + JD "RESTful API development" → "RESTful API development".
@@ -104,7 +104,9 @@ Example (profile title is "Product Owner", applying to a "Product Manager" JD, w
 
 **Key projects:** mini case studies, not labels — what the product was, the candidate's role, the challenge/scope, the measurable outcome.
 
-**Redundancy:** a concept appearing in summary + competencies + bullets reads as padding — keep the strongest instance. Exception: Tier-1 keywords (the JD title + top 2–3 must-have skills) should appear in both summary and ≥1 bullet for ATS weight — that intentional repetition is not padding. Core Competencies are for ATS keyword matching only.
+**Redundancy:** a concept appearing in summary + competencies + bullets reads as padding — keep the strongest instance. Distinguish two kinds of overlap:
+- **Keywords may repeat (intentional):** Tier-1 keywords (the JD title + top 2–3 must-have skills) should appear in both summary and ≥1 bullet for ATS weight — that repetition is not padding. Core Competencies are for ATS keyword matching only.
+- **Metrics and phrasing must NOT repeat:** a specific number (~50%, 1M users, 30% velocity) or a distinctive phrase belongs to exactly one place. If it's the evidence for a bullet, it lives in the bullet — the summary frames the same work at a higher altitude without restating the figure. A summary that echoes the bullets' numbers verbatim gives the recruiter déjà vu instead of new information at each line.
 
 **Education:** always use full US-standard degree names from `profile.md` — never abbreviate (ATS/Workday parses against fixed enumerations).
 
