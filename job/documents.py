@@ -7,6 +7,7 @@ from .db import get_job, update_description, init_db
 from .fetcher import fetch_description as fetch_job_description, should_fetch_description
 from .profiles import get_profile_path, get_resumes_path
 from .ai_providers import (_get_anthropic_client, _get_gemini_client, _get_groq_client,
+                           _get_openrouter_client,
                            _get_model, _generate_content, call_ai, extract_json_from_llm)
 from .latex import _compile_latex, _parse_latex_response
 from .latex_render import (_parse_content_json, render_resume_latex, ResumeParseError,
@@ -301,6 +302,8 @@ def _verify_providers() -> list[tuple[str, str]]:
         add("gemini", _get_model("gemini"))      # fallback to whatever is configured
     if pref == "anthropic" and _get_anthropic_client() is not None:
         add("anthropic", _get_model("anthropic"))
+    if pref == "openrouter" and _get_openrouter_client() is not None:
+        add("openrouter", _get_model("openrouter"))
 
     # Then any other configured strong provider, best-first.
     if _get_anthropic_client() is not None:
@@ -310,6 +313,8 @@ def _verify_providers() -> list[tuple[str, str]]:
         add("gemini", _get_model("gemini"))
     if _get_groq_client() is not None:
         add("groq", "openai/gpt-oss-120b")
+    if _get_openrouter_client() is not None:
+        add("openrouter", _get_model("openrouter"))
     return cands
 
 

@@ -111,13 +111,16 @@ Authorized redirect URI in Google Cloud must match `OAUTH_REDIRECT_URI` (or the 
 
 ## AI Providers
 
-JobPilot can use Groq, Anthropic Claude, and Gemini. API keys are entered in the app and saved **per user** to `profiles/<user_id>/.env` (not the project root `.env`). Root `.env` is only for server config (OAuth, `SECRET_KEY`, etc.).
+JobPilot can use Groq, Anthropic Claude, Gemini, and OpenRouter. API keys are entered in the app and saved **per user** to `profiles/<user_id>/.env` (not the project root `.env`). Root `.env` is only for server config (OAuth, `SECRET_KEY`, etc.).
 
 | Provider | Env var (per user) |
 |---|---|
 | Groq | `GROQ_API_KEY` |
 | Anthropic | `ANTHROPIC_API_KEY` |
 | Gemini | `GEMINI_API_KEY` or `GOOGLE_API_KEY` |
+| OpenRouter | `OPENROUTER_API_KEY` |
+
+Each provider's model can be pinned with `<PROVIDER>_MODEL` (e.g. `OPENROUTER_MODEL`). OpenRouter exposes a curated short model list (incl. free-tier models); its default is a free model.
 
 ## Output
 

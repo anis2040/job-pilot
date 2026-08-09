@@ -115,9 +115,11 @@ export interface SetupStatus {
   gemini_key_set: boolean;
   groq_key_set: boolean;
   anthropic_key_set: boolean;
+  openrouter_key_set: boolean;
   gemini_key: string;
   groq_key: string;
   anthropic_key: string;
+  openrouter_key: string;
 }
 
 export interface RateLimitInfo {

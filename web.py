@@ -13,9 +13,10 @@ from flask import Flask, render_template, jsonify, request, send_file, abort, re
 from job.db import init_db, get_pending_deduped, get_jobs_by_status, update_status, get_job, get_similar_jobs, stats, last_fetch_at, clear_all_jobs
 from job.web_api import trigger_resume, get_task_status, trigger_cover_letter, get_cl_task_status, trigger_fetch, get_fetch_status, clear_task_state, call_ai
 from job.web_api import (
-    _get_groq_client, _get_anthropic_client, _get_gemini_client,
+    _get_groq_client, _get_anthropic_client, _get_gemini_client, _get_openrouter_client,
     _get_model, _list_models, _clear_model_cache, _build_with_groq, _build_with_sdk, _build_with_gemini,
-    _GROQ_MODELS, _ANTHROPIC_MODELS, _GEMINI_MODELS, _MODEL_DEFAULTS,
+    _build_with_openrouter,
+    _GROQ_MODELS, _ANTHROPIC_MODELS, _GEMINI_MODELS, _OPENROUTER_MODELS, _MODEL_DEFAULTS,
 )
 from job.profiles import (
     list_profiles, get_active_slug, get_active_profile, set_active,
@@ -555,6 +556,7 @@ def ai_settings_page():
         {"id": "groq",      "label": "Groq",             "sub": "Fast free inference — llama, mixtral, gemma",  "badge_class": "badge-free",  "badge_text": "Free ⚡",  "placeholder": "gsk_…",    "hint": 'Get a free key at <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys ↗</a>. Saved locally in <code>.env</code>.'},
         {"id": "anthropic", "label": "Claude (Anthropic)","sub": "High quality — Haiku, Sonnet, Opus",          "badge_class": "badge-paid",  "badge_text": "API key",  "placeholder": "sk-ant-…", "hint": 'Get a key at <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com ↗</a>. Saved locally in <code>.env</code>.'},
         {"id": "gemini",    "label": "Gemini (Google)",   "sub": "Free API key — Flash, Flash-lite, 1.5",        "badge_class": "badge-free",  "badge_text": "Free",     "placeholder": "AIza…",    "hint": 'Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio ↗</a>. Saved locally in <code>.env</code>.'},
+        {"id": "openrouter","label": "OpenRouter",         "sub": "One key, many models — incl. free-tier",       "badge_class": "badge-free",  "badge_text": "Free tier","placeholder": "sk-or-…",  "hint": 'Get a key at <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys ↗</a>. Saved locally in <code>.env</code>.'},
         {"id": "claude",    "label": "Claude Pro (CLI)",  "sub": "Use your claude.ai Pro subscription — no API key", "badge_class": "badge-free", "badge_text": "Pro sub", "placeholder": "",         "hint": 'Uses Claude Code CLI with your claude.ai login. Run <code>claude login</code> in a terminal if not already signed in.', "no_key": True},
     ]
     return render_template("ai_settings.html", providers=providers)
@@ -859,6 +861,7 @@ def api_ai_settings_get():
     groq_ok      = _get_groq_client() is not None
     anthropic_ok = _get_anthropic_client() is not None
     gemini_ok    = _get_gemini_client() is not None or bool(shutil.which("gemini"))
+    openrouter_ok = _get_openrouter_client() is not None
 
     preferred = _env_get("PREFERRED_PROVIDER", "").strip().lower()
 
@@ -866,9 +869,11 @@ def api_ai_settings_get():
     if preferred == "groq" and groq_ok:           active = "groq"
     elif preferred == "anthropic" and anthropic_ok: active = "anthropic"
     elif preferred == "gemini" and gemini_ok:     active = "gemini"
+    elif preferred == "openrouter" and openrouter_ok: active = "openrouter"
     elif groq_ok:                                 active = "groq"
     elif anthropic_ok:                            active = "anthropic"
     elif gemini_ok:                               active = "gemini"
+    elif openrouter_ok:                           active = "openrouter"
     else:                                         active = None
 
     def _models_for(provider):
@@ -883,13 +888,14 @@ def api_ai_settings_get():
     groq_key      = _env_get("GROQ_API_KEY", "")
     anthropic_key = _env_get("ANTHROPIC_API_KEY") or _env_get("ANTHROPIC_AUTH_TOKEN") or ""
     gemini_key    = _env_get("GEMINI_API_KEY") or _env_get("GOOGLE_API_KEY") or ""
+    openrouter_key = _env_get("OPENROUTER_API_KEY", "")
 
     # Token-usage counter: what THIS app has spent per provider, scoped to the
     # currently-active API key (limits are per-key/org, so switching keys must
     # show a fresh count). Best-effort — no profile / empty DB yields zeros.
     from job.limits import usage_reference
     from job.ai_providers import _key_fingerprint
-    key_ids = {p: _key_fingerprint(p) for p in ("groq", "gemini", "anthropic")}
+    key_ids = {p: _key_fingerprint(p) for p in ("groq", "gemini", "anthropic", "openrouter")}
     try:
         from job.db import usage_last_24h, usage_today
         u24, utoday = usage_last_24h(key_ids), usage_today(key_ids)
@@ -940,6 +946,14 @@ def api_ai_settings_get():
                 "models":  _models_for("gemini"),
                 "usage":   _usage_for("gemini"),
             },
+            "openrouter": {
+                "configured": openrouter_ok,
+                "model":   _get_model("openrouter"),
+                "key_set": bool(openrouter_key),
+                "key":     mask_secret(openrouter_key),
+                "models":  _models_for("openrouter"),
+                "usage":   _usage_for("openrouter"),
+            },
             "claude": {
                 "configured": bool(shutil.which("claude")),
                 "model":   "claude-cli",
@@ -957,14 +971,14 @@ def api_ai_settings_save():
     data = request.get_json() or {}
     updated_keys = set()
 
-    for field, env_key in [("groq_model", "GROQ_MODEL"), ("anthropic_model", "ANTHROPIC_MODEL"), ("gemini_model", "GEMINI_MODEL")]:
+    for field, env_key in [("groq_model", "GROQ_MODEL"), ("anthropic_model", "ANTHROPIC_MODEL"), ("gemini_model", "GEMINI_MODEL"), ("openrouter_model", "OPENROUTER_MODEL")]:
         val = (data.get(field) or "").strip()
         if val:
             write_user_env_var(env_key, val)
             updated_keys.add(env_key)
 
     preferred = (data.get("preferred_provider") or "").strip().lower()
-    if preferred in ("groq", "anthropic", "gemini", "claude", ""):
+    if preferred in ("groq", "anthropic", "gemini", "claude", "openrouter", ""):
         if preferred == "anthropic" and not (data.get("anthropic_model") or "").strip():
             default_model = _MODEL_DEFAULTS["anthropic"]
             write_user_env_var("ANTHROPIC_MODEL", default_model)
@@ -1008,12 +1022,17 @@ def api_ai_settings_test():
         elif provider == "claude":
             if not shutil.which("claude"):
                 return jsonify({"ok": False, "error": "Claude Code CLI not found. Install it with: npm install -g @anthropic-ai/claude-code"})
+        elif provider == "openrouter":
+            if not _env_get("OPENROUTER_API_KEY"):
+                return jsonify({"ok": False, "error": "OPENROUTER_API_KEY is not set. Add your key in AI Settings."})
 
         t0 = time.time()
         if provider == "groq":
             result = _build_with_groq("You are a test.", "Say OK in one word.")
         elif provider == "anthropic":
             result = _build_with_sdk("You are a test.", "Say OK in one word.")
+        elif provider == "openrouter":
+            result = _build_with_openrouter("You are a test.", "Say OK in one word.")
         elif provider == "gemini":
             from job.web_api import _skill_path
             backend_out = []
@@ -1098,10 +1117,12 @@ def api_setup_status():
         "gemini_key_set": bool(_env_get("GEMINI_API_KEY") or _env_get("GOOGLE_API_KEY")),
         "groq_key_set": bool(_env_get("GROQ_API_KEY")),
         "anthropic_key_set": bool(anthropic_key),
+        "openrouter_key_set": bool(_env_get("OPENROUTER_API_KEY")),
         # Masked keys only — full secrets are never returned over the API.
         "gemini_key": mask_secret(_env_get("GEMINI_API_KEY") or _env_get("GOOGLE_API_KEY")),
         "groq_key": mask_secret(_env_get("GROQ_API_KEY")),
         "anthropic_key": mask_secret(anthropic_key),
+        "openrouter_key": mask_secret(_env_get("OPENROUTER_API_KEY")),
     })
 
 
@@ -1272,6 +1293,11 @@ def api_setup_save_gemini_key():
 @app.route("/api/setup/save-anthropic-key", methods=["POST"])
 def api_setup_save_anthropic_key():
     return _save_api_key("ANTHROPIC_API_KEY", "anthropic")
+
+
+@app.route("/api/setup/save-openrouter-key", methods=["POST"])
+def api_setup_save_openrouter_key():
+    return _save_api_key("OPENROUTER_API_KEY", "openrouter")
 
 
 @app.route("/api/setup/install-pdflatex", methods=["POST"])

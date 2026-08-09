@@ -37,4 +37,7 @@ def usage_reference(provider: str, model: str) -> dict:
     if provider == "anthropic":
         return {"limit_tpd": _ANTHROPIC_TPD_APPROX, "approx": True,
                 "resets": "plan-dependent"}
+    if provider == "openrouter":
+        # Credit-based (pay-per-token) or per-model free-tier caps — no static TPD.
+        return {"limit_tpd": 0, "approx": True, "resets": "credit-based"}
     return {"limit_tpd": 0, "approx": True, "resets": ""}

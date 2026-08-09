@@ -39,6 +39,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(web, "_get_groq_client", lambda: None)
     monkeypatch.setattr(web, "_get_anthropic_client", lambda: None)
     monkeypatch.setattr(web, "_get_gemini_client", lambda: None)
+    monkeypatch.setattr(web, "_get_openrouter_client", lambda: None)
     monkeypatch.setattr(web, "shutil", web.shutil)  # keep shutil, but which() below
     monkeypatch.setattr(web.shutil, "which", lambda name: None)
     # _list_models falls back to static lists when clients are None; force that path
@@ -46,12 +47,14 @@ def client(tmp_path, monkeypatch):
         "groq": wapi._GROQ_MODELS,
         "anthropic": wapi._ANTHROPIC_MODELS,
         "gemini": wapi._GEMINI_MODELS,
+        "openrouter": wapi._OPENROUTER_MODELS,
     }[provider])
 
     # Clean provider-related env so tests are deterministic
     for k in ("GROQ_API_KEY", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN",
               "GEMINI_API_KEY", "GOOGLE_API_KEY", "PREFERRED_PROVIDER",
-              "GROQ_MODEL", "ANTHROPIC_MODEL", "GEMINI_MODEL"):
+              "GROQ_MODEL", "ANTHROPIC_MODEL", "GEMINI_MODEL",
+              "OPENROUTER_API_KEY", "OPENROUTER_MODEL"):
         monkeypatch.delenv(k, raising=False)
 
     web.app.config["TESTING"] = True
@@ -71,7 +74,7 @@ class TestAiSettingsGet:
         assert set(data) >= {"active_provider", "preferred_provider", "providers"}
         # claude (Pro CLI) was added after the initial test; ensure the three
         # API-key providers are present and claude is allowed but not required.
-        assert {"groq", "anthropic", "gemini"} <= set(data["providers"])
+        assert {"groq", "anthropic", "gemini", "openrouter"} <= set(data["providers"])
         for p in data["providers"].values():
             assert set(p) >= {"configured", "model", "key_set", "models"}
 
@@ -180,6 +183,7 @@ class TestSaveKeys:
         ("/api/setup/save-groq-key", "GROQ_API_KEY"),
         ("/api/setup/save-gemini-key", "GEMINI_API_KEY"),
         ("/api/setup/save-anthropic-key", "ANTHROPIC_API_KEY"),
+        ("/api/setup/save-openrouter-key", "OPENROUTER_API_KEY"),
     ])
     def test_save_key_writes_env(self, client, tmp_path, endpoint, env_key):
         r = client.post(endpoint, json={"key": "test-secret-123"})
@@ -218,6 +222,21 @@ class TestAiSettingsTest:
         assert data["ok"] is True
         assert data["model"] == "llama-3.3-70b-versatile"
         assert isinstance(data["latency_ms"], int)
+
+    def test_openrouter_no_key_precheck(self, client):
+        r = client.post("/api/ai-settings/test", json={"provider": "openrouter"})
+        data = r.get_json()
+        assert data["ok"] is False
+        assert "OPENROUTER_API_KEY" in data["error"]
+
+    def test_openrouter_success(self, client, monkeypatch):
+        monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
+        monkeypatch.setattr(web, "_build_with_openrouter", lambda s, u: "OK")
+        monkeypatch.setattr(web, "_get_model", lambda p: "meta-llama/llama-3.3-70b-instruct:free")
+        r = client.post("/api/ai-settings/test", json={"provider": "openrouter"})
+        data = r.get_json()
+        assert data["ok"] is True
+        assert data["model"] == "meta-llama/llama-3.3-70b-instruct:free"
 
 
 class TestSetupParseResume:

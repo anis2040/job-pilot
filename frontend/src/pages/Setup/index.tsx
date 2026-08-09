@@ -45,13 +45,14 @@ function CheckRow({ ok, label, detail, children }: { ok: boolean | null; label: 
   );
 }
 
-type ApiProvider = 'groq' | 'gemini' | 'anthropic';
+type ApiProvider = 'groq' | 'gemini' | 'anthropic' | 'openrouter';
 type ProviderChoice = ApiProvider | 'claude' | null;
 
 const API_PROVIDERS: { id: ApiProvider; title: string; blurb: string; placeholder: string }[] = [
   { id: 'groq', title: 'Groq', blurb: 'Free tier, very fast (~5s). API key from console.groq.com — no credit card.', placeholder: 'gsk_…' },
   { id: 'gemini', title: 'Gemini', blurb: 'By Google. Free API key from Google AI Studio. No credit card required.', placeholder: 'AIza…' },
   { id: 'anthropic', title: 'Anthropic', blurb: 'Claude via API key from console.anthropic.com.', placeholder: 'sk-ant-…' },
+  { id: 'openrouter', title: 'OpenRouter', blurb: 'One key, many models incl. free-tier. API key from openrouter.ai.', placeholder: 'sk-or-…' },
 ];
 
 function Step1({ onNext }: { onNext: () => void }) {
@@ -74,6 +75,7 @@ function Step1({ onNext }: { onNext: () => void }) {
     (status.groq_key_set ||
       status.gemini_key_set ||
       status.anthropic_key_set ||
+      status.openrouter_key_set ||
       (isDev && (status.has_claude || status.has_gemini)))
   );
 
@@ -85,6 +87,7 @@ function Step1({ onNext }: { onNext: () => void }) {
     if (p === 'groq') setKeyInput(status?.groq_key || '');
     else if (p === 'gemini') setKeyInput(status?.gemini_key || '');
     else if (p === 'anthropic') setKeyInput(status?.anthropic_key || '');
+    else if (p === 'openrouter') setKeyInput(status?.openrouter_key || '');
     else setKeyInput('');
   };
 
@@ -110,7 +113,7 @@ function Step1({ onNext }: { onNext: () => void }) {
   };
 
   const handleSaveKey = async () => {
-    if (provider !== 'groq' && provider !== 'gemini' && provider !== 'anthropic') return;
+    if (provider !== 'groq' && provider !== 'gemini' && provider !== 'anthropic' && provider !== 'openrouter') return;
     const trimmed = keyInput.trim();
     if (!trimmed || trimmed.startsWith('•')) {
       setActionStatus('✓ Using previously saved key');
@@ -120,6 +123,7 @@ function Step1({ onNext }: { onNext: () => void }) {
     let res: { ok: boolean };
     if (provider === 'groq') res = await setupApi.saveGroqKey(trimmed);
     else if (provider === 'gemini') res = await setupApi.saveGeminiKey(trimmed);
+    else if (provider === 'openrouter') res = await setupApi.saveOpenrouterKey(trimmed);
     else res = await setupApi.saveAnthropicKey(trimmed);
     setActionStatus(res.ok ? '✓ Key saved' : '⚠ Failed to save key');
     if (res.ok) {
@@ -128,6 +132,7 @@ function Step1({ onNext }: { onNext: () => void }) {
         groq_key_set: provider === 'groq' || s.groq_key_set,
         gemini_key_set: provider === 'gemini' || s.gemini_key_set,
         anthropic_key_set: provider === 'anthropic' || s.anthropic_key_set,
+        openrouter_key_set: provider === 'openrouter' || s.openrouter_key_set,
       } : s);
     }
   };
@@ -175,11 +180,11 @@ function Step1({ onNext }: { onNext: () => void }) {
         <div id="check-list" style={{ marginBottom: 20 }}>
           <CheckRow ok={true} label="Python" detail="Running — you're already here!" />
           <CheckRow
-            ok={status ? (status.has_node || status.groq_key_set || status.gemini_key_set || status.anthropic_key_set) : null}
+            ok={status ? (status.has_node || status.groq_key_set || status.gemini_key_set || status.anthropic_key_set || status.openrouter_key_set) : null}
             label="Node.js"
             detail="Only needed to install Claude/Gemini CLIs (not required for API keys)"
           >
-            {status && !status.has_node && !(status.groq_key_set || status.gemini_key_set || status.anthropic_key_set) && (
+            {status && !status.has_node && !(status.groq_key_set || status.gemini_key_set || status.anthropic_key_set || status.openrouter_key_set) && (
               <div style={{ marginTop: 8 }}>
                 <div className="alert alert-error" style={{ marginBottom: 10 }}>
                   ⚠ Node.js is not installed. Required only if you use the Claude or Gemini CLI.
@@ -190,7 +195,7 @@ function Step1({ onNext }: { onNext: () => void }) {
             )}
           </CheckRow>
           <CheckRow
-            ok={status ? (status.has_claude || status.has_gemini || status.groq_key_set || status.gemini_key_set || status.anthropic_key_set) : null}
+            ok={status ? (status.has_claude || status.has_gemini || status.groq_key_set || status.gemini_key_set || status.anthropic_key_set || status.openrouter_key_set) : null}
             label="AI provider"
             detail="API key, or Claude/Gemini CLI"
           />
@@ -217,7 +222,7 @@ function Step1({ onNext }: { onNext: () => void }) {
           </>
         )}
         <div className="provider-grid cols-3">
-          {(['groq', 'claude', 'gemini'] as const).map(p => (
+          {(['groq', 'claude', 'gemini', 'openrouter'] as const).map(p => (
             <div key={p} className={`provider-card${provider === p ? ' selected' : ''}`} onClick={() => {
               setProvider(p);
               setActionStatus('');
@@ -225,16 +230,19 @@ function Step1({ onNext }: { onNext: () => void }) {
               setKeyVisible(false);
               if (p === 'groq') setKeyInput(status?.groq_key || '');
               else if (p === 'gemini') setKeyInput(status?.gemini_key || '');
+              else if (p === 'openrouter') setKeyInput(status?.openrouter_key || '');
               else setKeyInput('');
             }}>
-              <h3>{p === 'groq' ? 'Groq' : p === 'claude' ? 'Claude' : 'Gemini'}</h3>
+              <h3>{p === 'groq' ? 'Groq' : p === 'claude' ? 'Claude' : p === 'openrouter' ? 'OpenRouter' : 'Gemini'}</h3>
               <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
                 {p === 'groq' && 'Free tier, very fast (~5s). API key from console.groq.com — no credit card.'}
                 {p === 'claude' && 'By Anthropic. Free tier available. Login with your Anthropic account.'}
                 {p === 'gemini' && 'By Google. Free API key from Google AI Studio. No credit card required.'}
+                {p === 'openrouter' && 'One key, many models incl. free-tier. API key from openrouter.ai.'}
               </p>
               {p === 'groq' && <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" style={{ fontSize: 'var(--text-xs)', color: 'var(--blue-light)' }} onClick={e => e.stopPropagation()}>Get API key ↗</a>}
               {p === 'gemini' && <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style={{ fontSize: 'var(--text-xs)', color: 'var(--blue-light)' }} onClick={e => e.stopPropagation()}>Get API key ↗</a>}
+              {p === 'openrouter' && <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" style={{ fontSize: 'var(--text-xs)', color: 'var(--blue-light)' }} onClick={e => e.stopPropagation()}>Get API key ↗</a>}
             </div>
           ))}
           {isDev && (
@@ -263,7 +271,7 @@ function Step1({ onNext }: { onNext: () => void }) {
               </div>
             )}
 
-            {(provider === 'groq' || provider === 'gemini' || provider === 'anthropic') && (
+            {(provider === 'groq' || provider === 'gemini' || provider === 'anthropic' || provider === 'openrouter') && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                   <input

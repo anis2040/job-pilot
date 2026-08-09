@@ -141,6 +141,7 @@ def _load_env() -> None:
         "ANTHROPIC_API_KEY", "GROQ_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY",
         "ANTHROPIC_AUTH_TOKEN", "PREFERRED_PROVIDER", "GROQ_MODEL",
         "ANTHROPIC_MODEL", "GEMINI_MODEL", "SEMANTIC_MATCH",
+        "OPENROUTER_API_KEY", "OPENROUTER_MODEL",
     }
     for line in env_path.read_text(encoding="utf-8").splitlines():
         if "=" in line and not line.startswith("#"):
@@ -184,11 +185,37 @@ def _get_anthropic_client():
 _GROQ_MODELS      = ["llama-3.3-70b-versatile", "openai/gpt-oss-120b", "openai/gpt-oss-20b", "llama-3.1-8b-instant"]
 _ANTHROPIC_MODELS = ["claude-haiku-4-5", "claude-sonnet-4-6", "claude-opus-4-6"]
 _GEMINI_MODELS    = ["gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-3-flash-preview", "gemini-flash-lite-latest"]
+# Curated OpenRouter models (its live catalog is 300+; we hand-pick a short,
+# resume-generation-suitable set). Extend by editing this list. Free-tier models
+# first (default is a free one), then paid heavy-hitters.
+_OPENROUTER_MODELS = [
+    # Free tier (no credit required). Verified against the OpenRouter catalog.
+    # Live fetch surfaces the full free set (any family ending in ":free"); this
+    # is only the offline/error fallback, so keep a broad, representative sample.
+    "google/gemma-4-31b-it:free",
+    "openai/gpt-oss-20b:free",
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "nvidia/nemotron-3-nano-30b-a3b:free",
+    "nvidia/nemotron-nano-9b-v2:free",
+    # Popular paid flagships — higher quality / larger context.
+    "anthropic/claude-sonnet-4.5",
+    "openai/gpt-5-mini",
+    "openai/gpt-4o",
+    "google/gemini-2.5-flash",
+    "google/gemini-2.5-pro",
+    "deepseek/deepseek-v4-flash",
+    "deepseek/deepseek-chat-v3-0324",
+    "meta-llama/llama-3.3-70b-instruct",
+    "moonshotai/kimi-k3",
+    "qwen/qwen3-max",
+    "mistralai/mistral-large",
+]
 
 _MODEL_DEFAULTS = {
-    "groq":      "llama-3.3-70b-versatile",
-    "anthropic": "claude-haiku-4-5",
-    "gemini":    "gemini-3.5-flash-lite",
+    "groq":       "llama-3.3-70b-versatile",
+    "anthropic":  "claude-haiku-4-5",
+    "gemini":     "gemini-3.5-flash-lite",
+    "openrouter": "google/gemma-4-31b-it:free",
 }
 
 
@@ -224,7 +251,7 @@ def _list_models(provider: str, use_cache: bool = True) -> list:
 
     # Only cache a successful live fetch (i.e. not the static fallback), so a
     # transient API error doesn't pin the static list for 5 minutes.
-    static = {"groq": _GROQ_MODELS, "gemini": _GEMINI_MODELS, "anthropic": _ANTHROPIC_MODELS}.get(provider, [])
+    static = {"groq": _GROQ_MODELS, "gemini": _GEMINI_MODELS, "anthropic": _ANTHROPIC_MODELS, "openrouter": _OPENROUTER_MODELS}.get(provider, [])
     if result and result is not static:
         _MODEL_LIST_CACHE[provider] = (_time.monotonic() + _MODEL_LIST_TTL, result)
     return result
@@ -260,10 +287,104 @@ def _fetch_models(provider: str) -> list:
                 return _ANTHROPIC_MODELS
             models = [m.id for m in client.models.list().data]
             return models or _ANTHROPIC_MODELS
+
+        if provider == "openrouter":
+            # Live catalog (~400 models). We surface two groups the UI splits on
+            # the ":free" suffix: (1) every usable free model — no family filter,
+            # since only ~17 exist; (2) paid flagship-family models, curated
+            # staples first. Falls back to the static list on any error.
+            import httpx
+            resp = httpx.get(_OPENROUTER_MODELS_URL, timeout=15)
+            resp.raise_for_status()
+            data = resp.json().get("data") or []
+            live_ids = {m["id"] for m in data}
+            free = [m for m in data if _is_openrouter_free_model(m)]
+            free.sort(key=_openrouter_sort_key)
+            paid = [m for m in data if not _is_openrouter_free_priced(m) and _is_openrouter_flagship(m)]
+            paid.sort(key=_openrouter_sort_key)
+            # Curated staples first (only those still in the catalog), then the
+            # filtered remainder — popular-but-old models (gpt-4o, etc.) stay on top.
+            head = [c for c in _OPENROUTER_MODELS if c in live_ids and not c.endswith(":free")]
+            seen = set(head)
+            paid_ids = [m["id"] for m in paid if m["id"] not in seen]
+            free_ids = [m["id"] for m in free]
+            return free_ids + head + paid_ids or _OPENROUTER_MODELS
     except Exception as e:
         print(f"[{provider}] model list failed ({e.__class__.__name__}), using static list")
 
-    return {"groq": _GROQ_MODELS, "gemini": _GEMINI_MODELS, "anthropic": _ANTHROPIC_MODELS}.get(provider, [])
+    return {"groq": _GROQ_MODELS, "gemini": _GEMINI_MODELS, "anthropic": _ANTHROPIC_MODELS, "openrouter": _OPENROUTER_MODELS}.get(provider, [])
+
+
+_OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models"
+
+# Flagship families to surface from OpenRouter's ~300-model catalog. A model is
+# kept only if its id starts with one of these prefixes (e.g. "anthropic/",
+# "openai/") — this drops the long tail while auto-tracking new releases.
+_OPENROUTER_FAMILIES = (
+    "anthropic/", "openai/", "google/gemini", "google/gemma",
+    "deepseek/", "meta-llama/", "qwen/", "mistralai/", "x-ai/", "moonshotai/",
+)
+# Substrings that mark a non-chat, specialty, or duplicate variant we never want.
+_OPENROUTER_EXCLUDE = (
+    "whisper", "tts", "embed", "vision-only", "-image", "image-", "audio",
+    "lyria", "veo", "sora", "guard", "moderation", "-ocr", "coder",
+    ":batch", "-fast", ":thinking", ":extended", ":online",
+    "content-safety", "-vl", "-omni", "openrouter/",
+)
+
+# Matches dated-snapshot slugs (e.g. "-0731", "-20260806", "-2024-11") we drop in
+# favor of the stable/canonical id, to cut near-duplicates from the dropdown.
+_OPENROUTER_DATED = re.compile(r"-(\d{4}|\d{6}|\d{8}|\d{4}-\d{2}(-\d{2})?)$")
+
+
+def _is_openrouter_flagship(m: dict) -> bool:
+    """Keep only flagship-family text->text chat models from the OpenRouter catalog."""
+    mid = (m.get("id") or "").lower()
+    base = mid.split(":", 1)[0]
+    if not mid or not mid.startswith(_OPENROUTER_FAMILIES):
+        return False
+    if any(x in mid for x in _OPENROUTER_EXCLUDE):
+        return False
+    if _OPENROUTER_DATED.search(base):
+        return False
+    arch = m.get("architecture") or {}
+    out_mods = arch.get("output_modalities") or ["text"]
+    in_mods = arch.get("input_modalities") or ["text"]
+    return "text" in out_mods and "text" in in_mods
+
+
+def _is_openrouter_free_priced(m: dict) -> bool:
+    """True when a catalog model costs nothing (both prompt and completion are $0)."""
+    p = m.get("pricing") or {}
+    try:
+        return float(p.get("prompt", "1")) == 0 and float(p.get("completion", "1")) == 0
+    except (TypeError, ValueError):
+        return False
+
+
+def _is_openrouter_free_model(m: dict) -> bool:
+    """Keep any usable free text->text model — no family filter.
+
+    Free models are rare (~17 total) and come from families outside the flagship
+    allowlist (nvidia/, inclusionai/, cohere/, …), so we surface every free one
+    that clears the junk/modality guards rather than pruning by family."""
+    if not _is_openrouter_free_priced(m):
+        return False
+    mid = (m.get("id") or "").lower()
+    if not mid:
+        return False
+    if any(x in mid for x in _OPENROUTER_EXCLUDE):
+        return False
+    arch = m.get("architecture") or {}
+    out_mods = arch.get("output_modalities") or ["text"]
+    in_mods = arch.get("input_modalities") or ["text"]
+    return "text" in out_mods and "text" in in_mods
+
+
+def _openrouter_sort_key(m: dict):
+    """Sort free models first, then newest-first within each group."""
+    return (0 if _is_openrouter_free_priced(m) else 1, -(m.get("created") or 0), m.get("id") or "")
+
 
 
 def _is_gemini_text_model(name: str) -> bool:
@@ -290,6 +411,8 @@ def _key_fingerprint(provider: str) -> str:
         key = _env_get("GEMINI_API_KEY") or _env_get("GOOGLE_API_KEY") or ""
     elif provider == "anthropic":
         key = _env_get("ANTHROPIC_API_KEY") or _env_get("ANTHROPIC_AUTH_TOKEN") or ""
+    elif provider == "openrouter":
+        key = _env_get("OPENROUTER_API_KEY", "")
     else:
         key = ""
     return hashlib.sha256(key.encode()).hexdigest()[:12] if key else ""
@@ -362,6 +485,70 @@ def _build_with_groq(system_text: str, user_prompt: str, stage_fn=None) -> str:
                 output=getattr(u, "completion_tokens", 0) or 0,
                 total=getattr(u, "total_tokens", 0) or 0)
     return response.choices[0].message.content
+
+
+def _get_openrouter_client():
+    """Return the OpenRouter API key if set, else None.
+
+    OpenRouter has no SDK dependency — it's a plain OpenAI-compatible REST API we
+    call with httpx. This returns the key (not a client object) purely as an
+    "is this provider configured?" gate, mirroring _get_groq_client's role."""
+    return _env_get("OPENROUTER_API_KEY") or None
+
+
+_OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+
+
+def _build_with_openrouter(system_text: str, user_prompt: str, stage_fn=None) -> str:
+    """Call OpenRouter's OpenAI-compatible chat completions endpoint via httpx."""
+    import httpx
+    api_key = _get_openrouter_client()
+    if not api_key:
+        raise RuntimeError("No OpenRouter API key available")
+    if stage_fn:
+        stage_fn("Generating with OpenRouter…")
+    model = _get_model("openrouter")
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        # Optional attribution headers OpenRouter uses for its dashboard/rankings.
+        "HTTP-Referer": "https://github.com/job-scraper",
+        "X-Title": "job-scraper",
+    }
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_text},
+            {"role": "user",   "content": user_prompt},
+        ],
+        "max_tokens": 8192,
+        "temperature": 0.3,
+    }
+    try:
+        resp = httpx.post(_OPENROUTER_URL, headers=headers, json=payload, timeout=600)
+        resp.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        status = e.response.status_code
+        body = (e.response.text or "")[:300]
+        # 429 = rate limited, 402 = out of credits — both are "pick another model / wait".
+        if status in (429, 402):
+            raise RateLimitError(
+                f"OpenRouter model '{model}' is unavailable ({status}): "
+                f"out of credits or rate limited. Pick another model in AI Settings, "
+                f"add credits at openrouter.ai, or wait and retry.",
+                provider="openrouter",
+            ) from e
+        raise RuntimeError(f"OpenRouter API error {status}: {body}") from e
+    data = resp.json()
+    choices = data.get("choices") or []
+    if not choices:
+        raise RuntimeError(f"OpenRouter returned no choices: {str(data)[:300]}")
+    u = data.get("usage") or {}
+    _log_tokens("openrouter", model,
+                input=u.get("prompt_tokens", 0) or 0,
+                output=u.get("completion_tokens", 0) or 0,
+                total=u.get("total_tokens", 0) or 0)
+    return choices[0].get("message", {}).get("content", "") or ""
 
 
 def _build_with_sdk(system_text: str, user_prompt: str, stage_fn=None, on_delta=None) -> str:
@@ -660,10 +847,16 @@ def _generate_content(system_text: str, user_prompt: str, cwd: str, stage_fn=Non
             return _build_with_claude_cli(system_text, user_prompt, cwd=cwd, stage_fn=stage_fn)
         return None
 
-    _order = {"groq":     [_try_groq, _try_anthropic, _try_gemini, _try_claude_cli],
-              "anthropic": [_try_anthropic, _try_groq, _try_gemini, _try_claude_cli],
-              "gemini":   [_try_gemini, _try_groq, _try_anthropic, _try_claude_cli],
-              "claude":   [_try_claude_cli, _try_groq, _try_anthropic, _try_gemini]}
+    def _try_openrouter():
+        if _get_openrouter_client() is not None:
+            return _build_with_openrouter(system_text, user_prompt, stage_fn=stage_fn)
+        return None
+
+    _order = {"groq":      [_try_groq, _try_anthropic, _try_gemini, _try_claude_cli],
+              "anthropic":  [_try_anthropic, _try_groq, _try_gemini, _try_claude_cli],
+              "gemini":     [_try_gemini, _try_groq, _try_anthropic, _try_claude_cli],
+              "claude":     [_try_claude_cli, _try_groq, _try_anthropic, _try_gemini],
+              "openrouter": [_try_openrouter, _try_groq, _try_anthropic, _try_gemini, _try_claude_cli]}
     fns = _order.get(preferred, [_try_groq, _try_anthropic, _try_gemini, _try_claude_cli])
 
     for fn in fns:
@@ -710,11 +903,17 @@ def call_ai_fast(prompt: str, system: str = "") -> str:
             return _build_with_gemini_sdk(sys_text, prompt)
         return None
 
+    def _try_openrouter():
+        if _get_openrouter_client() is not None:
+            return _build_with_openrouter(sys_text, prompt)
+        return None
+
     _order = {
-        "groq":      [_try_groq, _try_anthropic, _try_gemini_sdk],
-        "anthropic": [_try_anthropic, _try_groq, _try_gemini_sdk],
-        "gemini":    [_try_gemini_sdk, _try_groq, _try_anthropic],
-        "claude":    [_try_anthropic, _try_groq, _try_gemini_sdk],
+        "groq":       [_try_groq, _try_anthropic, _try_gemini_sdk],
+        "anthropic":  [_try_anthropic, _try_groq, _try_gemini_sdk],
+        "gemini":     [_try_gemini_sdk, _try_groq, _try_anthropic],
+        "claude":     [_try_anthropic, _try_groq, _try_gemini_sdk],
+        "openrouter": [_try_openrouter, _try_groq, _try_anthropic, _try_gemini_sdk],
     }
     fns = _order.get(preferred, [_try_groq, _try_anthropic, _try_gemini_sdk])
 
