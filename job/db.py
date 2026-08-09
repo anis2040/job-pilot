@@ -14,11 +14,33 @@ def _connect() -> sqlite3.Connection:
         raise RuntimeError("No active profile. Complete setup first.")
     con = sqlite3.connect(db_path)
     con.row_factory = sqlite3.Row
+    _tune_connection(con)
     return con
+
+
+def _tune_connection(con: sqlite3.Connection) -> None:
+    """Keep SQLite responsive on local desktop filesystems, especially Windows.
+
+    busy_timeout avoids instant failures while a fetch is committing, and the
+    other settings reduce temp-file churn for local cache-style queries.
+    """
+    for statement in (
+        "PRAGMA busy_timeout = 5000",
+        "PRAGMA synchronous = NORMAL",
+        "PRAGMA temp_store = MEMORY",
+    ):
+        try:
+            con.execute(statement)
+        except sqlite3.DatabaseError:
+            pass
 
 
 def init_db() -> None:
     with _connect() as con:
+        try:
+            con.execute("PRAGMA journal_mode = WAL")
+        except sqlite3.DatabaseError:
+            pass
         con.execute("""
             CREATE TABLE IF NOT EXISTS jobs (
                 job_id            TEXT PRIMARY KEY,
@@ -97,6 +119,12 @@ def init_db() -> None:
             con.execute("ALTER TABLE token_usage ADD COLUMN key_id TEXT DEFAULT ''")
         except Exception:
             pass  # column already exists
+
+        con.execute("CREATE INDEX IF NOT EXISTS idx_jobs_status_first_seen ON jobs(status, first_seen_at DESC)")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_jobs_status_company_title ON jobs(status, company, title)")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_fetch_log_source_fetched ON fetch_log(source, fetched_at DESC)")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_fetch_log_fetched ON fetch_log(fetched_at DESC)")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_token_usage_ts ON token_usage(ts)")
         con.commit()
 
     # One-time backfill: repair workplace-type labels written under the old
@@ -161,6 +189,43 @@ def is_duplicate(title: str, company: str) -> bool:
         return row is not None
 
 
+def _job_id_placeholders(count: int) -> str:
+    return ",".join("?" for _ in range(count))
+
+
+def existing_job_ids(job_ids: list[str]) -> set[str]:
+    """Return IDs already present in jobs or filter_log.
+
+    Used by fetch paths to avoid one SQLite round-trip per scraped listing.
+    """
+    ids = [j for j in dict.fromkeys(job_ids) if j]
+    if not ids:
+        return set()
+    seen: set[str] = set()
+    with _connect() as con:
+        for i in range(0, len(ids), 500):
+            chunk = ids[i:i + 500]
+            placeholders = _job_id_placeholders(len(chunk))
+            rows = con.execute(f"SELECT job_id FROM jobs WHERE job_id IN ({placeholders})", chunk).fetchall()
+            seen.update(r["job_id"] for r in rows)
+            rows = con.execute(f"SELECT job_id FROM filter_log WHERE job_id IN ({placeholders})", chunk).fetchall()
+            seen.update(r["job_id"] for r in rows)
+    return seen
+
+
+def duplicate_key(title: str, company: str) -> tuple[str, str]:
+    norm_title = (title or "").replace("-", " ").replace("/", " ").strip().lower()
+    norm_company = (company or "").strip().lower()
+    return norm_company, norm_title
+
+
+def pending_duplicate_keys() -> set[tuple[str, str]]:
+    """Return normalized (company, title) keys for pending rows."""
+    with _connect() as con:
+        rows = con.execute("SELECT title, company FROM jobs WHERE status = 'pending'").fetchall()
+    return {duplicate_key(r["title"] or "", r["company"] or "") for r in rows}
+
+
 def insert_job(
     job_id: str,
     url: str,
@@ -200,6 +265,39 @@ def insert_filter_log(job_id: str, title: str, matched_keyword: str) -> None:
             (job_id, title, matched_keyword, now),
         )
         con.commit()
+
+
+def insert_filter_logs_batch(entries: list[tuple[str, str, str]]) -> None:
+    if not entries:
+        return
+    now = _now_iso()
+    with _connect() as con:
+        con.executemany(
+            "INSERT OR IGNORE INTO filter_log (job_id, title, matched_keyword, filtered_at) VALUES (?, ?, ?, ?)",
+            [(job_id, title, kw, now) for job_id, title, kw in entries],
+        )
+        con.commit()
+
+
+def insert_jobs_batch(rows: list[dict]) -> int:
+    if not rows:
+        return 0
+    now = _now_iso()
+    with _connect() as con:
+        cur = con.executemany(
+            """
+            INSERT OR IGNORE INTO jobs
+                (job_id, url, title, company, location, remote, experience,
+                 description, posted_at, first_seen_at, status, search_name,
+                 employment_type, salary_range)
+            VALUES (:job_id, :url, :title, :company, :location, :remote,
+                    :experience, :description, :posted_at, :first_seen_at,
+                    'pending', :search_name, :employment_type, :salary_range)
+            """,
+            [{**row, "first_seen_at": now} for row in rows],
+        )
+        con.commit()
+        return cur.rowcount if cur.rowcount != -1 else len(rows)
 
 
 def log_fetch(source: str, new_count: int) -> None:

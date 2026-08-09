@@ -13,7 +13,8 @@ from rich import box
 
 from .config import load_config
 from .db import (
-    init_db, already_seen, is_duplicate, insert_job, insert_filter_log,
+    duplicate_key, existing_job_ids, init_db, insert_filter_logs_batch,
+    insert_jobs_batch, pending_duplicate_keys,
     update_status, get_pending, get_pending_deduped, get_jobs_by_status,
     update_description, log_fetch, last_fetch_at, get_job, stats as db_stats,
 )
@@ -125,6 +126,7 @@ def fetch() -> None:
     init_db()
     config = load_config()
     total_new = 0
+    duplicate_keys = pending_duplicate_keys()
 
     # Staleness warning
     last = last_fetch_at()
@@ -139,34 +141,45 @@ def fetch() -> None:
     for search in config.searches:
         console.print(f"[bold]Fetching[/bold] {search.name}…")
         jobs = fetch_search(search)
+        seen_ids = existing_job_ids([job.job_id for job in jobs])
+        filtered_logs: list[tuple[str, str, str]] = []
+        new_rows: list[dict] = []
         new_count = 0
 
         for job in jobs:
-            if already_seen(job.job_id):
+            if job.job_id in seen_ids:
                 continue
             from .web_api import _should_include_job
             include, kw = _should_include_job(job, config)
             if not include:
                 if kw:
-                    insert_filter_log(job.job_id, job.title, kw)
+                    filtered_logs.append((job.job_id, job.title, kw))
+                    seen_ids.add(job.job_id)
                 continue
-            if is_duplicate(job.title, job.company):
+            dupe_key = duplicate_key(job.title, job.company)
+            if dupe_key in duplicate_keys:
                 continue
 
-            insert_job(
-                job_id=job.job_id,
-                url=job.url,
-                title=job.title,
-                company=job.company,
-                location=job.location,
-                remote=job.remote,
-                experience=job.experience,
-                description=job.description,
-                posted_at=job.posted_at,
-                search_name=search.name,
-            )
+            new_rows.append({
+                "job_id": job.job_id,
+                "url": job.url,
+                "title": job.title,
+                "company": job.company,
+                "location": job.location,
+                "remote": job.remote,
+                "experience": job.experience,
+                "description": job.description,
+                "posted_at": job.posted_at,
+                "search_name": search.name,
+                "employment_type": job.employment_type,
+                "salary_range": job.salary_range,
+            })
+            seen_ids.add(job.job_id)
+            duplicate_keys.add(dupe_key)
             new_count += 1
 
+        insert_filter_logs_batch(filtered_logs)
+        insert_jobs_batch(new_rows)
         log_fetch(search.source, new_count)
         console.print(f"  → {new_count} new listing(s)")
         total_new += new_count
