@@ -303,13 +303,12 @@ describe('Workplace badge correction (regression guard)', () => {
     renderApp('/')
     await waitFor(() => expect(screen.getByText('Platform Engineer')).toBeInTheDocument())
 
-    const row = screen.getByText('Platform Engineer').closest('.job-row') as HTMLElement
-    expect(within(row).getByText('Remote')).toBeInTheDocument()
+    expect(within(screen.getByTestId('job-row-hybrid-1')).getByText('Remote')).toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Platform Engineer'))
 
-    await waitFor(() => expect(within(row).getByText('Hybrid')).toBeInTheDocument())
-    expect(within(row).queryByText('Remote')).toBeNull()
+    await waitFor(() => expect(within(screen.getByTestId('job-row-hybrid-1')).getByText('Hybrid')).toBeInTheDocument())
+    expect(within(screen.getByTestId('job-row-hybrid-1')).queryByText('Remote')).toBeNull()
   })
 
   it('fetches the full StepStone description even when the stored row has a snippet', async () => {
