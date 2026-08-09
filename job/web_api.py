@@ -29,8 +29,9 @@ from .ai_providers import (  # noqa: F401,E402
     _is_gemini_text_model, _log_tokens, _clean_gemini_error,
     _build_with_groq, _build_with_sdk,
     _build_with_gemini, _build_with_gemini_sdk, _build_with_gemini_cli,
+    _build_with_openrouter, _get_openrouter_client,
     _generate_content, call_ai, call_ai_fast,
-    _GROQ_MODELS, _ANTHROPIC_MODELS, _GEMINI_MODELS, _MODEL_DEFAULTS,
+    _GROQ_MODELS, _ANTHROPIC_MODELS, _GEMINI_MODELS, _OPENROUTER_MODELS, _MODEL_DEFAULTS,
     _MODEL_LIST_CACHE, _MODEL_LIST_TTL,
 )
 

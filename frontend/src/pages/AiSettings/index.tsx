@@ -10,6 +10,7 @@ const PROVIDER_META: Record<string, { label: string; sub: string; badge: string;
   groq:      { label: 'Groq', sub: 'Free API key · fast LLaMA models', badge: 'Free tier', badgeClass: 'badge badge-green', placeholder: 'gsk_…', keyUrl: 'https://console.groq.com/keys' },
   anthropic: { label: 'Claude (API)', sub: 'Anthropic API key · Claude models', badge: 'API key', badgeClass: 'badge', placeholder: 'sk-ant-…', keyUrl: 'https://console.anthropic.com/settings/keys' },
   gemini:    { label: 'Gemini', sub: 'Google AI Studio key · Gemini models', badge: 'Free tier', badgeClass: 'badge badge-green', placeholder: 'AIza…', keyUrl: 'https://aistudio.google.com/app/apikey' },
+  openrouter:{ label: 'OpenRouter', sub: 'One key, many models · incl. free-tier', badge: 'Free tier', badgeClass: 'badge badge-green', placeholder: 'sk-or-…', keyUrl: 'https://openrouter.ai/keys' },
   claude:    { label: 'Claude Pro', sub: 'Uses local Claude CLI (claude.ai subscription)', badge: 'CLI', badgeClass: 'badge', placeholder: '', noKey: 'No CLI' },
 };
 
@@ -17,6 +18,7 @@ const KEY_SAVE: Record<string, (key: string) => Promise<{ ok: boolean }>> = {
   groq:      k => setup.saveGroqKey(k),
   anthropic: k => setup.saveAnthropicKey(k),
   gemini:    k => setup.saveGeminiKey(k),
+  openrouter:k => setup.saveOpenrouterKey(k),
 };
 
 function UsageStrip({ info }: { info: ProviderInfo }) {
@@ -187,17 +189,36 @@ function ProviderCard({
                   )}
                 </div>
               </div>
-              <div className="model-row">
-                <label>Model</label>
-                <select
-                  value={info.model}
-                  disabled={!info.key_set}
-                  onChange={e => onSaveModel(pid, e.target.value)}
-                  onClick={e => e.stopPropagation()}
-                >
-                  {(info.models || []).map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </div>
+              {pid === 'openrouter' ? (
+                <div className="model-row">
+                  <label>Model</label>
+                  <select
+                    value={info.model}
+                    disabled={!info.key_set}
+                    onChange={e => onSaveModel(pid, e.target.value)}
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <optgroup label="Free">
+                      {(info.models || []).filter(m => m.endsWith(':free')).map(m => <option key={m} value={m}>{m}</option>)}
+                    </optgroup>
+                    <optgroup label="Paid">
+                      {(info.models || []).filter(m => !m.endsWith(':free')).map(m => <option key={m} value={m}>{m}</option>)}
+                    </optgroup>
+                  </select>
+                </div>
+              ) : (
+                <div className="model-row">
+                  <label>Model</label>
+                  <select
+                    value={info.model}
+                    disabled={!info.key_set}
+                    onChange={e => onSaveModel(pid, e.target.value)}
+                    onClick={e => e.stopPropagation()}
+                  >
+                    {(info.models || []).map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+              )}
             </>
           )}
           <div className="test-row">

@@ -535,6 +535,7 @@ def migrate_legacy_profiles_layout() -> bool:
             "ANTHROPIC_API_KEY", "GROQ_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY",
             "ANTHROPIC_AUTH_TOKEN", "PREFERRED_PROVIDER", "GROQ_MODEL",
             "ANTHROPIC_MODEL", "GEMINI_MODEL", "SEMANTIC_MATCH",
+            "OPENROUTER_API_KEY", "OPENROUTER_MODEL",
         }
         lines = []
         for line in root_env.read_text(encoding="utf-8").splitlines():

@@ -43,6 +43,7 @@ def _load_env_file() -> None:
         "ANTHROPIC_API_KEY", "GROQ_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY",
         "ANTHROPIC_AUTH_TOKEN", "PREFERRED_PROVIDER", "GROQ_MODEL",
         "ANTHROPIC_MODEL", "GEMINI_MODEL", "SEMANTIC_MATCH",
+        "OPENROUTER_API_KEY", "OPENROUTER_MODEL",
     }
     for line in env_path.read_text(encoding="utf-8").splitlines():
         if "=" in line and not line.startswith("#"):
