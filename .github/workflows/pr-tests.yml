@@ -1,0 +1,167 @@
+name: PR Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+
+concurrency:
+  group: pr-tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install backend dependencies
+        run: pip install --prefer-binary -r requirements.txt
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix frontend --include=optional --force
+
+      - name: Run backend unit tests
+        run: >-
+          python -m pytest
+          tests/test_ai_config.py
+          tests/test_cli.py
+          tests/test_db.py
+          tests/test_fetcher_utils.py
+          tests/test_imports.py
+          tests/test_latex_parse.py
+          tests/test_latex_render.py
+          tests/test_match.py
+          tests/test_profile_parse.py
+          tests/test_profiles.py
+          tests/test_providers.py
+          tests/test_rate_limit.py
+          tests/test_skills_vocab.py
+          tests/test_utils.py
+
+      - name: Run frontend unit tests
+        run: >-
+          npm --prefix frontend run test --
+          src/test/descriptionRenderer.test.ts
+          src/test/format.test.ts
+          src/test/jobDescription.test.ts
+          src/test/searchFilters.test.ts
+          src/test/usePolling.test.ts
+          src/test/TagInput.test.tsx
+          src/test/dialogs.test.tsx
+          src/test/profileForm.test.tsx
+          src/test/searchRow.test.tsx
+
+  integration:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install backend dependencies
+        run: pip install --prefer-binary -r requirements.txt
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix frontend --include=optional --force
+
+      - name: Run backend integration tests
+        run: >-
+          python -m pytest
+          tests/test_auth.py
+          tests/test_build_document.py
+          tests/test_fetchers.py
+          tests/test_routes_ai.py
+          tests/test_routes_web.py
+
+      - name: Run frontend integration tests
+        run: >-
+          npm --prefix frontend run test --
+          src/test/aiGeneration.test.tsx
+          src/test/aiSettings.test.tsx
+          src/test/backNavigation.test.tsx
+          src/test/dashboard.test.tsx
+          src/test/filters.test.tsx
+          src/test/firstRunGate.test.tsx
+          src/test/jobActions.test.tsx
+          src/test/profileDropdown.test.tsx
+          src/test/regressions.test.tsx
+
+  e2e:
+    name: E2E smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install backend dependencies
+        run: pip install --prefer-binary -r requirements.txt
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix frontend --include=optional --force
+
+      - name: Build React app
+        run: npm --prefix frontend run build
+
+      - name: Run backend E2E smoke tests
+        run: python -m pytest tests/test_smoke.py
+
+  pr-test-suite:
+    name: PR test suite
+    runs-on: ubuntu-latest
+    needs:
+      - unit
+      - integration
+      - e2e
+    if: always()
+    steps:
+      - name: Require all PR test jobs to pass
+        run: |
+          if [[ "${{ needs.unit.result }}" != "success" || "${{ needs.integration.result }}" != "success" || "${{ needs.e2e.result }}" != "success" ]]; then
+            echo "Unit: ${{ needs.unit.result }}"
+            echo "Integration: ${{ needs.integration.result }}"
+            echo "E2E: ${{ needs.e2e.result }}"
+            exit 1
+          fi
+          echo "All PR test jobs passed."
