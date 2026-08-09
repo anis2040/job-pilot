@@ -1,7 +1,8 @@
 # Design System
 
 All visual styling flows from CSS custom properties (design tokens) defined in
-one place: the `:root` block at the top of [`static/base.css`](../static/base.css).
+one place: the `:root` block at the top of
+[`frontend/src/styles/base.css`](../frontend/src/styles/base.css).
 
 **Rule of thumb:** never hardcode a colour, size, radius, duration, or easing in
 a template or component. Reference a token. If no token fits, add one to `:root`
@@ -113,7 +114,8 @@ documented source of truth — match them exactly when writing queries.
 
 ## Components
 
-Compose these; don't restyle per-screen. All defined in `base.css`.
+Compose these; don't restyle per-screen. Shared primitives are defined in
+`frontend/src/styles/base.css`, with React helpers in `frontend/src/components`.
 
 **Buttons** — `.btn` + one variant (`.btn-primary`, `.btn-success`,
 `.btn-danger`, `.btn-ghost`, `.btn-danger-outline`) + optional size
@@ -170,6 +172,9 @@ their own data.
 1. Compose from existing tokens — check this doc first.
 2. Reuse shared components before writing new CSS: `.btn`/`.btn-sm`/`.btn-lg`,
    `.card`, `.badge-*`, `.avatar*`, `.empty-state`, `.skeleton`, `.tag-*`,
-   `.filter-chip`, plus JS helpers in [`static/ui.js`](../static/ui.js)
-   (`showToast`, `confirmDialog`, `promptDialog`, `trapFocus`, `icon()`).
+   `.filter-chip`, plus React helpers such as
+   [`Toast`](../frontend/src/components/ui/Toast.tsx),
+   [`ConfirmDialog`](../frontend/src/components/ui/ConfirmDialog.tsx),
+   [`PromptDialog`](../frontend/src/components/ui/PromptDialog.tsx), and
+   [`Icon`](../frontend/src/components/ui/Icon.tsx).
 3. Only if nothing fits: add a token to `:root`, document it here, then use it.

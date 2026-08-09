@@ -604,17 +604,15 @@ def ground_competencies(competencies: list, profile: dict, backfill_to: int = 6)
     return kept, dropped
 
 
-def validate_resume_content(content: dict, profile_text: str) -> list[str]:
+def validate_resume_content(content: dict, profile_text: str, jd_keywords: list[str] | None = None) -> list[str]:
     """Deterministic post-generation check. Returns human-readable warnings
     (empty = clean). Non-fatal: the resume is already rendered — this surfaces
     likely fabrication for logging/UI.
 
     High-signal, vocabulary-free check (chosen to avoid false positives):
     every experience employer must appear in profile.md (catches invented jobs).
-    ATS keyword coverage is intentionally NOT scored here: that would require a
-    fixed skill vocabulary that caps coverage to a hand-maintained list and fails
-    for any profile/role outside it. Keyword matching is the model's job now,
-    driven by the full JD + profile in the SKILL.md prompt.
+    When callers pass JD keywords, coverage is checked through the shared skill
+    vocabulary so aliases count the same way they do in job matching.
     """
     warnings: list[str] = []
     prof = _norm(profile_text)
@@ -623,6 +621,27 @@ def validate_resume_content(content: dict, profile_text: str) -> list[str]:
         employer = (exp.get("employer") or "").strip()
         if employer and _norm(employer) not in prof:
             warnings.append(f"Employer not found in profile (possible fabrication): {employer!r}")
+
+    if jd_keywords:
+        from .skills_vocab import detect_keywords
+
+        pieces = [content.get("summary") or "", " ".join(_competencies_flat(content.get("core_competencies")))]
+        for exp in content.get("experiences", []) or []:
+            pieces.extend(exp.get("bullets") or [])
+            for project in exp.get("projects", []) or []:
+                pieces.append(project.get("description") or "")
+        covered = {keyword.lower() for keyword in detect_keywords("\n".join(pieces))}
+
+        missing: list[str] = []
+        for keyword in jd_keywords:
+            canonical = detect_keywords(keyword) or [keyword]
+            if not any(item.lower() in covered for item in canonical):
+                missing.append(keyword)
+        if missing:
+            matched_count = len(jd_keywords) - len(missing)
+            warnings.append(
+                f"ATS keyword coverage: {matched_count}/{len(jd_keywords)} covered; missing: {', '.join(missing)}"
+            )
 
     return warnings
 

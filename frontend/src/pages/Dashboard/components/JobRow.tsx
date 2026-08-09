@@ -14,7 +14,10 @@ interface JobRowProps {
 export function JobRow({ job, selected, onClick, onStatusChange }: JobRowProps) {
   const match = job.match;
   const skillCount = match?.matched_count ?? 0;
-  const badgeCls = skillCount >= 5 ? 'high' : skillCount >= 3 ? 'mid' : 'low';
+  const fitScore = match?.score_kind === 'fit' ? (match.semantic_score ?? match.score) : null;
+  const badgeValue = fitScore ?? skillCount;
+  const badgeCls = badgeValue >= 75 ? 'high' : badgeValue >= 45 ? 'mid' : 'low';
+  const badgeLabel = fitScore != null ? `${fitScore}% fit` : `${skillCount} skills`;
 
   return (
     <div
@@ -49,8 +52,8 @@ export function JobRow({ job, selected, onClick, onStatusChange }: JobRowProps) 
 
       <div className="job-row-right" onClick={e => e.stopPropagation()}>
         <div className="job-row-score-row">
-          {skillCount > 0 && (
-            <span className={`match-badge ${badgeCls}`}>{skillCount} skills</span>
+          {match && badgeValue > 0 && (
+            <span className={`match-badge ${badgeCls}`}>{badgeLabel}</span>
           )}
           {job.source && <SourceBadge source={job.source} />}
         </div>

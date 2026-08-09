@@ -25,6 +25,10 @@ def client(tmp_path, monkeypatch):
     from job.user_context import LOCAL_USER_ID
     monkeypatch.setattr(web, "BASE", tmp_path)
     monkeypatch.setattr(job.paths, "BASE", tmp_path)
+    dist = tmp_path / "frontend-dist"
+    dist.mkdir()
+    (dist / "index.html").write_text("<div id='root'></div>", encoding="utf-8")
+    monkeypatch.setattr(web, "_FRONTEND_DIST", dist)
     monkeypatch.setenv("AUTH_DISABLED", "1")
     monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False)
     monkeypatch.delenv("GOOGLE_CLIENT_SECRET", raising=False)
@@ -32,7 +36,6 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(profs, "PROFILES_DIR", pdir)
     monkeypatch.setattr(profs, "_update_symlinks", lambda d: None)
     monkeypatch.setattr(profs, "get_current_user_id", lambda: LOCAL_USER_ID)
-    monkeypatch.setattr(web, "PROFILES_DIR", pdir)
 
     user_dir = pdir / LOCAL_USER_ID
     prof = user_dir / "smoke-user"; prof.mkdir(parents=True)
