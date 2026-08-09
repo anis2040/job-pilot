@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { screen, waitFor, fireEvent } from '@testing-library/react'
+import { screen, waitFor, fireEvent, act } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { renderApp } from './utils'
 import { server } from './mocks/server'
@@ -15,6 +15,24 @@ import {
   FETCH_JOBS_RELOAD_MS,
   FETCH_STATUS_POLL_MS,
 } from '@/pages/Dashboard/hooks/useJobFetch'
+
+/** Wait until async dashboard loads (incl. profile slug effect) have finished. */
+async function waitForJobsCallsToSettle(countFn: () => number) {
+  await waitFor(() => expect(countFn()).toBeGreaterThan(0))
+  await waitFor(async () => {
+    const before = countFn()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    const after = countFn()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(countFn()).toBe(after)
+    expect(after).toBe(before)
+  })
+  return countFn()
+}
 
 describe('Performance optimizations (E2E)', () => {
   beforeEach(() => {
@@ -74,22 +92,26 @@ describe('Performance optimizations (E2E)', () => {
     seedJobs([])
     renderApp('/')
     await waitFor(() => expect(screen.getByText(/No pending jobs/i)).toBeInTheDocument())
-    const baseline = jobsCalls
+    const baseline = await waitForJobsCallsToSettle(() => jobsCalls)
 
-    Object.defineProperty(document, 'visibilityState', {
-      configurable: true,
-      get: () => 'hidden',
+    await act(async () => {
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        get: () => 'hidden',
+      })
+      document.dispatchEvent(new Event('visibilitychange'))
     })
-    document.dispatchEvent(new Event('visibilitychange'))
 
     await vi.advanceTimersByTimeAsync(120_000)
     expect(jobsCalls).toBe(baseline)
 
-    Object.defineProperty(document, 'visibilityState', {
-      configurable: true,
-      get: () => 'visible',
+    await act(async () => {
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        get: () => 'visible',
+      })
+      document.dispatchEvent(new Event('visibilitychange'))
     })
-    document.dispatchEvent(new Event('visibilitychange'))
     await waitFor(() => expect(jobsCalls).toBeGreaterThan(baseline))
   })
 
