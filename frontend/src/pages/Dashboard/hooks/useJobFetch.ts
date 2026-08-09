@@ -10,6 +10,7 @@ export function useJobFetch(loadJobs: LoadFn, loadCounts: LoadFn, setLoading: (l
   const [fetchMessage, setFetchMessage] = useState('');
   const fetchPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fetchRefreshInFlightRef = useRef(false);
+  const lastRunningMessageRef = useRef('');
   const handleFetchRef = useRef<() => void>(() => {});
 
   useEffect(() => () => { if (fetchPollRef.current) clearInterval(fetchPollRef.current); }, []);
@@ -17,6 +18,7 @@ export function useJobFetch(loadJobs: LoadFn, loadCounts: LoadFn, setLoading: (l
   const handleFetch = async () => {
     setFetchRunning(true);
     setFetchMessage('Starting fetch…');
+    lastRunningMessageRef.current = '';
     try {
       await fetcherApi.trigger();
     } catch {
@@ -25,10 +27,15 @@ export function useJobFetch(loadJobs: LoadFn, loadCounts: LoadFn, setLoading: (l
       return;
     }
     if (fetchPollRef.current) clearInterval(fetchPollRef.current);
-    fetchPollRef.current = setInterval(async () => {
+    const pollFetchStatus = async () => {
       try {
         const s = await fetcherApi.status();
-        if (s.message) setFetchMessage(s.message);
+        if (s.status === 'running' && s.message) {
+          lastRunningMessageRef.current = s.message;
+          setFetchMessage(s.message);
+        } else if (s.message && !lastRunningMessageRef.current) {
+          setFetchMessage(s.message);
+        }
         if (s.status === 'running' && !fetchRefreshInFlightRef.current) {
           fetchRefreshInFlightRef.current = true;
           Promise.all([loadJobs(), loadCounts()]).finally(() => {
@@ -44,13 +51,18 @@ export function useJobFetch(loadJobs: LoadFn, loadCounts: LoadFn, setLoading: (l
           setLoading(false);
           setTimeout(() => setFetchMessage(''), 3000);
         }
+        return s.status === 'running';
       } catch {
         if (fetchPollRef.current) clearInterval(fetchPollRef.current);
         fetchPollRef.current = null;
         setFetchRunning(false);
         showToast('Lost connection while fetching', 'err');
+        return false;
       }
-    }, 1500);
+    };
+    if (await pollFetchStatus()) {
+      fetchPollRef.current = setInterval(pollFetchStatus, 1500);
+    }
   };
 
   handleFetchRef.current = handleFetch;

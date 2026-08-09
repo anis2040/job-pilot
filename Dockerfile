@@ -39,8 +39,6 @@ RUN pip install --no-cache-dir -r requirements.txt gunicorn
 # App source (profiles/ is mounted at runtime — do not bake user data into the image)
 COPY web.py startup.py ./
 COPY job/ ./job/
-COPY templates/ ./templates/
-COPY static/ ./static/
 COPY resume-skill/ ./resume-skill/
 COPY cover-letter-skill/ ./cover-letter-skill/
 COPY --from=frontend-build /src/frontend/dist ./frontend/dist

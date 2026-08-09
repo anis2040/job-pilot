@@ -43,16 +43,6 @@ If you prefer OS-specific launchers:
 
 > If `dev.sh` is not executable, run `chmod +x dev.sh` once.
 
-## Legacy Flask Launcher
-
-The old server-rendered UI is still available and uses the original setup/start scripts.
-
-| First run | Later runs |
-|---|---|
-| `./setup.sh` / `setup.bat` | `./start.sh` / `start.bat` |
-
-That flow opens the Flask app directly at `http://localhost:5050`.
-
 ## Common Commands
 
 ```bash
@@ -132,4 +122,3 @@ Generated files are stored under the active profile for the signed-in user:
 profiles/<user_id>/<profile-slug>/<CompanyName>/resumes/
 profiles/<user_id>/<profile-slug>/<CompanyName>/cover-letters/
 ```
-

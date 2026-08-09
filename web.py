@@ -8,9 +8,9 @@ import shutil
 import subprocess
 from pathlib import Path
 from datetime import datetime, timezone
-from flask import Flask, render_template, jsonify, request, send_file, abort, redirect, url_for, make_response
+from flask import Flask, jsonify, request, send_file, abort
 
-from job.db import init_db, get_pending_deduped, get_jobs_by_status, update_status, get_job, get_similar_jobs, stats, last_fetch_at, clear_all_jobs
+from job.db import init_db, get_jobs_by_status, update_status, get_job, get_similar_jobs, stats, clear_all_jobs
 from job.web_api import trigger_resume, get_task_status, trigger_cover_letter, get_cl_task_status, trigger_fetch, get_fetch_status, clear_task_state, call_ai
 from job.web_api import (
     _get_groq_client, _get_anthropic_client, _get_gemini_client, _get_openrouter_client,
@@ -34,7 +34,7 @@ from job.models import RemoteType, DEFAULT_BLACKLIST, JOB_STATUSES
 from job.match import compute_match, match_text, semantic_score, get_profile_embedding
 from job.ai_providers import extract_json_from_llm
 
-app = Flask(__name__, template_folder="templates", static_folder="static")
+app = Flask(__name__, static_folder=None)
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 app.secret_key = os.environ.get("SECRET_KEY", "job-scraper-dev-key-change-in-prod")
 app.config["SESSION_COOKIE_HTTPONLY"] = True
@@ -46,10 +46,6 @@ init_oauth(app)
 register_auth_routes(app)
 
 _FRONTEND_DIST = Path(__file__).parent / "frontend" / "dist"
-
-
-def _spa_built() -> bool:
-    return (_FRONTEND_DIST / "index.html").is_file()
 
 
 def _serve_spa_index():
@@ -470,42 +466,12 @@ def _maybe_update_remote_from_text(job_id: str, title: str, location: str,
 
 @app.route("/")
 def index():
-    if _spa_built():
-        return _serve_spa_index()
-    if not has_any_profiles():
-        return redirect(url_for("setup"))
-    if not get_active_slug():
-        return redirect(url_for("profile_picker"))
-    # Allow access even without a profile.md — user can browse/fetch without CV features
-    try:
-        init_db()
-        counts = stats()
-        last = last_fetch_at()
-    except Exception:
-        counts = {"pending": 0, "applied": 0, "skipped": 0}
-        last = None
-    last_str = ""
-    stale = False
-    if last:
-        dt = datetime.fromisoformat(last)
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        hours = (datetime.now(timezone.utc) - dt).total_seconds() / 3600
-        last_str = f"{int(hours)}h ago" if hours >= 1 else "just now"
-        stale = hours > 24
-    active = get_active_profile()
-    has_pdflatex = bool(shutil.which("pdflatex"))
-    return render_template("index.html", counts=counts, last_fetch=last_str, stale=stale, active_profile=active, has_pdflatex=has_pdflatex)
+    return _serve_spa_index()
 
 
 @app.route("/profiles")
 def profile_picker():
-    if _spa_built():
-        return _serve_spa_index()
-    profiles = list_profiles()
-    if not profiles:
-        return redirect(url_for("setup"))
-    return render_template("profiles.html", profiles=profiles)
+    return _serve_spa_index()
 
 
 @app.route("/api/profiles/<slug>/clear-jobs", methods=["POST"])
@@ -530,36 +496,17 @@ def api_profile_clear_jobs(slug):
 
 @app.route("/profile-settings/<slug>")
 def profile_settings(slug):
-    if _spa_built():
-        return _serve_spa_index()
-    from job.profiles import _profile_info
-    profile_dir = safe_profile_dir(slug)
-    if not profile_dir:
-        return redirect(url_for("manage_profiles"))
-    profile = _profile_info(profile_dir)
-    active_slug = get_active_slug()
-    return render_template("profile_settings.html", profile=profile, active_slug=active_slug)
+    return _serve_spa_index()
 
 
 @app.route("/manage-profiles")
 def manage_profiles():
-    if _spa_built():
-        return _serve_spa_index()
-    return render_template("manage_profiles.html")
+    return _serve_spa_index()
 
 
 @app.route("/ai-settings")
 def ai_settings_page():
-    if _spa_built():
-        return _serve_spa_index()
-    providers = [
-        {"id": "groq",      "label": "Groq",             "sub": "Fast free inference — llama, mixtral, gemma",  "badge_class": "badge-free",  "badge_text": "Free ⚡",  "placeholder": "gsk_…",    "hint": 'Get a free key at <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys ↗</a>. Saved locally in <code>.env</code>.'},
-        {"id": "anthropic", "label": "Claude (Anthropic)","sub": "High quality — Haiku, Sonnet, Opus",          "badge_class": "badge-paid",  "badge_text": "API key",  "placeholder": "sk-ant-…", "hint": 'Get a key at <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com ↗</a>. Saved locally in <code>.env</code>.'},
-        {"id": "gemini",    "label": "Gemini (Google)",   "sub": "Free API key — Flash, Flash-lite, 1.5",        "badge_class": "badge-free",  "badge_text": "Free",     "placeholder": "AIza…",    "hint": 'Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio ↗</a>. Saved locally in <code>.env</code>.'},
-        {"id": "openrouter","label": "OpenRouter",         "sub": "One key, many models — incl. free-tier",       "badge_class": "badge-free",  "badge_text": "Free tier","placeholder": "sk-or-…",  "hint": 'Get a key at <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys ↗</a>. Saved locally in <code>.env</code>.'},
-        {"id": "claude",    "label": "Claude Pro (CLI)",  "sub": "Use your claude.ai Pro subscription — no API key", "badge_class": "badge-free", "badge_text": "Pro sub", "placeholder": "",         "hint": 'Uses Claude Code CLI with your claude.ai login. Run <code>claude login</code> in a terminal if not already signed in.', "no_key": True},
-    ]
-    return render_template("ai_settings.html", providers=providers)
+    return _serve_spa_index()
 
 
 # ── Profile API ───────────────────────────────────────────────────────────────
@@ -688,14 +635,7 @@ def api_profile_config_save(slug):
 
 @app.route("/job/<job_id>")
 def job_detail_page(job_id):
-    if _spa_built():
-        return _serve_spa_index()
-    row = get_job(job_id)
-    if not row:
-        return "Job not found", 404
-    return render_template("job_detail.html",
-                           job_id=job_id,
-                           active_profile=get_active_profile())
+    return _serve_spa_index()
 
 
 @app.route("/api/job/<job_id>/description")
@@ -1012,7 +952,7 @@ def api_ai_settings_test():
             try:
                 from groq import Groq  # noqa: F401
             except ImportError:
-                return jsonify({"ok": False, "error": "groq package not installed. Close the app, run setup.bat (Windows) or ./setup.sh (Mac/Linux), then try again."})
+                return jsonify({"ok": False, "error": "groq package not installed. Close the app, run npm run dev (or npm run backend), then try again."})
         elif provider == "anthropic":
             if not (_env_get("ANTHROPIC_API_KEY") or _env_get("ANTHROPIC_AUTH_TOKEN") or shutil.which("claude")):
                 return jsonify({"ok": False, "error": "No Anthropic credentials found. Add an API key or install Claude Code."})
@@ -1084,9 +1024,7 @@ def serve_pdf(rel_path):
 
 @app.route("/setup")
 def setup():
-    if _spa_built():
-        return _serve_spa_index()
-    resp = make_response(render_template("setup.html"))
+    resp = _serve_spa_index()
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
     return resp
 
@@ -1499,10 +1437,6 @@ def serve_favicon():
         candidate = _FRONTEND_DIST / name
         if candidate.is_file():
             return send_file(str(candidate))
-    # Fall through to Flask static/
-    static = Path(app.static_folder or "static") / "favicon.svg"
-    if static.is_file():
-        return send_file(str(static))
     abort(404)
 
 

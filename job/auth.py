@@ -85,8 +85,6 @@ def resolve_request_user() -> str | None:
 def _is_public_path(path: str) -> bool:
     if path.startswith("/auth/"):
         return True
-    if path.startswith("/static/"):
-        return True
     if path.startswith("/assets/") or path.startswith("/spa-assets/"):
         return True
     # Login / SPA shell (index is /app or /login; Vite assets under /assets)
