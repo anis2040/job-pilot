@@ -47,6 +47,7 @@ jobs:
           python -m pytest
           tests/test_ai_config.py
           tests/test_cli.py
+          tests/test_concurrency.py
           tests/test_db.py
           tests/test_fetcher_utils.py
           tests/test_imports.py
@@ -119,6 +120,7 @@ jobs:
           src/test/jobActions.test.tsx
           src/test/profileDropdown.test.tsx
           src/test/regressions.test.tsx
+          src/test/performanceE2e.test.tsx
 
   e2e:
     name: E2E smoke
@@ -147,7 +149,7 @@ jobs:
         run: npm --prefix frontend run build
 
       - name: Run backend E2E smoke tests
-        run: python -m pytest tests/test_smoke.py
+        run: python -m pytest tests/test_smoke.py tests/test_performance_e2e.py
 
   pr-test-suite:
     name: PR test suite

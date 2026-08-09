@@ -6,6 +6,7 @@ import json as _json
 from pathlib import Path
 
 from .ai_providers import strip_llm_fences
+from .concurrency import pdflatex_slot
 
 
 def _compile_latex(tex_path: Path) -> Path:
@@ -41,15 +42,16 @@ def _compile_latex(tex_path: Path) -> Path:
     if sys.platform == "win32":
         cmd.insert(1, "--enable-installer")  # MiKTeX: auto-install missing packages silently
 
-    result = subprocess.run(
-        cmd,
-        cwd=str(tex_dir),
-        capture_output=True,
-        text=True,
-        timeout=120,
-        env=env,
-        **extra,
-    )
+    with pdflatex_slot():
+        result = subprocess.run(
+            cmd,
+            cwd=str(tex_dir),
+            capture_output=True,
+            text=True,
+            timeout=120,
+            env=env,
+            **extra,
+        )
 
     pdf_path = tex_path.with_suffix(".pdf")
     if not pdf_path.exists():

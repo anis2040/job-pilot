@@ -61,7 +61,13 @@ def init_db() -> None:
             )
         """)
         # Migrate existing databases — add columns if not present
-        for col, default in [("employment_type", "''"), ("salary_range", "''"), ("embedding", "NULL")]:
+        for col, default in [
+            ("employment_type", "''"),
+            ("salary_range", "''"),
+            ("embedding", "NULL"),
+            ("match_cache", "NULL"),
+            ("match_profile_hash", "NULL"),
+        ]:
             try:
                 con.execute(f"ALTER TABLE jobs ADD COLUMN {col} TEXT DEFAULT {default}")
             except Exception:
@@ -399,6 +405,64 @@ def get_jobs_by_status(status: str) -> list[sqlite3.Row]:
         ).fetchall()
 
 
+_JOB_LIST_COLUMNS = """
+    job_id, url, title, company, location, remote, experience, posted_at,
+    first_seen_at, status, status_updated_at, search_name, employment_type,
+    salary_range, embedding, match_cache, match_profile_hash
+"""
+
+
+def get_jobs_list_by_status(status: str, profile_hash: str) -> tuple[list[sqlite3.Row], list[str]]:
+    """Load list-view job rows without descriptions; return IDs needing description for match recompute."""
+    with _connect() as con:
+        rows = con.execute(
+            f"SELECT {_JOB_LIST_COLUMNS} FROM jobs WHERE status = ? ORDER BY first_seen_at DESC",
+            (status,),
+        ).fetchall()
+    stale: list[str] = []
+    for r in rows:
+        if not r["match_cache"] or (r["match_profile_hash"] or "") != profile_hash:
+            stale.append(r["job_id"])
+    return rows, stale
+
+
+def get_job_descriptions(job_ids: list[str]) -> dict[str, str]:
+    """Batch-fetch descriptions for match cache misses."""
+    ids = [j for j in dict.fromkeys(job_ids) if j]
+    if not ids:
+        return {}
+    out: dict[str, str] = {}
+    with _connect() as con:
+        for i in range(0, len(ids), 500):
+            chunk = ids[i:i + 500]
+            placeholders = _job_id_placeholders(len(chunk))
+            rows = con.execute(
+                f"SELECT job_id, description FROM jobs WHERE job_id IN ({placeholders})",
+                chunk,
+            ).fetchall()
+            for r in rows:
+                out[r["job_id"]] = r["description"] or ""
+    return out
+
+
+def set_job_match_cache(job_id: str, profile_hash: str, match_json: str) -> None:
+    with _connect() as con:
+        con.execute(
+            "UPDATE jobs SET match_cache = ?, match_profile_hash = ? WHERE job_id = ?",
+            (match_json, profile_hash, job_id),
+        )
+        con.commit()
+
+
+def clear_job_match_cache(job_id: str) -> None:
+    with _connect() as con:
+        con.execute(
+            "UPDATE jobs SET match_cache = NULL, match_profile_hash = NULL WHERE job_id = ?",
+            (job_id,),
+        )
+        con.commit()
+
+
 def get_pending() -> list[sqlite3.Row]:
     return get_jobs_by_status("pending")
 
@@ -406,7 +470,8 @@ def get_pending() -> list[sqlite3.Row]:
 def update_description(job_id: str, description: str) -> None:
     with _connect() as con:
         con.execute(
-            "UPDATE jobs SET description = ? WHERE job_id = ?",
+            "UPDATE jobs SET description = ?, match_cache = NULL, match_profile_hash = NULL "
+            "WHERE job_id = ?",
             (description, job_id),
         )
         con.commit()
@@ -427,8 +492,8 @@ def set_job_embedding(job_id: str, vec: list[float] | None) -> None:
         return
     import json as _json
     with _connect() as con:
-        con.execute("UPDATE jobs SET embedding = ? WHERE job_id = ?",
-                    (_json.dumps(vec), job_id))
+        con.execute("UPDATE jobs SET embedding = ?, match_cache = NULL, match_profile_hash = NULL "
+                    "WHERE job_id = ?", (_json.dumps(vec), job_id))
         con.commit()
 
 

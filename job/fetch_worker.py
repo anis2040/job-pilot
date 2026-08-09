@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import threading
+
 from .db import (
     duplicate_key,
     existing_job_ids,
@@ -95,15 +97,21 @@ def _run_fetch() -> None:
             log_fetch(search.source, new_count)
             total_new += new_count
 
-        # Backfill semantic embeddings for the newly-fetched jobs (best-effort,
-        # off the render path). Batched; a failure here must never fail the fetch.
-        if total_new:
-            try:
-                _backfill_embeddings()
-            except Exception:
-                pass
-
         task_state.set_fetch_done(f"Done — {total_new} new job(s) found")
+
+        if total_new:
+            from .user_context import get_current_user_id, user_context
+
+            uid = get_current_user_id()
+
+            def _embed_after_fetch() -> None:
+                with user_context(uid):
+                    try:
+                        _backfill_embeddings()
+                    except Exception:
+                        pass
+
+            threading.Thread(target=_embed_after_fetch, daemon=True).start()
 
     except Exception as e:
         task_state.set_fetch_error(str(e))

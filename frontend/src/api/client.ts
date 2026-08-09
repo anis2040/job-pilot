@@ -78,7 +78,23 @@ export const documents = {
 // ── Fetch (scraping) ──────────────────────────────────────────────────────────
 
 export const fetcher = {
-  trigger: () => post<{ status: string }>('/api/fetch'),
+  trigger: async (): Promise<{ started: boolean; status: string; message?: string }> => {
+    const res = await fetch('/api/fetch', { method: 'POST', credentials: 'include' });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      handleUnauthorized('/api/fetch', res.status);
+      return {
+        started: false,
+        status: body.status ?? 'idle',
+        message: body.message || 'Could not start fetch — please try again',
+      };
+    }
+    return {
+      started: body.started !== false,
+      status: body.status ?? 'running',
+      message: body.message,
+    };
+  },
   status: () => get<FetchStatus>('/api/fetch-status'),
 };
 
