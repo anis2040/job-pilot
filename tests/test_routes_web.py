@@ -120,7 +120,7 @@ class TestApiJobs:
         assert len(data) == 1
         assert data[0]["job_id"] == "j1"
 
-    def test_corrects_remote_to_hybrid_from_stored_description(self, web_client):
+    def test_list_shows_inferred_remote_without_db_write(self, web_client):
         db.insert_job(
             job_id="li_1",
             url="https://example.com/job/1",
@@ -138,7 +138,44 @@ class TestApiJobs:
 
         assert r.status_code == 200
         assert r.get_json()[0]["remote"] == "Hybrid"
+        assert db.get_job("li_1")["remote"] == "Remote"
+
+    def test_description_persists_remote_correction(self, web_client):
+        db.insert_job(
+            job_id="li_1",
+            url="https://example.com/job/1",
+            title="Engineering Manager",
+            company="Acme",
+            location="Berlin",
+            remote="Remote",
+            experience="",
+            description="This is a hybrid role with two office days per week.",
+            posted_at=None,
+            search_name="t",
+        )
+
+        r = web_client.get("/api/job/li_1/description")
+
+        assert r.status_code == 200
+        assert r.get_json()["remote"] == "Hybrid"
         assert db.get_job("li_1")["remote"] == "Hybrid"
+
+    def test_match_cache_avoids_recompute(self, web_client, monkeypatch):
+        import job.match as match_mod
+
+        _insert_job("j1", title="Python Developer")
+        db.update_description("j1", "Requires Python, Django, and PostgreSQL experience.")
+        warm = web_client.get("/api/jobs")
+        assert warm.status_code == 200
+        assert db.get_job("j1")["match_cache"]
+
+        def boom(*_a, **_k):
+            raise AssertionError("compute_match should not run on cache hit")
+
+        monkeypatch.setattr(match_mod, "compute_match", boom)
+        r = web_client.get("/api/jobs")
+        assert r.status_code == 200
+        assert r.get_json()[0]["match"] is not None
 
 
 class TestApiJobDescription:

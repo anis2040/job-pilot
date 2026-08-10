@@ -86,8 +86,34 @@ export default function DashboardPage() {
   }, [tab, loadJobs, loadCounts, activeProfile?.slug, handleFetchRef]);
 
   useEffect(() => {
-    const id = setInterval(loadJobs, 30000);
-    return () => clearInterval(id);
+    const DASHBOARD_REFRESH_MS = 60000;
+    let id: ReturnType<typeof setInterval> | null = null;
+
+    const startPolling = () => {
+      if (id) return;
+      id = setInterval(loadJobs, DASHBOARD_REFRESH_MS);
+    };
+    const stopPolling = () => {
+      if (id) {
+        clearInterval(id);
+        id = null;
+      }
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        stopPolling();
+      } else {
+        loadJobs();
+        startPolling();
+      }
+    };
+
+    if (document.visibilityState !== 'hidden') startPolling();
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      stopPolling();
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [loadJobs]);
 
   useEffect(() => { constants.get().then(setAppConstants); }, []);

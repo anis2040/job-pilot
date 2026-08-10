@@ -262,3 +262,38 @@ def test_profile_embedding_meta_hash(temp_db):
     temp_db.set_profile_embedding_meta("hash123", [0.5, 0.6])
     got = temp_db.get_profile_embedding_meta()
     assert got == ("hash123", [0.5, 0.6])
+
+
+def test_match_cache_roundtrip(temp_db):
+    _insert(temp_db, job_id="m1")
+    temp_db.set_job_match_cache("m1", "prof1", '{"score": 42}')
+    row = temp_db.get_job("m1")
+    assert row["match_cache"] == '{"score": 42}'
+    assert row["match_profile_hash"] == "prof1"
+
+
+def test_update_description_clears_match_cache(temp_db):
+    _insert(temp_db, job_id="m1", status_desc="old")
+    temp_db.set_job_match_cache("m1", "prof1", '{"score": 1}')
+    temp_db.update_description("m1", "new description")
+    row = temp_db.get_job("m1")
+    assert row["description"] == "new description"
+    assert row["match_cache"] is None
+    assert row["match_profile_hash"] is None
+
+
+def test_get_jobs_list_by_status_skips_descriptions(temp_db):
+    _insert(temp_db, job_id="m1", status_desc="long description text")
+    temp_db.set_job_match_cache("m1", "prof1", '{"score": 99}')
+    rows, stale = temp_db.get_jobs_list_by_status("pending", "prof1")
+    assert len(rows) == 1
+    assert stale == []
+    assert "description" not in rows[0].keys()
+
+
+def test_get_jobs_list_by_status_marks_stale_cache(temp_db):
+    _insert(temp_db, job_id="m1", status_desc="text")
+    rows, stale = temp_db.get_jobs_list_by_status("pending", "prof1")
+    assert stale == ["m1"]
+    descs = temp_db.get_job_descriptions(stale)
+    assert descs["m1"] == "text"

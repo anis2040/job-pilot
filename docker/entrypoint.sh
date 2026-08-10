@@ -8,13 +8,14 @@ python -c "from startup import run_startup; run_startup()"
 mkdir -p /app/profiles
 
 PORT="${PORT:-5050}"
-WORKERS="${GUNICORN_WORKERS:-2}"
+WORKERS="${GUNICORN_WORKERS:-1}"
+THREADS="${GUNICORN_THREADS:-4}"
 TIMEOUT="${GUNICORN_TIMEOUT:-180}"
 
 exec gunicorn \
   --bind "0.0.0.0:${PORT}" \
   --workers "${WORKERS}" \
-  --threads 2 \
+  --threads "${THREADS}" \
   --timeout "${TIMEOUT}" \
   --access-logfile - \
   --error-logfile - \

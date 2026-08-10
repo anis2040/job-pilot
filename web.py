@@ -10,7 +10,10 @@ from pathlib import Path
 from datetime import datetime, timezone
 from flask import Flask, jsonify, request, send_file, abort
 
-from job.db import init_db, get_jobs_by_status, update_status, get_job, get_similar_jobs, stats, clear_all_jobs
+from job.db import (
+    init_db, get_jobs_by_status, get_jobs_list_by_status, get_job_descriptions,
+    update_status, get_job, get_similar_jobs, stats, clear_all_jobs, set_job_match_cache,
+)
 from job.web_api import trigger_resume, get_task_status, trigger_cover_letter, get_cl_task_status, trigger_fetch, get_fetch_status, clear_task_state, call_ai
 from job.web_api import (
     _get_groq_client, _get_anthropic_client, _get_gemini_client, _get_openrouter_client,
@@ -31,7 +34,7 @@ from job.ai_providers import _env_get
 from job.paths import BASE
 from job.fetcher import SOURCES
 from job.models import RemoteType, DEFAULT_BLACKLIST, JOB_STATUSES
-from job.match import compute_match, match_text, semantic_score, get_profile_embedding
+from job.match import compute_match, match_text, semantic_score, get_profile_embedding, profile_content_hash
 from job.ai_providers import extract_json_from_llm
 
 app = Flask(__name__, static_folder=None)
@@ -332,13 +335,12 @@ def _find_pdf_path(profile_dir: Path, company: str, subdir: str, suffix: str) ->
     filename. Searches the given subdir, then the sibling docs subdir, then the
     legacy flat layout (resumes/<Company>/<file>).
     """
-    company_variants = [company, company.replace(" ", ""), company.replace(" ", "").replace("/", "")]
-    # Directories to scan, in priority order.
+    company_variants = _company_keys(company)
     search_dirs: list[Path] = []
     for co in company_variants:
-        search_dirs.append(profile_dir / co / subdir)          # current layout
-        search_dirs.append(profile_dir / co / "resumes")       # cover letters sometimes land here
-        search_dirs.append(profile_dir / "resumes" / co)       # legacy flat layout
+        search_dirs.append(profile_dir / co / subdir)
+        search_dirs.append(profile_dir / co / "resumes")
+        search_dirs.append(profile_dir / "resumes" / co)
 
     seen: set[Path] = set()
     for d in search_dirs:
@@ -351,13 +353,82 @@ def _find_pdf_path(profile_dir: Path, company: str, subdir: str, suffix: str) ->
     return None
 
 
-def _build_match(r: dict, profile: dict | None, profile_vec: list | None) -> dict | None:
-    """Assemble the match signal: keyword overlap (explainable chips) + a
-    semantic 'fit' score from cached embeddings (scalable ranking). `score` is
-    the semantic score when both embeddings exist, else the keyword score, so
-    ranking degrades gracefully. Reads the job's cached embedding from the row —
-    NO network call here (this runs per-job on the list render path)."""
-    km = compute_match(match_text(r), profile)  # {matched, missing, matched_count, keyword_score} or None
+def _company_keys(company: str) -> list[str]:
+    return [
+        company,
+        company.replace(" ", ""),
+        company.replace(" ", "").replace("/", ""),
+    ]
+
+
+def _register_pdf_index_entry(index: dict[tuple[str, str], str], company: str, suffix: str, path: Path) -> None:
+    for key in _company_keys(company):
+        k = (key, suffix)
+        if k not in index:
+            index[k] = str(path)
+
+
+def _build_pdf_index(profile_dir: Path) -> dict[tuple[str, str], str]:
+    """One filesystem scan per /api/jobs request — maps (company, suffix) → pdf path."""
+    index: dict[tuple[str, str], str] = {}
+    if not profile_dir.is_dir():
+        return index
+
+    for co_dir in profile_dir.iterdir():
+        if not co_dir.is_dir() or co_dir.name == "resumes":
+            continue
+        for sub, suffix in (("resumes", "_Resume.pdf"), ("cover-letters", "_Cover_Letter.pdf")):
+            d = co_dir / sub
+            if not d.is_dir():
+                continue
+            for pdf in sorted(d.glob(f"*{suffix}")):
+                _register_pdf_index_entry(index, co_dir.name, suffix, pdf)
+        resumes_here = co_dir / "resumes"
+        if resumes_here.is_dir():
+            for suffix in ("_Resume.pdf", "_Cover_Letter.pdf"):
+                for pdf in sorted(resumes_here.glob(f"*{suffix}")):
+                    _register_pdf_index_entry(index, co_dir.name, suffix, pdf)
+
+    legacy = profile_dir / "resumes"
+    if legacy.is_dir():
+        for co_dir in legacy.iterdir():
+            if not co_dir.is_dir():
+                continue
+            for suffix in ("_Resume.pdf", "_Cover_Letter.pdf"):
+                for pdf in sorted(co_dir.glob(f"*{suffix}")):
+                    _register_pdf_index_entry(index, co_dir.name, suffix, pdf)
+
+    return index
+
+
+def _lookup_pdf_index(index: dict[tuple[str, str], str] | None, company: str, suffix: str) -> str | None:
+    if not index:
+        return None
+    for key in _company_keys(company):
+        path = index.get((key, suffix))
+        if path:
+            return path
+    return None
+
+
+def _build_match(
+    r: dict,
+    profile: dict | None,
+    profile_vec: list | None,
+    profile_hash: str | None = None,
+    *,
+    persist_cache: bool = False,
+) -> dict | None:
+    """Assemble the match signal: keyword overlap + semantic fit score."""
+    if profile_hash:
+        cached = r.get("match_cache")
+        if cached and (r.get("match_profile_hash") or "") == profile_hash:
+            try:
+                return _json.loads(cached)
+            except Exception:
+                pass
+
+    km = compute_match(match_text(r), profile)
     sem = None
     emb_raw = r.get("embedding")
     if emb_raw and profile_vec:
@@ -368,7 +439,7 @@ def _build_match(r: dict, profile: dict | None, profile_vec: list | None) -> dic
     if km is None and sem is None:
         return None
     keyword_score = km["keyword_score"] if km else None
-    return {
+    result = {
         "matched": km["matched"] if km else [],
         "missing": km["missing"] if km else [],
         "matched_count": km["matched_count"] if km else 0,
@@ -377,10 +448,28 @@ def _build_match(r: dict, profile: dict | None, profile_vec: list | None) -> dic
         "score": sem if sem is not None else (keyword_score or 0),
         "score_kind": "fit" if sem is not None else "skills",
     }
+    if persist_cache and profile_hash:
+        job_id = r.get("job_id")
+        if job_id:
+            try:
+                set_job_match_cache(job_id, profile_hash, _json.dumps(result))
+            except Exception:
+                pass
+    return result
 
 
-def _serialize_job(row, task_status: dict, cl_task_status: dict, profile: dict | None = None,
-                   profile_vec: list | None = None) -> dict:
+def _serialize_job(
+    row,
+    task_status: dict,
+    cl_task_status: dict,
+    profile: dict | None = None,
+    profile_vec: list | None = None,
+    *,
+    profile_hash: str | None = None,
+    persist_match_cache: bool = False,
+    pdf_index: dict[tuple[str, str], str] | None = None,
+    persist_remote: bool = True,
+) -> dict:
     r = dict(row)
     job_id = r["job_id"]
     company = r.get("company") or ""
@@ -392,6 +481,7 @@ def _serialize_job(row, task_status: dict, cl_task_status: dict, profile: dict |
         location,
         r.get("description") or "",
         r.get("remote") or "",
+        persist=persist_remote,
     )
 
     ts = task_status.get(job_id, {})
@@ -405,11 +495,15 @@ def _serialize_job(row, task_status: dict, cl_task_status: dict, profile: dict |
     try:
         profile_dir = _resumes_path()
         if resume_status == "idle" and not pdf_path:
-            pdf_path = _find_pdf_path(profile_dir, company, "resumes", "_Resume.pdf")
+            pdf_path = _lookup_pdf_index(pdf_index, company, "_Resume.pdf")
+            if pdf_path is None and pdf_index is None:
+                pdf_path = _find_pdf_path(profile_dir, company, "resumes", "_Resume.pdf")
             if pdf_path:
                 resume_status = "done"
         if cl_status == "idle" and not cl_pdf_path:
-            cl_pdf_path = _find_pdf_path(profile_dir, company, "cover-letters", "_Cover_Letter.pdf")
+            cl_pdf_path = _lookup_pdf_index(pdf_index, company, "_Cover_Letter.pdf")
+            if cl_pdf_path is None and pdf_index is None:
+                cl_pdf_path = _find_pdf_path(profile_dir, company, "cover-letters", "_Cover_Letter.pdf")
             if cl_pdf_path:
                 cl_status = "done"
     except RuntimeError:
@@ -429,7 +523,9 @@ def _serialize_job(row, task_status: dict, cl_task_status: dict, profile: dict |
         "first_seen_at": r.get("first_seen_at") or "",
         "status": r.get("status") or "pending",
         "source": _source_label(r.get("search_name") or ""),
-        "match": _build_match(r, profile, profile_vec),
+        "match": _build_match(
+            r, profile, profile_vec, profile_hash, persist_cache=persist_match_cache,
+        ),
         "resume_status": resume_status,
         "resume_stage": ts.get("stage", ""),
         "pdf_url": _pdf_url(pdf_path),
@@ -450,15 +546,16 @@ def _should_apply_remote_inference(current: str, inferred: str) -> bool:
 
 
 def _maybe_update_remote_from_text(job_id: str, title: str, location: str,
-                                   description: str, current: str) -> str:
+                                   description: str, current: str, *, persist: bool = True) -> str:
     if not description:
         return current or ""
     from job.fetcher_utils import infer_remote
     inferred = infer_remote(title, location, description, default=RemoteType.UNKNOWN)
     if not _should_apply_remote_inference(current or "", inferred):
         return current or ""
-    from job.db import update_remote
-    update_remote(job_id, inferred)
+    if persist:
+        from job.db import update_remote
+        update_remote(job_id, inferred)
     return inferred
 
 
@@ -678,9 +775,18 @@ def api_job_description(job_id):
             set_job_embedding(job_id, emb)
 
     _prof = get_profile_json()
-    row_for_match = {"title": r.get("title") or "", "description": description,
-                     "embedding": _json.dumps(emb) if emb else None}
-    match = _build_match(row_for_match, _prof, get_profile_embedding(_prof))
+    profile_hash = profile_content_hash(_prof)
+    row_for_match = {
+        "job_id": job_id,
+        "title": r.get("title") or "",
+        "description": description,
+        "embedding": _json.dumps(emb) if emb else r.get("embedding"),
+        "match_cache": r.get("match_cache"),
+        "match_profile_hash": r.get("match_profile_hash"),
+    }
+    match = _build_match(
+        row_for_match, _prof, get_profile_embedding(_prof), profile_hash, persist_cache=bool(profile_hash),
+    )
     return jsonify({"description": description, "remote": remote, "match": match})
 
 
@@ -692,7 +798,14 @@ def api_job_detail(job_id):
     ts = get_task_status(job_id)
     cl_ts = get_cl_task_status(job_id)
     _prof = get_profile_json()
-    data = _serialize_job(row, {job_id: ts}, {job_id: cl_ts}, _prof, get_profile_embedding(_prof))
+    profile_hash = profile_content_hash(_prof)
+    profile_vec = get_profile_embedding(_prof)
+    data = _serialize_job(
+        row, {job_id: ts}, {job_id: cl_ts}, _prof, profile_vec,
+        profile_hash=profile_hash,
+        persist_match_cache=bool(profile_hash),
+        persist_remote=True,
+    )
     r = dict(row)
     data["description"]     = r.get("description") or ""
     data["posted_at"]       = r.get("posted_at") or ""
@@ -716,12 +829,36 @@ def api_similar_jobs(job_id):
 @app.route("/api/jobs")
 def api_jobs():
     status_filter = request.args.get("status", "pending")
-    rows = get_jobs_by_status(status_filter)
+    profile = get_profile_json()
+    profile_hash = profile_content_hash(profile) or ""
+    profile_vec = get_profile_embedding(profile)
+    rows, stale_ids = get_jobs_list_by_status(status_filter, profile_hash)
+    descriptions = get_job_descriptions(stale_ids) if stale_ids else {}
     task_statuses = {row["job_id"]: get_task_status(row["job_id"]) for row in rows}
     cl_task_statuses = {row["job_id"]: get_cl_task_status(row["job_id"]) for row in rows}
-    profile = get_profile_json()  # loaded once; reused for every job's match signal
-    profile_vec = get_profile_embedding(profile)  # cached (hash-guarded); no call if unchanged
-    return jsonify([_serialize_job(row, task_statuses, cl_task_statuses, profile, profile_vec) for row in rows])
+    try:
+        pdf_index = _build_pdf_index(_resumes_path())
+    except RuntimeError:
+        pdf_index = {}
+    payload = []
+    for row in rows:
+        r = dict(row)
+        if r["job_id"] in descriptions:
+            r["description"] = descriptions[r["job_id"]]
+        else:
+            r.setdefault("description", "")
+        payload.append(_serialize_job(
+            r,
+            task_statuses,
+            cl_task_statuses,
+            profile,
+            profile_vec,
+            profile_hash=profile_hash or None,
+            persist_match_cache=bool(profile_hash),
+            pdf_index=pdf_index,
+            persist_remote=False,
+        ))
+    return jsonify(payload)
 
 
 @app.route("/api/job-counts")
@@ -1001,7 +1138,14 @@ def api_jobs_clear():
 @app.route("/api/fetch", methods=["POST"])
 def api_fetch():
     started = trigger_fetch()
-    return jsonify({"status": "running", "started": started})
+    if not started:
+        st = get_fetch_status()
+        return jsonify({
+            "status": st.get("status", "idle"),
+            "started": False,
+            "message": st.get("message", "Could not start fetch"),
+        }), 429
+    return jsonify({"status": "running", "started": True})
 
 
 @app.route("/api/fetch-status")

@@ -132,6 +132,18 @@ def profile_embedding_text(profile: dict | None) -> str:
     return "\n".join(p for p in parts if p).strip()
 
 
+def profile_content_hash(profile: dict | None) -> str | None:
+    """Hash of profile text used for match-cache and embedding invalidation."""
+    text = profile_embedding_text(profile)
+    if not text:
+        return None
+    import hashlib
+    return hashlib.sha256(text.encode()).hexdigest()[:16]
+
+
+_profile_embedding_cache: dict[tuple[str, str], list[float]] = {}
+
+
 def get_profile_embedding(profile: dict | None):
     """Return the profile's embedding vector, cached in db_meta and recomputed
     only when the profile text changes (hash-guarded). None if unavailable or
@@ -142,16 +154,24 @@ def get_profile_embedding(profile: dict | None):
     if not text:
         return None
     import hashlib
+    from .user_context import get_current_user_id
+
     h = hashlib.sha256(text.encode()).hexdigest()[:16]
+    uid = get_current_user_id()
+    proc_key = (uid, h)
+    if proc_key in _profile_embedding_cache:
+        return _profile_embedding_cache[proc_key]
     try:
         from . import db
         cached = db.get_profile_embedding_meta()
         if cached and cached[0] == h:
+            _profile_embedding_cache[proc_key] = cached[1]
             return cached[1]
         from .ai_providers import embed_text
         vec = embed_text(text)
         if vec:
             db.set_profile_embedding_meta(h, vec)
+            _profile_embedding_cache[proc_key] = vec
         return vec
     except Exception:
         return None

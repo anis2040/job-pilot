@@ -32,7 +32,8 @@ services:
       PORT: "5050"
       # Longer timeout: resume/cover-letter generation can be slow
       GUNICORN_TIMEOUT: "${GUNICORN_TIMEOUT:-180}"
-      GUNICORN_WORKERS: "${GUNICORN_WORKERS:-2}"
+      GUNICORN_WORKERS: "${GUNICORN_WORKERS:-1}"
+      GUNICORN_THREADS: "${GUNICORN_THREADS:-4}"
     volumes:
       # Host bind mount = easy backups + survives image rebuilds / compose down
       - ./data/profiles:/app/profiles
