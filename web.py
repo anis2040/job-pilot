@@ -721,6 +721,11 @@ def api_profile_config_save(slug):
     data = request.get_json() or {}
     if not isinstance(data.get("searches"), list) or not data["searches"]:
         return jsonify({"error": "At least one search entry required"}), 400
+    # Sanitize the optional build_cv positioning subtree server-side (validate the
+    # enum, clamp instructions length) so a bad client payload can't persist junk.
+    if "build_cv" in data:
+        from job.build_cv_config import BuildCvConfig
+        data["build_cv"] = BuildCvConfig._coerce(data["build_cv"]).to_dict()
     config_p = profile_dir / "config.yaml"
     old_config = _read_config_yaml(config_p) if config_p.exists() else {}
     fetch_required = _config_fetch_required(old_config, data)

@@ -8,11 +8,11 @@ import { TagInput } from '../../components/ui/TagInput';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { SearchRow } from '../../components/ui/SearchRow';
 import { createSearchRow, deriveTitleFilters, groupSearchEntries, expandSearchRows, type SearchRowEntry } from '../../components/ui/searchRowModel';
-import type { SearchConfig } from '../../api/types';
+import type { SearchConfig, BuildCvConfig } from '../../api/types';
 import { buildProfileMd, parseProfileMd, DEFAULT_FORM, EMPTY_EXP, EMPTY_EDU } from '../../utils/profileForm';
 import type { ProfileFormData, ExpEntry, EduEntry } from '../../utils/profileForm';
 
-type Section = 'profile' | 'search' | 'danger';
+type Section = 'profile' | 'search' | 'positioning' | 'danger';
 
 function DynamicList({ items, onChange, placeholder }: {
   items: string[]; onChange: (items: string[]) => void; placeholder: string;
@@ -348,6 +348,133 @@ function SearchSection({ slug }: { slug: string }) {
   );
 }
 
+const POSITIONING_OPTIONS: { value: BuildCvConfig['experience_positioning']; label: string; icon: string; reach: number; badge?: string; desc: string }[] = [
+  { value: 'conservative', label: 'Conservative', icon: '🛡️', reach: 1,
+    desc: 'Sticks to the skills and terms your profile states directly. Nothing is reframed toward the job.' },
+  { value: 'balanced', label: 'Balanced', icon: '⚖️', reach: 2, badge: 'Recommended',
+    desc: 'Direct experience plus equivalent terminology and genuine transferable skills, surfaced honestly (deep React → ready for Next.js).' },
+  { value: 'aggressive', label: 'Strong Match', icon: '🚀', reach: 3,
+    desc: "Reaches furthest — leans on transferable and adjacent skills and mirrors the employer's vocabulary to maximize alignment." },
+];
+
+const DEFAULT_POSITIONING: BuildCvConfig = { experience_positioning: 'balanced', additional_instructions: '' };
+
+function PositioningSection({ slug }: { slug: string }) {
+  const { showToast } = useToast();
+  const [cfg, setCfg] = useState<SearchConfig | null>(null);
+  const [positioning, setPositioning] = useState<BuildCvConfig['experience_positioning']>('balanced');
+  const [instructions, setInstructions] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    profilesApi.getConfig(slug).then((c: SearchConfig) => {
+      setCfg(c);
+      const bc = c.build_cv || DEFAULT_POSITIONING;
+      setPositioning(bc.experience_positioning || 'balanced');
+      setInstructions(bc.additional_instructions || '');
+    });
+  }, [slug]);
+
+  // Read-modify-write: the POST handler overwrites the whole config.yaml, so we
+  // send the full current config with build_cv merged in — otherwise this clobbers
+  // searches/blacklist/title_filter. Takes the values explicitly so callers can
+  // persist state updates before React has committed them.
+  const persist = async (
+    nextPositioning: BuildCvConfig['experience_positioning'],
+    nextInstructions: string,
+    okMsg: string,
+  ) => {
+    if (!cfg || saving) return;
+    setSaving(true);
+    const merged: SearchConfig = {
+      ...cfg,
+      build_cv: {
+        experience_positioning: nextPositioning,
+        additional_instructions: nextInstructions.trim().slice(0, 500),
+      },
+    };
+    const res = await profilesApi.saveConfig(slug, merged);
+    setSaving(false);
+    if (res.ok) { setCfg(merged); showToast(okMsg); }
+    else showToast('Failed to save', 'err');
+  };
+
+  // Selecting a stance saves immediately (like the AI-settings model picker), so
+  // the choice survives navigation without a separate Save click.
+  const handleSelect = (value: BuildCvConfig['experience_positioning']) => {
+    if (value === positioning) return;
+    setPositioning(value);
+    void persist(value, instructions, 'Resume positioning saved');
+  };
+
+  return (
+    <div className="section active" id="section-positioning">
+      <div className="section-title page-title">Resume Positioning</div>
+      <div className="section-desc page-desc">Choose how far your resume should reach when positioning your experience against each job.</div>
+
+      <div className="settings-card">
+        <div className="settings-card-body is-expanded">
+          <div className="positioning-cards" role="radiogroup" aria-label="Resume positioning stance">
+            {POSITIONING_OPTIONS.map(opt => {
+              const active = positioning === opt.value;
+              return (
+                <label key={opt.value} className={`stance-card${active ? ' selected' : ''}`}>
+                  <input
+                    className="visually-hidden"
+                    type="radio"
+                    name="positioning"
+                    value={opt.value}
+                    checked={active}
+                    disabled={saving || !cfg}
+                    onChange={() => handleSelect(opt.value)}
+                  />
+                  <div className="stance-card-top">
+                    <span className="stance-card-icon" aria-hidden="true">{opt.icon}</span>
+                    <span className="stance-card-name">{opt.label}</span>
+                    <span className="stance-card-check" aria-hidden="true">✓</span>
+                  </div>
+                  {opt.badge && <span className="stance-card-badge">{opt.badge}</span>}
+                  <div className="stance-card-meter" aria-hidden="true">
+                    {[1, 2, 3].map(i => <span key={i} className={i <= opt.reach ? 'on' : ''} />)}
+                  </div>
+                  <div className="stance-card-desc">{opt.desc}</div>
+                </label>
+              );
+            })}
+          </div>
+
+          <div className="locked-callout">
+            <span className="locked-callout-icon" aria-hidden="true">🔒</span>
+            <div className="locked-callout-body">
+              <span className="locked-callout-title">Never changed, on any setting</span>
+              <span className="locked-callout-text">
+                Employers, job titles, dates, years of experience, locations, education, certifications, and metrics come straight from your profile and are always preserved exactly. Positioning only affects how your real experience is framed — it never invents experience you don't have.
+              </span>
+            </div>
+          </div>
+
+          <div className="field">
+            <label>Additional instructions <span className="label-hint">(optional)</span></label>
+            <textarea
+              rows={3}
+              maxLength={500}
+              placeholder={'e.g. "For product roles, emphasize stakeholder management and roadmap ownership."'}
+              value={instructions}
+              onChange={e => setInstructions(e.target.value)}
+            />
+          </div>
+
+          <div className="save-row" style={{ marginTop: 8 }}>
+            <button className="btn btn-primary" onClick={() => persist(positioning, instructions, 'Instructions saved')} disabled={saving || !cfg}>
+              {saving ? 'Saving…' : 'Save instructions'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ProfileSettingsPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
@@ -388,9 +515,9 @@ export default function ProfileSettingsPage() {
       <div className="layout page-enter">
         <nav className="sidenav">
           <div className="sidenav-section">Profile</div>
-          {(['profile', 'search'] as Section[]).map(s => (
+          {(['profile', 'search', 'positioning'] as Section[]).map(s => (
             <button key={s} className={`sidenav-item${section === s ? ' active' : ''}`} onClick={() => setSection(s)}>
-              {s === 'profile' ? '👤 Profile' : '🔍 Search Settings'}
+              {s === 'profile' ? '👤 Profile' : s === 'search' ? '🔍 Search Settings' : '🎯 Resume Positioning'}
             </button>
           ))}
           <div className="sidenav-divider" />
@@ -402,6 +529,7 @@ export default function ProfileSettingsPage() {
         <div className="main">
           {section === 'profile' && <ProfileFormSection slug={slug} />}
           {section === 'search'  && <SearchSection slug={slug} />}
+          {section === 'positioning' && <PositioningSection slug={slug} />}
           {section === 'danger'  && (
             <div className="section active" id="section-danger">
               <div className="section-title page-title">Danger Zone</div>

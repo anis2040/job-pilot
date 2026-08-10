@@ -2512,6 +2512,190 @@ select option {
   }
 }
 
+/* ── Resume Positioning ─────────────────────────────────────────────────────
+   Glassy stance selector: three escalating cards (Conservative → Balanced →
+   Strong Match) chosen like radios, plus a locked "never changes" callout. */
+.positioning-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+@media (min-width: 720px) {
+  .positioning-cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+.stance-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-4) var(--space-4) var(--space-5);
+  text-align: left;
+  background: rgba(14, 18, 30, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  overflow: hidden;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition:
+    border-color var(--dur-fast) var(--ease-standard),
+    background var(--dur-fast) var(--ease-standard),
+    transform var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-fast) var(--ease-standard);
+}
+.stance-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: linear-gradient(90deg, #4f7ef7, #2dd4bf);
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-standard);
+}
+.stance-card:hover {
+  border-color: rgba(79, 126, 247, 0.3);
+  background: rgba(79, 126, 247, 0.06);
+  transform: translateY(-2px);
+}
+.stance-card:focus-visible {
+  outline: none;
+  border-color: rgba(79, 126, 247, 0.5);
+  box-shadow: 0 0 0 3px rgba(79, 126, 247, 0.15);
+}
+.stance-card.selected {
+  border-color: rgba(79, 126, 247, 0.55);
+  background: rgba(79, 126, 247, 0.1);
+  box-shadow:
+    0 0 0 1px rgba(79, 126, 247, 0.2),
+    0 8px 28px rgba(0, 0, 0, 0.3),
+    0 0 20px rgba(79, 126, 247, 0.12);
+}
+.stance-card.selected::before {
+  opacity: 1;
+}
+.stance-card-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.stance-card-icon {
+  font-size: 1.1rem;
+  line-height: 1;
+  filter: grayscale(0.3);
+  transition: filter var(--dur-fast) var(--ease-standard);
+}
+.stance-card.selected .stance-card-icon {
+  filter: none;
+}
+.stance-card-name {
+  font-family: "Sora", sans-serif;
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--text-white);
+  letter-spacing: -0.01em;
+}
+.stance-card-check {
+  margin-left: auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  color: transparent;
+  flex-shrink: 0;
+  transition:
+    border-color var(--dur-fast) var(--ease-standard),
+    background var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard);
+}
+.stance-card.selected .stance-card-check {
+  border-color: var(--blue);
+  background: var(--blue);
+  color: #fff;
+}
+.stance-card-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--blue-light);
+  background: rgba(79, 126, 247, 0.12);
+  border: 1px solid rgba(79, 126, 247, 0.25);
+  border-radius: var(--radius-full);
+  padding: 1px 8px;
+  align-self: flex-start;
+}
+.stance-card-desc {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  line-height: var(--leading-normal);
+}
+.stance-card-meter {
+  display: flex;
+  gap: 3px;
+  margin-top: 2px;
+}
+.stance-card-meter span {
+  height: 4px;
+  flex: 1;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.09);
+  transition: background var(--dur-fast) var(--ease-standard);
+}
+.stance-card-meter span.on {
+  background: rgba(79, 126, 247, 0.35);
+}
+.stance-card.selected .stance-card-meter span.on {
+  background: linear-gradient(90deg, #4f7ef7, #2dd4bf);
+}
+
+/* Locked-facts callout — the immutable boundary, styled as a teal "guarantee" */
+.locked-callout {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-4);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(13, 148, 136, 0.08) 0%,
+      rgba(79, 126, 247, 0.05) 100%
+    ),
+    rgba(14, 18, 30, 0.6);
+  border: 1px solid rgba(45, 212, 191, 0.22);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-5);
+}
+.locked-callout-icon {
+  font-size: 1rem;
+  line-height: 1.4;
+  color: var(--green);
+  flex-shrink: 0;
+}
+.locked-callout-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.locked-callout-title {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+.locked-callout-text {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  line-height: var(--leading-normal);
+}
+
 /* ── Setup wizard ── */
 .setup-page {
   padding: 32px 16px;
