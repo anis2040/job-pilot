@@ -128,7 +128,7 @@ def test_stance_block_carries_immutable_boundary():
 def test_additional_instructions_wrapped_with_non_override_guard():
     block = BuildCvConfig(additional_instructions="Emphasize roadmap ownership.").to_stance_block()
     assert "Emphasize roadmap ownership." in block
-    assert "cannot override the factual rules" in block
+    assert "remain fully in effect" in block
 
 
 def test_no_instructions_block_when_empty():

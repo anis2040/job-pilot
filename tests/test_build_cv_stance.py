@@ -49,7 +49,7 @@ def test_resume_prompt_carries_additional_instructions(profile, monkeypatch):
     skill_text, _ = documents._build_resume_prompt(
         {"description": "x" * 100}, "Acme", "Engineer", "Jane_Doe", documents._skill_path())
     assert "Emphasize roadmap ownership." in skill_text
-    assert "cannot override the factual rules" in skill_text
+    assert "remain fully in effect" in skill_text
 
 
 # ── verifier is mode-aware but factually constant ────────────────────────────
