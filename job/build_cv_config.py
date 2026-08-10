@@ -53,7 +53,14 @@ _STANCE_PROSE = {
         "that maps to X' — you may state the latter, never silently convert it to "
         "the former. Reach further: adjacent skills, related concepts, and underlying "
         "fundamentals that map to the requirements. Make the candidate look as strongly "
-        "relevant as the real evidence honestly allows."
+        "relevant as the real evidence honestly allows.\n\n"
+        "Write as a practitioner describing their own work — never explain to the reader "
+        "why a bullet matches the JD. The target terminology should arrive through natural "
+        "description of outcomes, not as an appended alignment label. Bad: '...reduced "
+        "pipeline test time by 50%, demonstrating release process automation'. Good: "
+        "'...cut total test execution time by 50% through suite optimization and "
+        "parallelization, eliminating release bottlenecks'. The resume never addresses "
+        "the recruiter; it shows, it does not explain."
     ),
 }
 

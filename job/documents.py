@@ -406,7 +406,11 @@ def _verify_content(content: dict, profile_text: str, positioning: str = "balanc
             "boldly. Bold transferable framing is legitimate — do not 'correct' it away. "
             "This bridges REAL evidence into the role's terminology; the SCOPE PRECISION "
             "rule in the gate below still governs, so it never converts supporting or "
-            "peripheral work into claimed expertise.\n"
+            "peripheral work into claimed expertise. Write as a practitioner describing "
+            "their own work — never append an alignment label explaining why a bullet "
+            "matches the JD. The JD's terminology should land through natural description "
+            "of outcomes, not as a parenthetical ('...demonstrating release process "
+            "automation' is a label; '...eliminating release bottlenecks' is the outcome).\n"
         ),
     }.get(positioning, "")
 
@@ -416,11 +420,14 @@ def _verify_content(content: dict, profile_text: str, positioning: str = "balanc
         "2) SUMMARY: Preserve the candidate's opening as long as it is factually "
         "accurate; do not rewrite it for impact. "
         if positioning == "conservative" else
-        "2) SUMMARY IMPACT: The summary's FIRST sentence must open with a concrete "
-        "result/outcome (ideally the strongest metric in the profile) or the specific "
-        "value this candidate delivers - NOT a title, NOT 'Certified/Experienced/"
-        "Seasoned X', NOT 'N+ years of experience'. If it opens weakly, rewrite the "
-        "opening to lead with the strongest supported metric. "
+        "2) SUMMARY IMPACT: Sentence 1 must introduce the person — their craft, the "
+        "kind of product they work on, and the scale or environment. Do NOT open with "
+        "a bare metric, a job title alone, a bare 'N+ years of experience', or "
+        "'Specialized in…'. If the opening is generic (e.g. just a title + years with "
+        "no context), rewrite it to name the actual work, environment, and scale. "
+        "Sentence 2 carries the single strongest proof point with the metric framed at "
+        "a higher altitude than the bullet that owns it — the summary frames, the "
+        "bullets prove. Never reuse the same number or phrasing a bullet already uses. "
     )
 
     # FACTUAL GATE — identical on every mode (assert-tested). This is the immutable
