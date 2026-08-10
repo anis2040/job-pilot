@@ -2,7 +2,7 @@
 
 Exercises the full Flask stack (same isolation as test_smoke.py) for behaviours
 introduced to reduce load on a small shared VM: match caching, PDF indexing,
-fetch/document concurrency caps, and deferred embedding backfill.
+pdflatex concurrency cap, and deferred embedding backfill.
 """
 from __future__ import annotations
 
@@ -142,42 +142,25 @@ class TestPdfIndexE2E:
 
 
 class TestConcurrencyE2E:
-    def test_fetch_returns_429_when_server_busy(self, client):
-        from job import concurrency
+    def test_fetch_returns_429_when_same_user_already_fetching(self, client, monkeypatch):
+        import job.fetch_worker as fw
+        from job import task_state
 
-        assert concurrency.try_acquire_fetch()
-        assert concurrency.try_acquire_fetch()
-        try:
-            resp = client.post("/api/fetch")
-            assert resp.status_code == 429
-            body = resp.get_json()
-            assert body["started"] is False
-            assert "busy" in (body.get("message") or "").lower()
-        finally:
-            concurrency.release_fetch()
-            concurrency.release_fetch()
+        gate = threading.Event()
 
-    def test_resume_surfaces_busy_error_when_doc_slots_full(self, client):
-        from job import concurrency
+        def blocked_fetch():
+            gate.wait(timeout=2)
+            task_state.set_fetch_done("done")
 
-        _insert("gh_busy")
-        assert concurrency.try_acquire_doc_build()
-        assert concurrency.try_acquire_doc_build()
-        try:
-            assert client.post("/api/resume/gh_busy").status_code == 200
-            st = None
-            deadline = time.monotonic() + 2.0
-            while time.monotonic() < deadline:
-                st = client.get("/api/resume-status/gh_busy").get_json()
-                if st.get("status") == "error":
-                    break
-                time.sleep(0.02)
-            assert st is not None
-            assert st["status"] == "error"
-            assert "busy" in (st.get("error") or "").lower()
-        finally:
-            concurrency.release_doc_build()
-            concurrency.release_doc_build()
+        monkeypatch.setattr(fw, "_run_fetch", blocked_fetch)
+
+        assert client.post("/api/fetch").get_json()["started"] is True
+        resp = client.post("/api/fetch")
+        assert resp.status_code == 429
+        assert resp.get_json()["started"] is False
+
+        gate.set()
+        _wait_fetch_done(client)
 
     def test_fetch_marks_done_before_slow_embedding_backfill(self, client, monkeypatch):
         events: list[str] = []

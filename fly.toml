@@ -12,6 +12,8 @@ primary_region = 'ord'
   FLASK_DEBUG = 'false'
   AUTH_DISABLED = '0'
   PORT = '5050'
+  PDFLATEX_LIMIT = '2'
+  GUNICORN_THREADS = '8'
 
 [[mounts]]
   source = 'profiles'
