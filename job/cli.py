@@ -347,6 +347,10 @@ def resume(
         profile_path = get_profile_path()
         if profile_path and profile_path.exists():
             skill_instructions += f"\n\n## profile.md (embedded)\n\n{profile_path.read_text(encoding='utf-8')}"
+        # Positioning stance — same user-controlled layer as the web path, so both
+        # consumers reach the same distance (per-profile config.yaml build_cv:).
+        from .build_cv_config import BuildCvConfig
+        skill_instructions += "\n\n" + BuildCvConfig.load().to_stance_block()
 
         claude_exe = shutil.which("claude") or "claude"
         result = subprocess.run(

@@ -6,6 +6,7 @@ from . import paths
 from .db import get_job, update_description, init_db
 from .fetcher import fetch_description as fetch_job_description, should_fetch_description
 from .profiles import get_profile_path, get_resumes_path
+from .build_cv_config import BuildCvConfig
 from .ai_providers import (_get_anthropic_client, _get_gemini_client, _get_groq_client,
                            _get_openrouter_client,
                            _get_model, _generate_content, call_ai, extract_json_from_llm)
@@ -182,6 +183,9 @@ def _build_resume_prompt(row: dict, company: str, title: str, name_slug: str, sk
     skill_text = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
     skill_text = _append_profile(skill_text)
     skill_text = _inject_name(skill_text, name_slug)
+    # Positioning stance — the ONE user-controlled variable layer (per-profile
+    # config.yaml build_cv:). Sits between the profile and the output contract.
+    skill_text += "\n\n" + BuildCvConfig.load().to_stance_block()
     skill_text += _JSON_OUTPUT_FORMAT
 
     desc = row.get("description") or ""
@@ -344,7 +348,7 @@ def _run_verifier(system: str, prompt: str) -> dict | None:
     return None
 
 
-def _verify_content(content: dict, profile_text: str) -> list[str]:
+def _verify_content(content: dict, profile_text: str, positioning: str = "balanced") -> list[str]:
     """LLM fabrication guard for the prose fields — summary + bullets.
 
     Competencies are grounded deterministically against profile.json elsewhere
@@ -354,6 +358,13 @@ def _verify_content(content: dict, profile_text: str) -> list[str]:
 
     Per-field safety: bullets are remapped by position and only applied on a
     same-length response.
+
+    `positioning` is the profile's Build CV stance (conservative/balanced/
+    aggressive). It is passed ONLY as context so the verifier doesn't "fix" a
+    legitimate transferable framing on higher settings, nor inflate conservative
+    output — the factual gate itself never loosens by mode: "experience that
+    maps to X" is always allowed, "experience with X" without profile evidence
+    is always rejected.
     """
     import json as _json
 
@@ -370,18 +381,67 @@ def _verify_content(content: dict, profile_text: str) -> list[str]:
     if not summary and not flat:
         return []
 
-    system = (
-        "You are a fact-checker AND editor for a resume. Your goal: make it fit the "
-        "target role as strongly as the candidate's REAL experience allows - without "
-        "inventing. Two jobs:\n"
+    # Positioning LATITUDE — the ONLY mode-variable part of this prompt. It controls
+    # how far the verifier may actively reframe wording toward the role. It never
+    # loosens the factual gate below: fabrication is rejected identically on every mode.
+    _latitude = {
+        "conservative": (
+            "POSITIONING CONTEXT — CONSERVATIVE stance: the resume intentionally uses the "
+            "profile's own terms, not the role's vocabulary. Do NOT reframe terminology "
+            "toward the JD (e.g. do not change 'REST APIs' to 'RESTful API development'), "
+            "and do NOT rewrite the summary for impact. Preserve the candidate's wording; "
+            "only correct outright fabrication per the gate below.\n"
+        ),
+        "balanced": (
+            "POSITIONING CONTEXT — BALANCED stance: where useful, reframe genuinely-held "
+            "transferable/adjacent experience into the target role's terminology (e.g. "
+            "profile 'worked with PMs and engineers' -> 'cross-functional stakeholder "
+            "management'; profile 'REST APIs' -> 'RESTful API development'). Honest "
+            "transferable framing ('React foundation applicable to Next.js') is "
+            "legitimate — do not 'correct' it away as fabrication.\n"
+        ),
+        "aggressive": (
+            "POSITIONING CONTEXT — STRONG-MATCH stance: actively reframe genuinely-held "
+            "experience into the role's vocabulary and surface transferable connections "
+            "boldly. Bold transferable framing is legitimate — do not 'correct' it away. "
+            "This bridges REAL evidence into the role's terminology; the SCOPE PRECISION "
+            "rule in the gate below still governs, so it never converts supporting or "
+            "peripheral work into claimed expertise. Write as a practitioner describing "
+            "their own work — never append an alignment label explaining why a bullet "
+            "matches the JD. The JD's terminology should land through natural description "
+            "of outcomes, not as a parenthetical ('...demonstrating release process "
+            "automation' is a label; '...eliminating release bottlenecks' is the outcome).\n"
+        ),
+    }.get(positioning, "")
+
+    # Summary handling — the rewrite-for-impact is latitude (balanced/aggressive);
+    # conservative preserves the candidate's opening. Filler removal stays constant.
+    _summary_rule = (
+        "2) SUMMARY: Preserve the candidate's opening as long as it is factually "
+        "accurate; do not rewrite it for impact. "
+        if positioning == "conservative" else
+        "2) SUMMARY IMPACT: Sentence 1 must introduce the person — their craft, the "
+        "kind of product they work on, and the scale or environment. Do NOT open with "
+        "a bare metric, a job title alone, a bare 'N+ years of experience', or "
+        "'Specialized in…'. If the opening is generic (e.g. just a title + years with "
+        "no context), rewrite it to name the actual work, environment, and scale. "
+        "Sentence 2 carries the single strongest proof point with the metric framed at "
+        "a higher altitude than the bullet that owns it — the summary frames, the "
+        "bullets prove. Never reuse the same number or phrasing a bullet already uses. "
+    )
+
+    # FACTUAL GATE — identical on every mode (assert-tested). This is the immutable
+    # boundary; the latitude above never loosens it. It only KEEPS what the profile
+    # genuinely supports and DROPS what it does not — the active reframing lives in
+    # the latitude block, so conservative and strong-match never receive conflicting
+    # reframe instructions here.
+    _fact_gate = (
         "1) FACTS: Compare each part against the PROFILE. The test is whether the "
         "profile SUPPORTS the claim, not whether it uses the same words:\n"
-        "   - KEEP and, where useful, reframe: transferable/adjacent experience the "
-        "profile genuinely contains, expressed in the target role's terminology "
-        "(e.g. profile 'worked with PMs and engineers' -> 'cross-functional "
-        "stakeholder management'; profile 'REST APIs' -> 'RESTful API development'). "
+        "   - KEEP: transferable/adjacent experience the profile genuinely contains. "
         "Recognizing that a stated experience satisfies a differently-worded "
-        "requirement is your job, not fabrication.\n"
+        "requirement is legitimate, not fabrication — do not flag or delete it as "
+        "unsupported.\n"
         "   - SCOPE PRECISION: adjacent or supporting work is not the same as direct "
         "ownership. Do not allow a claim that implies expertise in a domain the profile "
         "only touched. The test: would a specialist hiring manager feel misled? "
@@ -393,14 +453,17 @@ def _verify_content(content: dict, profile_text: str) -> list[str]:
         "engineering background the profile never evidences), and inflated scope or "
         "numbers not supported. When a claim has no supporting evidence at all, remove "
         "it; do not invent a replacement.\n"
-        "2) SUMMARY IMPACT: The summary's FIRST sentence must open with a concrete "
-        "result/outcome (ideally the strongest metric in the profile) or the specific "
-        "value this candidate delivers - NOT a title, NOT 'Certified/Experienced/"
-        "Seasoned X', NOT 'N+ years of experience'. If it opens weakly, rewrite the "
-        "opening to lead with the strongest supported metric. Remove filler words "
-        "(see system prompt ban list) anywhere they appear. Rewrite the whole sentence "
-        "cleanly rather than leaving a fragment. Editing for fit and impact never "
-        "licenses a claim the profile cannot support.\n"
+    )
+
+    system = (
+        "You are a fact-checker AND editor for a resume. Ground every claim in the "
+        "candidate's REAL experience - never invent.\n"
+        + _latitude
+        + _fact_gate
+        + _summary_rule
+        + "Remove filler words (see system prompt ban list) anywhere they appear. "
+        "Rewrite the whole sentence cleanly rather than leaving a fragment. Editing "
+        "for fit and impact never licenses a claim the profile cannot support.\n"
         "You are given SUMMARY (string) and BULLETS (string array). Reply with a "
         "JSON object ONLY, echoing each field with corrections applied and "
         "preserving the BULLETS array's exact length and order:\n"
@@ -590,7 +653,8 @@ def _build_document(job_id: str, doc_type: str) -> None:
             # Semantic guard: one strong-model call grounds the prose fields
             # (summary + bullets) — the fabrication regex can't judge.
             stage_fn(job_id, "Checking accuracy…")
-            fixed = _verify_content(content, profile_text)
+            fixed = _verify_content(content, profile_text,
+                                    positioning=BuildCvConfig.load().experience_positioning)
             if fixed:
                 print(f"[resume-check] {job_id}: rewritten by fabrication guard: {', '.join(fixed)}")
 

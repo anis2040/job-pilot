@@ -66,11 +66,17 @@ export interface SearchEntry {
   work_styles?: ('Remote' | 'Hybrid' | 'On-site')[];
 }
 
+export interface BuildCvConfig {
+  experience_positioning: 'conservative' | 'balanced' | 'aggressive';
+  additional_instructions: string;
+}
+
 export interface SearchConfig {
   searches: SearchEntry[];
   title_filter: string[];
   blacklist: string[];
   company_blacklist: string[];
+  build_cv?: BuildCvConfig;
 }
 
 export interface SaveConfigResult {

@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { jobs as jobsApi, documents } from '../../../api/client';
 import { useDocumentStatus } from '../../../hooks/useDocumentStatus';
+import { useStance } from '../../../hooks/useStance';
 import { useToast } from '../../../components/ui/useToast';
 import { Icon } from '../../../components/ui/Icon';
+import { CvActionBlock } from '../../../components/ui/CvActionBlock';
 import { formatDescription, isLongDescription } from '../../../utils/descriptionRenderer';
 import { shouldFetchFullDescription } from '../../../utils/jobDescription';
 import { safeUrl } from '../../../utils/format';
@@ -24,6 +26,7 @@ export function DetailPanel({ jobId, initialJob, onClose, onJobUpdated }: Detail
   const [buildingResume, setBuildingResume] = useState(false);
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const { stance, saveStance, ready: stanceReady } = useStance();
   const resumeDoc = useDocumentStatus(jobId, 'resume', buildingResume || job.resume_status === 'building');
 
   useEffect(() => {
@@ -92,6 +95,10 @@ export function DetailPanel({ jobId, initialJob, onClose, onJobUpdated }: Detail
 
   const descHtml = job.description ? formatDescription(job.description) : null;
   const isLong = job.description ? isLongDescription(job.description) : false;
+  const isBuilding = job.resume_status === 'building' || buildingResume;
+  const isDone = job.resume_status === 'done' && !!job.pdf_url;
+  const isError = job.resume_status === 'error';
+  const isIdle = !isBuilding && !isDone && !isError;
 
   return (
     <div className="detail-panel-content">
@@ -125,6 +132,33 @@ export function DetailPanel({ jobId, initialJob, onClose, onJobUpdated }: Detail
           </button>
         </div>
       </div>
+
+      {/* Unified CV action block — always visible above the description */}
+      <div className="panel-cv-bar">
+        <CvActionBlock stance={stance} onStanceChange={saveStance} disabled={!stanceReady || isBuilding}>
+          {isIdle && (
+            <button className="btn btn-ai btn-sm" onClick={handleBuildResume} disabled={buildingResume || !stanceReady}>
+              ✦ Build CV
+            </button>
+          )}
+          {isBuilding && (
+            <span className="panel-building"><span className="spinner spinner-xs" /> Building…</span>
+          )}
+          {isDone && (
+            <>
+              <a href={safeUrl(job.pdf_url!)} target="_blank" rel="noreferrer" className="btn btn-success btn-sm">📄 Open CV</a>
+              <button className="btn btn-ghost btn-sm" onClick={handleBuildResume} disabled={buildingResume}>Rebuild</button>
+            </>
+          )}
+          {isError && (
+            <>
+              <span className="panel-cv-error">{job.resume_error?.slice(0, 50) || 'Build failed'}</span>
+              <button className="btn btn-ghost btn-sm" onClick={handleBuildResume}>Retry</button>
+            </>
+          )}
+        </CvActionBlock>
+      </div>
+
       {job.match && (
         <div className="panel-match">
           {job.match.matched?.slice(0, 6).map(s => <span key={s} className="skill-tag">{s}</span>)}
@@ -147,20 +181,6 @@ export function DetailPanel({ jobId, initialJob, onClose, onJobUpdated }: Detail
         ) : (
           <p style={{ fontStyle: 'italic', color: 'var(--text-faint)', fontSize: 'var(--text-sm)' }}>No description available.</p>
         )}
-        <div className="panel-cv-row">
-          {job.resume_status === 'idle' && (
-            <button className="btn btn-ai btn-sm" onClick={handleBuildResume} disabled={buildingResume}>✦ Build CV</button>
-          )}
-          {(job.resume_status === 'building' || buildingResume) && (
-            <span className="panel-building"><span className="spinner spinner-xs" /> Building…</span>
-          )}
-          {job.resume_status === 'done' && job.pdf_url && (
-            <a href={safeUrl(job.pdf_url)} target="_blank" rel="noreferrer" className="btn btn-success btn-sm">📄 Open CV</a>
-          )}
-          {job.resume_status === 'error' && (
-            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--red)' }}>{job.resume_error?.slice(0, 60) || 'Build failed'}</span>
-          )}
-        </div>
       </div>
     </div>
   );

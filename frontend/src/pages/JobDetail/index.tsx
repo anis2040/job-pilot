@@ -3,9 +3,11 @@ import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import { jobs as jobsApi, documents } from '../../api/client';
 import { useToast } from '../../components/ui/useToast';
 import { useDocumentStatus } from '../../hooks/useDocumentStatus';
+import { useStance } from '../../hooks/useStance';
 import { SourceBadge } from '../../components/ui/SourceBadge';
 import { Icon } from '../../components/ui/Icon';
 import { Spinner } from '../../components/ui/Spinner';
+import { CvActionBlock } from '../../components/ui/CvActionBlock';
 import { AppShell } from '../../components/layout/AppShell';
 import { BackButton } from '../../components/layout/BackButton';
 import { safeUrl, fmtDate } from '../../utils/format';
@@ -38,8 +40,11 @@ function JobDescription({ text }: { text: string }) {
 
 // ── Document slot (resume / cover letter) ─────────────────────────────────────
 
-function DocSlot({ jobId, type, job, onRefresh }: {
+function DocSlot({ jobId, type, job, onRefresh, stanceValue, onStanceChange, stanceReady }: {
   jobId: string; type: 'resume' | 'cover-letter'; job: JobDetail; onRefresh: () => void;
+  stanceValue?: ReturnType<typeof useStance>['stance'];
+  onStanceChange?: ReturnType<typeof useStance>['saveStance'];
+  stanceReady?: boolean;
 }) {
   const { showToast } = useToast();
   const isResume = type === 'resume';
@@ -92,12 +97,24 @@ function DocSlot({ jobId, type, job, onRefresh }: {
   }
   if (effectiveStatus === 'done' && effectivePdfUrl) {
     return (
-      <>
-        <a href={safeUrl(effectivePdfUrl)} target="_blank" rel="noreferrer" className="btn btn-success btn-sm">
-          {isResume ? '📄 Open CV' : '✉ Open Letter'}
-        </a>
-        <button className="btn btn-ghost btn-sm" onClick={handleBuild}>Rebuild</button>
-      </>
+      <div className="doc-slot-done">
+        {isResume && stanceValue && onStanceChange && (
+          <CvActionBlock stance={stanceValue} onStanceChange={onStanceChange} disabled={!stanceReady}>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <a href={safeUrl(effectivePdfUrl)} target="_blank" rel="noreferrer" className="btn btn-success btn-sm">
+                {isResume ? '📄 Open CV' : '✉ Open Letter'}
+              </a>
+              <button className="btn btn-ghost btn-sm" onClick={handleBuild}>Rebuild</button>
+            </div>
+          </CvActionBlock>
+        )}
+        {!isResume && (
+          <div style={{ display: 'flex', gap: 6 }}>
+            <a href={safeUrl(effectivePdfUrl)} target="_blank" rel="noreferrer" className="btn btn-success btn-sm">✉ Open Letter</a>
+            <button className="btn btn-ghost btn-sm" onClick={handleBuild}>Rebuild</button>
+          </div>
+        )}
+      </div>
     );
   }
   if (effectiveStatus === 'error') {
@@ -132,10 +149,12 @@ function DocSlot({ jobId, type, job, onRefresh }: {
   if (!isResume && job.resume_status !== 'done') {
     return <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-faint)' }}>🔒 Build CV first</span>;
   }
-  return (
-    <button className="btn btn-ai btn-sm" onClick={handleBuild}>
-      {isResume ? '✦ Build CV' : '✦ Write Cover Letter'}
-    </button>
+  return isResume && stanceValue && onStanceChange ? (
+    <CvActionBlock stance={stanceValue} onStanceChange={onStanceChange} disabled={!stanceReady}>
+      <button className="btn btn-ai btn-sm" onClick={handleBuild}>✦ Build CV</button>
+    </CvActionBlock>
+  ) : (
+    <button className="btn btn-ai btn-sm" onClick={handleBuild}>✦ Write Cover Letter</button>
   );
 }
 
@@ -308,6 +327,7 @@ export default function JobDetailPage() {
   const [job, setJob] = useState<JobDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
+  const { stance, saveStance, ready: stanceReady } = useStance();
 
   const loadJob = useCallback(async () => {
     if (!jobId) return;
@@ -434,7 +454,10 @@ export default function JobDetailPage() {
             <div className="doc-row">
               <span className="doc-row-label">CV / Resume</span>
               <div className="doc-row-content">
-                <DocSlot jobId={job.job_id} type="resume" job={job} onRefresh={loadJob} />
+                <DocSlot
+                  jobId={job.job_id} type="resume" job={job} onRefresh={loadJob}
+                  stanceValue={stance} onStanceChange={saveStance} stanceReady={stanceReady}
+                />
               </div>
             </div>
             <div className="doc-row">
