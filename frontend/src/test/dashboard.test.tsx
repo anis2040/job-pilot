@@ -453,6 +453,65 @@ describe('Row interactions', () => {
   })
 })
 
+
+describe('Inline stance picker in detail panel', () => {
+  function seedIdleJob() {
+    seedJobs(
+      [buildJob({ job_id: 'j1', title: 'React Developer', company: 'Alpha', status: 'pending', resume_status: 'idle' })],
+      [buildJobDetail({ job_id: 'j1', title: 'React Developer', description: 'Build great apps.' })],
+    )
+  }
+
+  async function openPanel() {
+    const user = userEvent.setup()
+    renderApp('/')
+    await waitFor(() => expect(screen.getByText('React Developer')).toBeInTheDocument())
+    await user.click(screen.getByRole('button', { name: 'React Developer' }))
+    await screen.findByTestId('detail-panel')
+    return user
+  }
+
+  it('renders the three stance pills in the idle state', async () => {
+    seedIdleJob()
+    const panel = await (async () => { await openPanel(); return screen.getByTestId('detail-panel') })()
+    await waitFor(() => {
+      expect(within(panel).getByRole('button', { name: /Conservative/i })).toBeInTheDocument()
+      expect(within(panel).getByRole('button', { name: /Balanced/i })).toBeInTheDocument()
+      expect(within(panel).getByRole('button', { name: /Strong Match/i })).toBeInTheDocument()
+    })
+  })
+
+  it('defaults to Balanced when config has no build_cv key', async () => {
+    seedIdleJob()
+    await openPanel()
+    const panel = screen.getByTestId('detail-panel')
+    await waitFor(() => {
+      const balanced = within(panel).getByRole('button', { name: /Balanced/i })
+      expect(balanced).toHaveAttribute('aria-pressed', 'true')
+    })
+  })
+
+  it('saves the selected stance via the config endpoint when a pill is clicked', async () => {
+    seedIdleJob()
+    let savedConfig: unknown
+    server.use(
+      http.post('/api/profiles/:slug/config', async ({ request }) => {
+        savedConfig = await request.json()
+        return HttpResponse.json({ ok: true })
+      }),
+    )
+    await openPanel()
+    const panel = screen.getByTestId('detail-panel')
+    await waitFor(() => expect(within(panel).getByRole('button', { name: /Conservative/i })).toBeInTheDocument())
+
+    await userEvent.setup().click(within(panel).getByRole('button', { name: /Conservative/i }))
+
+    await waitFor(() => {
+      expect((savedConfig as { build_cv?: { experience_positioning?: string } })?.build_cv?.experience_positioning).toBe('conservative')
+    })
+  })
+})
+
 describe('Fetch from the toolbar', () => {
   it('starts a fetch from the header Fetch jobs button', async () => {
     const user = userEvent.setup()
