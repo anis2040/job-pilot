@@ -489,26 +489,7 @@ def _verify_cover_letter(content: dict, profile_text: str) -> bool:
 
 def _build_document(job_id: str, doc_type: str) -> None:
     """Shared document builder for resumes and cover letters."""
-    from .concurrency import try_acquire_doc_build, release_doc_build, doc_build_active_count
-
     is_resume = doc_type == "resume"
-    if not try_acquire_doc_build():
-        busy = doc_build_active_count()
-        task_state.set_job_result(
-            job_id,
-            {
-                "status": "error",
-                "pdf_path": None,
-                "error": (
-                    f"Server busy — {busy} document build(s) already running. "
-                    "Try again shortly."
-                ),
-                "stage": "",
-            },
-            is_resume=is_resume,
-        )
-        return
-
     stage_fn = task_state._set_stage if is_resume else task_state._set_cl_stage
     skill_dir = _skill_path() if is_resume else _cl_skill_path()
     tex_suffix = "Resume" if is_resume else "Cover_Letter"
@@ -677,8 +658,6 @@ def _build_document(job_id: str, doc_type: str) -> None:
         if isinstance(e, RateLimitError):
             entry["rate_limit"] = e.as_dict()
         task_state.set_job_result(job_id, entry, is_resume=is_resume)
-    finally:
-        release_doc_build()
 
 
 def _build_resume(job_id: str) -> None:

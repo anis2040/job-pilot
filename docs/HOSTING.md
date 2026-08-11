@@ -145,6 +145,29 @@ Docker Compose works on any of the VPS / home options above. The app is **not** 
 
 ---
 
+## Concurrency (4–5 simultaneous users)
+
+On a single VM the app does **not** reject fetches or document builds when others are active. The only global cap is **PDF compilation** (`pdflatex`):
+
+| Setting | Default | Purpose |
+|---------|---------|---------|
+| `PDFLATEX_LIMIT` | `2` | Max concurrent `pdflatex` processes |
+| `GUNICORN_THREADS` | `8` | HTTP threads for concurrent browsing |
+
+**How it behaves:**
+
+- **Fetch jobs** — any number of users can fetch at once. The same user cannot start a second fetch while theirs is still running.
+- **Build CV / cover letter** — unlimited starts; most time is spent waiting on external AI APIs.
+- **PDF compile** — if both slots are busy, additional builds **wait in queue** (UI shows "Compiling PDF…") and complete without re-clicking.
+
+**Tuning on Fly.io (1 GB / 1 CPU):**
+
+- Defaults in [`fly.toml`](../fly.toml): `PDFLATEX_LIMIT=2`, `GUNICORN_THREADS=8`.
+- If Fly logs show OOM kills during PDF generation, set `PDFLATEX_LIMIT=1` and redeploy.
+- Normal browsing, fetching, and AI generation should remain responsive; only PDF compile may stagger under burst load.
+
+---
+
 ## Manual deploy (without Docker)
 
 Use this only if you prefer bare metal / systemd.

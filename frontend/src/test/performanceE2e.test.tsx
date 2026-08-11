@@ -114,24 +114,4 @@ describe('Performance optimizations (E2E)', () => {
     })
     await waitFor(() => expect(jobsCalls).toBeGreaterThan(baseline))
   })
-
-  it('surfaces server-busy message when fetch returns 429', async () => {
-    server.use(
-      http.post('/api/fetch', () =>
-        HttpResponse.json(
-          { status: 'idle', started: false, message: 'Server busy — 2 fetch(es) already running. Try again shortly.' },
-          { status: 429 }
-        )
-      )
-    )
-
-    seedJobs([])
-    renderApp('/')
-    await waitFor(() => expect(screen.getByText(/No pending jobs/i)).toBeInTheDocument())
-
-    fireEvent.click(screen.getByRole('button', { name: /Fetch jobs now/i }))
-    await waitFor(() =>
-      expect(screen.getByText(/Server busy — 2 fetch\(es\) already running/i)).toBeInTheDocument()
-    )
-  })
 })

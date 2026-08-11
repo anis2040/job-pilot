@@ -78,36 +78,19 @@ def trigger_cover_letter(job_id: str, user_id: str | None = None) -> None:
 
 
 def trigger_fetch(user_id: str | None = None) -> bool:
-    """Start the fetch thread. Returns True if started, False if already running or at capacity."""
+    """Start the fetch thread. Returns True if started, False if already running."""
     from .fetch_worker import _run_fetch
-    from .concurrency import try_acquire_fetch, release_fetch, fetch_active_count
 
     uid = user_id or get_current_user_id()
     with _lock:
         cur = _fetch_status.get(uid, _IDLE_FETCH)
         if cur.get("status") == "running":
             return False
-
-    if not try_acquire_fetch():
-        with _lock:
-            _fetch_status[uid] = {
-                "status": "idle",
-                "message": (
-                    f"Server busy — {fetch_active_count()} fetch(es) already running. "
-                    "Try again shortly."
-                ),
-            }
-        return False
-
-    with _lock:
         _fetch_status[uid] = {"status": "running", "message": "Starting…"}
 
     def run():
-        try:
-            with user_context(uid):
-                _run_fetch()
-        finally:
-            release_fetch()
+        with user_context(uid):
+            _run_fetch()
 
     threading.Thread(target=run, daemon=True).start()
     return True
