@@ -135,4 +135,12 @@ describe('Resume Positioning', () => {
     const [, cfg] = vi.mocked(profilesApi.saveConfig).mock.calls[0]
     expect(cfg.build_cv?.additional_instructions).toBe('Focus on roadmap')
   })
+
+  it('caps additional instructions at 500 characters in the form', async () => {
+    await openPositioning()
+    const textarea = screen.getByPlaceholderText(/emphasize stakeholder management/i) as HTMLTextAreaElement
+
+    expect(textarea.maxLength).toBe(500)
+    expect(screen.getByText(/max 500 characters/i)).toBeInTheDocument()
+  })
 })

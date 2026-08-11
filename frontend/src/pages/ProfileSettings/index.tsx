@@ -9,6 +9,7 @@ import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { SearchRow } from '../../components/ui/SearchRow';
 import { createSearchRow, deriveTitleFilters, groupSearchEntries, expandSearchRows, type SearchRowEntry } from '../../components/ui/searchRowModel';
 import type { SearchConfig, BuildCvConfig } from '../../api/types';
+import { BUILD_CV_INSTRUCTIONS_MAX_LENGTH, useBuildCvPositioning } from '../../hooks/useBuildCvPositioning';
 import { buildProfileMd, parseProfileMd, DEFAULT_FORM, EMPTY_EXP, EMPTY_EDU } from '../../utils/profileForm';
 import type { ProfileFormData, ExpEntry, EduEntry } from '../../utils/profileForm';
 
@@ -357,54 +358,29 @@ const POSITIONING_OPTIONS: { value: BuildCvConfig['experience_positioning']; lab
     desc: "Reaches furthest — leans on transferable and adjacent skills and mirrors the employer's vocabulary to maximize alignment." },
 ];
 
-const DEFAULT_POSITIONING: BuildCvConfig = { experience_positioning: 'balanced', additional_instructions: '' };
-
 function PositioningSection({ slug }: { slug: string }) {
   const { showToast } = useToast();
-  const [cfg, setCfg] = useState<SearchConfig | null>(null);
-  const [positioning, setPositioning] = useState<BuildCvConfig['experience_positioning']>('balanced');
-  const [instructions, setInstructions] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    profilesApi.getConfig(slug).then((c: SearchConfig) => {
-      setCfg(c);
-      const bc = c.build_cv || DEFAULT_POSITIONING;
-      setPositioning(bc.experience_positioning || 'balanced');
-      setInstructions(bc.additional_instructions || '');
-    });
-  }, [slug]);
-
-  // Read-modify-write: the POST handler overwrites the whole config.yaml, so we
-  // send the full current config with build_cv merged in — otherwise this clobbers
-  // searches/blacklist/title_filter. Takes the values explicitly so callers can
-  // persist state updates before React has committed them.
-  const persist = async (
-    nextPositioning: BuildCvConfig['experience_positioning'],
-    nextInstructions: string,
-    okMsg: string,
-  ) => {
-    if (!cfg || saving) return;
-    setSaving(true);
-    const merged: SearchConfig = {
-      ...cfg,
-      build_cv: {
-        experience_positioning: nextPositioning,
-        additional_instructions: nextInstructions.trim().slice(0, 500),
-      },
-    };
-    const res = await profilesApi.saveConfig(slug, merged);
-    setSaving(false);
-    if (res.ok) { setCfg(merged); showToast(okMsg); }
-    else showToast('Failed to save', 'err');
-  };
+  const {
+    positioning,
+    instructions,
+    saving,
+    ready,
+    setInstructions,
+    savePositioning,
+    saveInstructions,
+  } = useBuildCvPositioning(slug);
 
   // Selecting a stance saves immediately (like the AI-settings model picker), so
   // the choice survives navigation without a separate Save click.
-  const handleSelect = (value: BuildCvConfig['experience_positioning']) => {
+  const handleSelect = async (value: BuildCvConfig['experience_positioning']) => {
     if (value === positioning) return;
-    setPositioning(value);
-    void persist(value, instructions, 'Resume positioning saved');
+    const ok = await savePositioning(value);
+    showToast(ok ? 'Resume positioning saved' : 'Failed to save', ok ? undefined : 'err');
+  };
+
+  const handleSaveInstructions = async () => {
+    const ok = await saveInstructions();
+    showToast(ok ? 'Instructions saved' : 'Failed to save', ok ? undefined : 'err');
   };
 
   return (
@@ -425,8 +401,8 @@ function PositioningSection({ slug }: { slug: string }) {
                     name="positioning"
                     value={opt.value}
                     checked={active}
-                    disabled={saving || !cfg}
-                    onChange={() => handleSelect(opt.value)}
+                    disabled={saving || !ready}
+                    onChange={() => { void handleSelect(opt.value); }}
                   />
                   <div className="stance-card-top">
                     <span className="stance-card-icon" aria-hidden="true">{opt.icon}</span>
@@ -454,10 +430,10 @@ function PositioningSection({ slug }: { slug: string }) {
           </div>
 
           <div className="field">
-            <label>Additional instructions <span className="label-hint">(optional)</span></label>
+            <label>Additional instructions <span className="label-hint">(optional, max {BUILD_CV_INSTRUCTIONS_MAX_LENGTH} characters)</span></label>
             <textarea
               rows={3}
-              maxLength={500}
+              maxLength={BUILD_CV_INSTRUCTIONS_MAX_LENGTH}
               placeholder={'e.g. "For product roles, emphasize stakeholder management and roadmap ownership."'}
               value={instructions}
               onChange={e => setInstructions(e.target.value)}
@@ -465,7 +441,7 @@ function PositioningSection({ slug }: { slug: string }) {
           </div>
 
           <div className="save-row" style={{ marginTop: 8 }}>
-            <button className="btn btn-primary" onClick={() => persist(positioning, instructions, 'Instructions saved')} disabled={saving || !cfg}>
+            <button className="btn btn-primary" onClick={handleSaveInstructions} disabled={saving || !ready}>
               {saving ? 'Saving…' : 'Save instructions'}
             </button>
           </div>
