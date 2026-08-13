@@ -26,7 +26,10 @@ export default defineConfig({
     execArgv: ['--no-experimental-webstorage'],
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
-    include: ['src/test/**/*.{test,spec}.{ts,tsx}'],
+    include: [
+      'src/test/**/*.{test,spec}.{ts,tsx}',
+      'src/pages/**/{hooks,utils,components}/tests/**/*.{test,spec}.{ts,tsx}',
+    ],
     alias: { '@': resolve(dir, 'src') },
     coverage: {
       provider: 'v8',

@@ -3,6 +3,7 @@ import type { Tab } from '../types';
 import { PAGE_SIZE } from '../constants';
 import { JobRow } from './JobRow';
 import { Pagination } from '../../../components/ui/Pagination';
+import { LoadErrorState } from '../../../components/ui/LoadErrorState';
 
 interface JobsColumnProps {
   loading: boolean;
@@ -54,16 +55,7 @@ export function JobsColumn({
   }
 
   if (loadError) {
-    return (
-      <div className="empty-state" role="alert">
-        <div className="empty-state-icon">⚠️</div>
-        <div className="empty-state-title">Couldn't load jobs</div>
-        <div className="empty-state-desc">Something went wrong reaching the server.</div>
-        <button className="btn btn-primary" style={{ marginTop: 'var(--space-2)' }} onClick={onRetry}>
-          Retry
-        </button>
-      </div>
-    );
+    return <LoadErrorState title="Couldn't load jobs" onRetry={onRetry} />;
   }
 
   if (jobs.length === 0) {
