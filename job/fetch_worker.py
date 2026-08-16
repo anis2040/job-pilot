@@ -54,7 +54,11 @@ def _run_fetch() -> None:
         for search in config.searches:
             task_state.set_fetch_message(f"Fetching {search.name}…")
 
-            jobs = fetch_search(search)
+            try:
+                jobs = fetch_search(search)
+            except Exception as e:
+                print(f"  [{search.source}] fetch error — skipping: {e}")
+                continue
             seen_ids = existing_job_ids([job.job_id for job in jobs])
             filtered_logs: list[tuple[str, str, str]] = []
             new_rows: list[dict] = []
