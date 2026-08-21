@@ -139,7 +139,7 @@ def test_get_pending_deduped_keeps_distinct(temp_db):
 def _run_backfill(db):
     """Reset the one-shot flag and re-run the remote backfill migration."""
     with db._connect() as con:
-        con.execute("DELETE FROM db_meta WHERE key = 'remote_backfill_v1'")
+        con.execute("DELETE FROM db_meta WHERE key = 'remote_backfill_v2'")
         con.commit()
     db._backfill_remote()
 
@@ -158,6 +158,16 @@ def test_remote_backfill_fixes_stale_labels(temp_db):
 
     assert temp_db.get_job("jc_1")["remote"] == "Remote"
     assert temp_db.get_job("li_1")["remote"] == "Unknown"
+
+
+def test_remote_backfill_fixes_linkedin_remote_guess_without_signal(temp_db):
+    temp_db.insert_job(job_id="li_2", url="http://x/2", title="Software Engineer",
+                       company="Y", location="Berlin", remote="Remote", experience="",
+                       description="Write code", posted_at=None, search_name="t")
+
+    _run_backfill(temp_db)
+
+    assert temp_db.get_job("li_2")["remote"] == "Unknown"
 
 
 def test_remote_backfill_keeps_keyword_signals(temp_db):

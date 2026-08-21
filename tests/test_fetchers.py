@@ -69,6 +69,11 @@ def test_work_style_filter_is_disabled_for_old_configs():
     assert _matches_work_styles(SimpleNamespace(remote=RemoteType.ONSITE), SimpleNamespace()) is True
 
 
+def test_linkedin_remote_filter_allows_unknown_cards_without_mislabeling():
+    search = SimpleNamespace(source="linkedin", remote=True, work_styles=[RemoteType.REMOTE])
+    assert _matches_work_styles(SimpleNamespace(remote=RemoteType.UNKNOWN), search) is True
+
+
 def test_title_filter_does_not_exclude_provider_results():
     config = SimpleNamespace(company_blacklist=[], title_filter=["senior frontend engineer"], blacklist=[])
 
@@ -107,11 +112,12 @@ def test_infer_remote_no_signal_unknown_when_requested():
 def test_infer_remote_explicit_onsite_beats_unknown_default():
     assert infer_remote("On-site role", default=RemoteType.UNKNOWN) == RemoteType.ONSITE
 
-def test_linkedin_remote_search_marks_remote(monkeypatch, search):
-    # When the LinkedIn search applied the remote filter, cards with no signal are Remote
+def test_linkedin_remote_search_without_card_signal_stays_unknown(monkeypatch, search):
+    # LinkedIn's remote filter narrows search results, but public cards often
+    # omit workplace type. Store Unknown unless the card itself has a signal.
     import job.linkedin_fetcher as lf
     card = lf.BeautifulSoup('<div class="base-card"></div>', "lxml").select_one("div")
-    assert lf._infer_remote_linkedin("Berlin, Germany", card, True) == RemoteType.REMOTE
+    assert lf._infer_remote_linkedin("Berlin, Germany", card, True) == RemoteType.UNKNOWN
     assert lf._infer_remote_linkedin("Berlin, Germany", card, False) == RemoteType.UNKNOWN
 
 

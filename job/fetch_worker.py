@@ -39,6 +39,13 @@ def _matches_work_styles(job, search) -> bool:
     styles = getattr(search, "work_styles", None) or []
     if not styles:
         return True
+    if (
+        getattr(search, "source", "") == "linkedin"
+        and getattr(search, "remote", False)
+        and (job.remote or "") == "Unknown"
+        and "Remote" in styles
+    ):
+        return True
     return (job.remote or "") in styles
 
 

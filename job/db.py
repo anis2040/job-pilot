@@ -154,7 +154,7 @@ def _backfill_remote() -> None:
     Idempotent and one-shot (guarded by a db_meta flag)."""
     from .fetcher import reinfer_remote
     with _connect() as con:
-        if _get_meta(con, "remote_backfill_v1") == "done":
+        if _get_meta(con, "remote_backfill_v2") == "done":
             return
         rows = con.execute(
             "SELECT job_id, title, location, description, remote FROM jobs"
@@ -166,7 +166,7 @@ def _backfill_remote() -> None:
             if new is not None:
                 con.execute("UPDATE jobs SET remote = ? WHERE job_id = ?", (new, r["job_id"]))
                 fixed += 1
-        _set_meta(con, "remote_backfill_v1", "done")
+        _set_meta(con, "remote_backfill_v2", "done")
         con.commit()
         if fixed:
             print(f"[migration] remote-backfill: corrected {fixed} job(s)")
