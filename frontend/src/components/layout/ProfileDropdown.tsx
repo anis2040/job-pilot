@@ -6,6 +6,7 @@ import { profiles as profilesApi } from '../../api/client';
 import { useClickOutside } from '../../hooks/useFocusTrap';
 import { markProfileNeedsFetch } from '../../hooks/profileFetchSignal';
 import { Icon } from '../ui/Icon';
+import { ProfileAvatar } from '../ui/ProfileAvatar';
 import { buildBackState } from '../../utils/backNavigation';
 
 export function ProfileDropdown() {
@@ -58,14 +59,14 @@ export function ProfileDropdown() {
         aria-expanded={open}
         onClick={() => setOpen(o => !o)}
       >
-        <span className="avatar" style={{ background: active.color }}>{active.initials}</span>
+        <ProfileAvatar profile={active} />
       </button>
 
       {open && (
         <div ref={menuRef} className="profile-menu open" role="menu" onKeyDown={handleMenuKeyDown}>
           {/* Active profile header */}
           <div className="profile-menu-active">
-            <span className="avatar-md" style={{ background: active.color }}>{active.initials}</span>
+            <ProfileAvatar profile={active} size="md" />
             <div className="profile-menu-active-info">
               <span className="profile-menu-active-name">{active.label || active.name}</span>
               <span className="profile-menu-active-sub">Active profile</span>
@@ -78,7 +79,7 @@ export function ProfileDropdown() {
               <div className="profile-menu-section-label">Switch to</div>
               {profiles.filter(p => !p.active).map(p => (
                 <button key={p.slug} role="menuitem" className="profile-menu-item" onClick={() => handleSwitch(p.slug)}>
-                  <span className="avatar-sm" style={{ background: p.color }}>{p.initials}</span>
+                  <ProfileAvatar profile={p} size="sm" />
                   <span>{p.label || p.name}</span>
                 </button>
               ))}

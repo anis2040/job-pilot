@@ -108,6 +108,13 @@ export const handlers = [
     db.resumeStatus[jobId] = { status: 'building', stage: 'Starting…', pdf_url: null, error: null, rate_limit: null }
     return HttpResponse.json({ status: 'building' })
   }),
+  http.get('/api/resume-templates', () => HttpResponse.json({
+    default_template_id: db.config.build_cv?.resume_template_id || 'us',
+    templates: [
+      { id: 'us', label: 'US', region: 'US', supports_profile_image: false },
+      { id: 'eu', label: 'EU', region: 'EU', supports_profile_image: true },
+    ],
+  })),
   http.get('/api/resume-status/:jobId', ({ params }) => {
     const jobId = params.jobId as string
     return HttpResponse.json(db.resumeStatus[jobId] ?? { status: 'idle', stage: '', pdf_url: null, error: null, rate_limit: null })
@@ -159,6 +166,8 @@ export const handlers = [
     await request.json()
     return HttpResponse.json({ ok: true })
   }),
+  http.post('/api/profiles/:slug/image', async () => HttpResponse.json({ ok: true, image_url: '/api/profiles/default/image?v=1' })),
+  http.delete('/api/profiles/:slug/image', () => HttpResponse.json({ ok: true })),
   http.get('/api/profiles/:slug/config', () => HttpResponse.json(db.config)),
   http.post('/api/profiles/:slug/config', async ({ request }) => {
     db.config = (await request.json()) as SearchConfig

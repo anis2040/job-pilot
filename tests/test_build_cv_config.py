@@ -35,6 +35,7 @@ def test_defaults():
     cfg = BuildCvConfig()
     assert cfg.experience_positioning == "balanced"
     assert cfg.additional_instructions == ""
+    assert cfg.resume_template_id == "us"
 
 
 def test_missing_file_loads_defaults(temp_profile):
@@ -42,6 +43,7 @@ def test_missing_file_loads_defaults(temp_profile):
     cfg = BuildCvConfig.load(temp_profile)
     assert cfg.experience_positioning == "balanced"
     assert cfg.additional_instructions == ""
+    assert cfg.resume_template_id == "us"
 
 
 def test_missing_build_cv_key_loads_defaults(temp_profile):
@@ -54,10 +56,11 @@ def test_missing_build_cv_key_loads_defaults(temp_profile):
 
 @pytest.mark.parametrize("level", ["conservative", "balanced", "aggressive"])
 def test_round_trip(temp_profile, level):
-    BuildCvConfig(experience_positioning=level, additional_instructions="focus on X").save(temp_profile)
+    BuildCvConfig(experience_positioning=level, additional_instructions="focus on X", resume_template_id="eu").save(temp_profile)
     cfg = BuildCvConfig.load(temp_profile)
     assert cfg.experience_positioning == level
     assert cfg.additional_instructions == "focus on X"
+    assert cfg.resume_template_id == "eu"
 
 
 # ── validation / forward-compat ─────────────────────────────────────────────
@@ -87,6 +90,12 @@ def test_non_string_instructions_coerced(temp_profile):
     assert BuildCvConfig.load(temp_profile).additional_instructions == ""
 
 
+def test_invalid_template_falls_back_to_default(temp_profile):
+    _config_path(temp_profile).write_text(
+        yaml.dump({"build_cv": {"experience_positioning": "balanced", "resume_template_id": "moon"}}))
+    assert BuildCvConfig.load(temp_profile).resume_template_id == "us"
+
+
 # ── read-modify-write guarantee (the §5 clobber bug regression) ───────────────
 
 def test_save_preserves_other_config_keys(temp_profile):
@@ -104,6 +113,7 @@ def test_save_preserves_other_config_keys(temp_profile):
     assert data["company_blacklist"] == ["BadCo"]
     assert data["title_filter"] == ["senior"]
     assert data["build_cv"]["experience_positioning"] == "aggressive"
+    assert data["build_cv"]["resume_template_id"] == "us"
 
 
 # ── stance block composition ─────────────────────────────────────────────────

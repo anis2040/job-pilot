@@ -6,6 +6,7 @@ import { useToast } from '../../components/ui/useToast';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { PromptDialog } from '../../components/ui/PromptDialog';
 import { Topbar } from '../../components/layout/Topbar';
+import { ProfileAvatar } from '../../components/ui/ProfileAvatar';
 import { buildBackState } from '../../utils/backNavigation';
 
 export default function ManageProfilesPage() {
@@ -69,7 +70,7 @@ export default function ManageProfilesPage() {
           {profiles.map(p => (
             <div key={p.slug} className="profile-row" onClick={() => navigate(`/profile-settings/${p.slug}`, { state: backState })}
               style={{ cursor: 'pointer' }}>
-              <span className="avatar" style={{ background: p.color }}>{p.initials}</span>
+              <ProfileAvatar profile={p} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="profile-row-label">{p.label || p.name}</div>
                 <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-faint)' }}>profiles/{p.slug}/</div>

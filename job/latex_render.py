@@ -10,14 +10,58 @@ Contact details and the candidate name are extracted from profile.md by code,
 never taken from the model, so they can't be fabricated.
 """
 from __future__ import annotations
+from dataclasses import dataclass
 import json as _json
 import re
+from pathlib import Path
 
 from .profiles import name_from_markdown
 
 
 class ResumeParseError(ValueError):
     """Raised when the model's JSON content is missing, malformed, or invalid."""
+
+
+@dataclass(frozen=True)
+class ResumeTemplate:
+    id: str
+    label: str
+    region: str
+    paper: str
+    supports_profile_image: bool = False
+
+
+DEFAULT_RESUME_TEMPLATE_ID = "us"
+
+_RESUME_TEMPLATES: dict[str, ResumeTemplate] = {
+    "us": ResumeTemplate(
+        id="us",
+        label="US",
+        region="US",
+        paper="letterpaper",
+        supports_profile_image=False,
+    ),
+    "eu": ResumeTemplate(
+        id="eu",
+        label="EU",
+        region="EU",
+        paper="a4paper",
+        supports_profile_image=True,
+    ),
+}
+
+
+def list_resume_templates() -> list[ResumeTemplate]:
+    """Return available resume templates in display order."""
+    return [_RESUME_TEMPLATES[tid] for tid in ("us", "eu")]
+
+
+def resume_template_ids() -> set[str]:
+    return set(_RESUME_TEMPLATES)
+
+
+def get_resume_template(template_id: str | None = None) -> ResumeTemplate:
+    return _RESUME_TEMPLATES.get(template_id or DEFAULT_RESUME_TEMPLATE_ID, _RESUME_TEMPLATES[DEFAULT_RESUME_TEMPLATE_ID])
 
 
 # ── Escaping ────────────────────────────────────────────────────────────────
@@ -161,13 +205,14 @@ def _validate_resume_content(data: dict) -> None:
 
 # ── Rendering ─────────────────────────────────────────────────────────────────
 
-_PREAMBLE = r"""\documentclass[11pt,a4paper]{{article}}
+_PREAMBLE = r"""\documentclass[11pt,{paper}]{{article}}
 
 \usepackage[margin={margin}]{{geometry}}
 \usepackage{{parskip}}
 \usepackage{{enumitem}}
 \usepackage{{titlesec}}
 \usepackage{{xcolor}}
+\usepackage{{graphicx}}
 \usepackage[hidelinks]{{hyperref}}
 \usepackage{{microtype}}
 \usepackage{{multicol}}
@@ -196,8 +241,7 @@ _ALLOWED_MARGINS = {"1in", "0.75in", "0.5in"}
 _ALLOWED_ITEMSEP = {"6pt", "5pt", "4pt", "3pt", "2pt"}
 
 
-def _render_header(contact: dict, headline: str = "") -> str:
-    name = _latex_escape(contact.get("name") or "Candidate")
+def _contact_bits(contact: dict) -> list[str]:
     bits = []
     if contact.get("location"):
         bits.append(_latex_escape(contact["location"]))
@@ -208,8 +252,18 @@ def _render_header(contact: dict, headline: str = "") -> str:
         bits.append(rf"\href{{mailto:{_latex_escape_url(contact['email'])}}}{{\color{{headerblue}}{email}}}")
     if contact.get("linkedin_url"):
         bits.append(rf"\href{{{_latex_escape_url(contact['linkedin_url'])}}}{{\color{{headerblue}}LinkedIn}}")
+    return bits
+
+
+def _latex_path_arg(path: str) -> str:
+    cleaned = path.replace("\\", "/").replace("\n", "").replace("{", "").replace("}", "")
+    return rf"\detokenize{{{cleaned}}}"
+
+
+def _render_header(contact: dict, headline: str = "") -> str:
+    name = _latex_escape(contact.get("name") or "Candidate")
     sep = r"\ $\cdot$\ "
-    contact_line = sep.join(bits)
+    contact_line = sep.join(_contact_bits(contact))
     # Optional headline (professional title) directly under the name — a strong
     # ATS title-match signal and standard resume practice. Rendered only if set.
     headline_line = ""
@@ -231,6 +285,42 @@ def _render_header(contact: dict, headline: str = "") -> str:
             "\\end{center}"
         )
     return header
+
+
+def _render_eu_header(contact: dict, headline: str = "", profile_image_path: str | None = None) -> str:
+    name = _latex_escape(contact.get("name") or "Candidate")
+    sep = r"\ $\cdot$\ "
+    contact_line = sep.join(_contact_bits(contact))
+    rows = [contact_line] if contact_line else []
+    if contact.get("work_auth"):
+        rows.append(_latex_escape(contact["work_auth"]))
+    contact_block = "\\\\[2pt]\n  ".join(rows)
+
+    headline_line = ""
+    if headline and headline.strip():
+        headline_line = (
+            f"\\\\[3pt]\n  {{\\normalsize\\color{{headerblue}}\\textbf{{{_latex_escape(headline.strip())}}}}}"
+        )
+
+    has_image = bool(profile_image_path)
+    left_width = "0.70\\textwidth" if has_image else "\\textwidth"
+    header = (
+        "% -- HEADER (EU template) --\n"
+        "\\noindent\n"
+        f"\\begin{{minipage}}[c]{{{left_width}}}\n"
+        f"  {{\\LARGE\\textbf{{{name}}}}}{headline_line}\\\\[4pt]\n"
+        f"  {{\\small\n  {contact_block}\n  }}\n"
+        "\\end{minipage}"
+    )
+    if has_image:
+        header += (
+            "\\hfill\n"
+            "\\begin{minipage}[c]{0.22\\textwidth}\n"
+            "  \\raggedleft\n"
+            f"  \\includegraphics[width=2.8cm,height=3.2cm,keepaspectratio]{{{_latex_path_arg(profile_image_path)}}}\n"
+            "\\end{minipage}"
+        )
+    return header + "\n\\vspace{0.35em}"
 
 
 def _render_experience(exp: dict) -> str:
@@ -646,15 +736,31 @@ def validate_resume_content(content: dict, profile_text: str, jd_keywords: list[
     return warnings
 
 
-def render_resume_latex(content: dict, profile_text: str) -> str:
+def render_resume_latex(
+    content: dict,
+    profile_text: str,
+    template_id: str | None = None,
+    profile_image_path: str | None = None,
+) -> str:
     """Assemble a complete, compilable .tex document from validated content."""
     contact = _parse_contact_from_profile(profile_text)
+    template = get_resume_template(template_id)
 
     margin = content.get("margin") if content.get("margin") in _ALLOWED_MARGINS else "0.75in"
     itemsep = content.get("itemsep") if content.get("itemsep") in _ALLOWED_ITEMSEP else "4pt"
 
-    parts = [_PREAMBLE.format(margin=margin, itemsep=itemsep)]
-    parts.append(_render_header(contact, headline=content.get("headline", "")))
+    parts = [_PREAMBLE.format(paper=template.paper, margin=margin, itemsep=itemsep)]
+    image_path = None
+    if template.supports_profile_image and profile_image_path:
+        try:
+            if Path(profile_image_path).is_file():
+                image_path = str(profile_image_path)
+        except OSError:
+            image_path = None
+    if template.id == "eu":
+        parts.append(_render_eu_header(contact, headline=content.get("headline", ""), profile_image_path=image_path))
+    else:
+        parts.append(_render_header(contact, headline=content.get("headline", "")))
 
     parts.append("\\section{Professional Summary}\n\n" + _latex_escape(content["summary"]))
 

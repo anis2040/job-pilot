@@ -34,6 +34,7 @@ describe('useStance', () => {
     await waitFor(() => expect(result.current.ready).toBe(true))
 
     expect(result.current.stance).toBe('balanced')
+    expect(result.current.resumeTemplateId).toBe('us')
   })
 
   it('loads a saved stance from profile config', async () => {
@@ -42,12 +43,13 @@ describe('useStance', () => {
       title_filter: [],
       blacklist: [],
       company_blacklist: [],
-      build_cv: { experience_positioning: 'aggressive', additional_instructions: 'Focus on roadmap' },
+      build_cv: { experience_positioning: 'aggressive', additional_instructions: 'Focus on roadmap', resume_template_id: 'eu' },
     })
 
     const { result } = renderHook(() => useStance())
 
     await waitFor(() => expect(result.current.stance).toBe('aggressive'))
+    expect(result.current.resumeTemplateId).toBe('eu')
   })
 
   it('saves stance without clobbering existing config or instructions', async () => {
@@ -56,7 +58,7 @@ describe('useStance', () => {
       title_filter: ['frontend'],
       blacklist: ['intern'],
       company_blacklist: ['BadCo'],
-      build_cv: { experience_positioning: 'balanced', additional_instructions: 'Keep this' },
+      build_cv: { experience_positioning: 'balanced', additional_instructions: 'Keep this', resume_template_id: 'eu' },
     })
     const { result } = renderHook(() => useStance())
     await waitFor(() => expect(result.current.ready).toBe(true))
@@ -68,7 +70,29 @@ describe('useStance', () => {
       title_filter: ['frontend'],
       blacklist: ['intern'],
       company_blacklist: ['BadCo'],
-      build_cv: { experience_positioning: 'conservative', additional_instructions: 'Keep this' },
+      build_cv: { experience_positioning: 'conservative', additional_instructions: 'Keep this', resume_template_id: 'eu' },
+    }))
+  })
+
+  it('saves template without clobbering existing config or instructions', async () => {
+    vi.mocked(profilesApi.getConfig).mockResolvedValue({
+      searches: [{ name: 's1', source: 'LinkedIn', query: 'eng', location: 'Berlin', max_pages: 1, remote: true }],
+      title_filter: ['frontend'],
+      blacklist: ['intern'],
+      company_blacklist: ['BadCo'],
+      build_cv: { experience_positioning: 'balanced', additional_instructions: 'Keep this', resume_template_id: 'us' },
+    })
+    const { result } = renderHook(() => useStance())
+    await waitFor(() => expect(result.current.ready).toBe(true))
+
+    await act(async () => { await result.current.saveResumeTemplate('eu') })
+
+    expect(profilesApi.saveConfig).toHaveBeenCalledWith('anis', expect.objectContaining({
+      searches: [{ name: 's1', source: 'LinkedIn', query: 'eng', location: 'Berlin', max_pages: 1, remote: true }],
+      title_filter: ['frontend'],
+      blacklist: ['intern'],
+      company_blacklist: ['BadCo'],
+      build_cv: { experience_positioning: 'balanced', additional_instructions: 'Keep this', resume_template_id: 'eu' },
     }))
   })
 })

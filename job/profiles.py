@@ -28,6 +28,9 @@ _PALETTE = [
     "#84cc16", "#ef4444", "#06b6d4", "#f59e0b", "#6366f1",
 ]
 
+PROFILE_IMAGE_STEM = "profile-image"
+PROFILE_IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg")
+
 
 class ProfileInfo(NamedTuple):
     slug: str
@@ -404,6 +407,28 @@ def get_profile_path(user_id: str | None = None) -> Path | None:
 
 def get_profile_json_path(user_id: str | None = None) -> Path | None:
     return _active_profile_subpath("profile.json", user_id)
+
+
+def get_profile_image_path(user_id: str | None = None) -> Path | None:
+    d = active_profile_dir(user_id)
+    if not d:
+        return None
+    return find_profile_image(d)
+
+
+def find_profile_image(profile_dir: Path) -> Path | None:
+    for ext in PROFILE_IMAGE_EXTENSIONS:
+        p = profile_dir / f"{PROFILE_IMAGE_STEM}{ext}"
+        if p.is_file():
+            return p
+    return None
+
+
+def clear_profile_images(profile_dir: Path) -> None:
+    for ext in PROFILE_IMAGE_EXTENSIONS:
+        p = profile_dir / f"{PROFILE_IMAGE_STEM}{ext}"
+        if p.exists():
+            p.unlink()
 
 
 def get_config_path(user_id: str | None = None) -> Path | None:

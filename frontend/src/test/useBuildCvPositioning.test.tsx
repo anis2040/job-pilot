@@ -34,24 +34,26 @@ describe('useBuildCvPositioning', () => {
 
     expect(result.current.positioning).toBe('balanced')
     expect(result.current.instructions).toBe('')
+    expect(result.current.resumeTemplateId).toBe('us')
   })
 
   it('loads saved positioning config', async () => {
     vi.mocked(profilesApi.getConfig).mockResolvedValue({
       ...EXISTING_CONFIG,
-      build_cv: { experience_positioning: 'aggressive', additional_instructions: 'Focus on product roles' },
+      build_cv: { experience_positioning: 'aggressive', additional_instructions: 'Focus on product roles', resume_template_id: 'eu' },
     })
 
     const { result } = renderHook(() => useBuildCvPositioning('anis'))
 
     await waitFor(() => expect(result.current.positioning).toBe('aggressive'))
     expect(result.current.instructions).toBe('Focus on product roles')
+    expect(result.current.resumeTemplateId).toBe('eu')
   })
 
   it('saves a stance with read-modify-write semantics', async () => {
     vi.mocked(profilesApi.getConfig).mockResolvedValue({
       ...EXISTING_CONFIG,
-      build_cv: { experience_positioning: 'balanced', additional_instructions: 'Keep instructions' },
+      build_cv: { experience_positioning: 'balanced', additional_instructions: 'Keep instructions', resume_template_id: 'eu' },
     })
     const { result } = renderHook(() => useBuildCvPositioning('anis'))
     await waitFor(() => expect(result.current.ready).toBe(true))
@@ -60,7 +62,23 @@ describe('useBuildCvPositioning', () => {
 
     expect(profilesApi.saveConfig).toHaveBeenCalledWith('anis', {
       ...EXISTING_CONFIG,
-      build_cv: { experience_positioning: 'conservative', additional_instructions: 'Keep instructions' },
+      build_cv: { experience_positioning: 'conservative', additional_instructions: 'Keep instructions', resume_template_id: 'eu' },
+    })
+  })
+
+  it('saves the selected resume template with read-modify-write semantics', async () => {
+    vi.mocked(profilesApi.getConfig).mockResolvedValue({
+      ...EXISTING_CONFIG,
+      build_cv: { experience_positioning: 'aggressive', additional_instructions: 'Keep instructions', resume_template_id: 'us' },
+    })
+    const { result } = renderHook(() => useBuildCvPositioning('anis'))
+    await waitFor(() => expect(result.current.ready).toBe(true))
+
+    await act(async () => { await result.current.saveResumeTemplate('eu') })
+
+    expect(profilesApi.saveConfig).toHaveBeenCalledWith('anis', {
+      ...EXISTING_CONFIG,
+      build_cv: { experience_positioning: 'aggressive', additional_instructions: 'Keep instructions', resume_template_id: 'eu' },
     })
   })
 
@@ -75,5 +93,6 @@ describe('useBuildCvPositioning', () => {
     const [, saved] = vi.mocked(profilesApi.saveConfig).mock.calls[0]
     expect(saved.build_cv?.additional_instructions).toHaveLength(BUILD_CV_INSTRUCTIONS_MAX_LENGTH)
     expect(saved.build_cv?.additional_instructions).toBe('x'.repeat(BUILD_CV_INSTRUCTIONS_MAX_LENGTH))
+    expect(saved.build_cv?.resume_template_id).toBe('us')
   })
 })
