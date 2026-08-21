@@ -213,6 +213,7 @@ _PREAMBLE = r"""\documentclass[11pt,{paper}]{{article}}
 \usepackage{{titlesec}}
 \usepackage{{xcolor}}
 \usepackage{{graphicx}}
+\usepackage{{tikz}}
 \usepackage[hidelinks]{{hyperref}}
 \usepackage{{microtype}}
 \usepackage{{multicol}}
@@ -221,6 +222,7 @@ _PREAMBLE = r"""\documentclass[11pt,{paper}]{{article}}
 \linespread{{1.12}}
 
 \definecolor{{headerblue}}{{HTML}}{{4472C4}}
+\definecolor{{photoborder}}{{HTML}}{{CBD5E1}}
 
 \titleformat{{\section}}
   {{\bfseries\large\color{{headerblue}}}}
@@ -239,6 +241,9 @@ _PREAMBLE = r"""\documentclass[11pt,{paper}]{{article}}
 
 _ALLOWED_MARGINS = {"1in", "0.75in", "0.5in"}
 _ALLOWED_ITEMSEP = {"6pt", "5pt", "4pt", "3pt", "2pt"}
+_EU_PHOTO_WIDTH_CM = 2.55
+_EU_PHOTO_HEIGHT_CM = 3.25
+_EU_PHOTO_ASPECT = _EU_PHOTO_WIDTH_CM / _EU_PHOTO_HEIGHT_CM
 
 
 def _contact_bits(contact: dict) -> list[str]:
@@ -258,6 +263,91 @@ def _contact_bits(contact: dict) -> list[str]:
 def _latex_path_arg(path: str) -> str:
     cleaned = path.replace("\\", "/").replace("\n", "").replace("{", "").replace("}", "")
     return rf"\detokenize{{{cleaned}}}"
+
+
+def _png_dimensions(path: Path) -> tuple[int, int] | None:
+    with path.open("rb") as f:
+        header = f.read(24)
+    if len(header) < 24 or not header.startswith(b"\x89PNG\r\n\x1a\n") or header[12:16] != b"IHDR":
+        return None
+    width = int.from_bytes(header[16:20], "big")
+    height = int.from_bytes(header[20:24], "big")
+    return (width, height) if width > 0 and height > 0 else None
+
+
+def _jpeg_dimensions(path: Path) -> tuple[int, int] | None:
+    sof_markers = {0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF}
+    with path.open("rb") as f:
+        if f.read(2) != b"\xff\xd8":
+            return None
+        while True:
+            prefix = f.read(1)
+            if not prefix:
+                return None
+            while prefix != b"\xff":
+                prefix = f.read(1)
+                if not prefix:
+                    return None
+            marker = f.read(1)
+            while marker == b"\xff":
+                marker = f.read(1)
+            if not marker:
+                return None
+            marker_code = marker[0]
+            if marker_code in (0xD8, 0xD9, 0x01) or 0xD0 <= marker_code <= 0xD7:
+                continue
+            length_bytes = f.read(2)
+            if len(length_bytes) != 2:
+                return None
+            length = int.from_bytes(length_bytes, "big")
+            if length < 2:
+                return None
+            if marker_code in sof_markers:
+                payload = f.read(5)
+                if len(payload) != 5:
+                    return None
+                height = int.from_bytes(payload[1:3], "big")
+                width = int.from_bytes(payload[3:5], "big")
+                return (width, height) if width > 0 and height > 0 else None
+            f.seek(length - 2, 1)
+
+
+def _image_dimensions(path: str) -> tuple[int, int] | None:
+    p = Path(path)
+    try:
+        if p.suffix.lower() == ".png":
+            return _png_dimensions(p)
+        if p.suffix.lower() in (".jpg", ".jpeg"):
+            return _jpeg_dimensions(p)
+    except OSError:
+        return None
+    return None
+
+
+def _eu_photo_include_size(path: str) -> str:
+    dims = _image_dimensions(path)
+    if not dims:
+        return f"width={_EU_PHOTO_WIDTH_CM:.2f}cm"
+
+    width, height = dims
+    source_aspect = width / height
+    if source_aspect > _EU_PHOTO_ASPECT:
+        return f"height={_EU_PHOTO_HEIGHT_CM:.2f}cm"
+    return f"width={_EU_PHOTO_WIDTH_CM:.2f}cm"
+
+
+def _render_eu_photo(path: str) -> str:
+    include_size = _eu_photo_include_size(path)
+    x_mid = _EU_PHOTO_WIDTH_CM / 2
+    y_mid = _EU_PHOTO_HEIGHT_CM / 2
+    return (
+        "\\begin{tikzpicture}\n"
+        f"  \\clip (0,0) rectangle ({_EU_PHOTO_WIDTH_CM:.2f}cm,{_EU_PHOTO_HEIGHT_CM:.2f}cm);\n"
+        f"  \\node[anchor=center,inner sep=0pt] at ({x_mid:.3f}cm,{y_mid:.3f}cm) "
+        f"{{\\includegraphics[{include_size}]{{{_latex_path_arg(path)}}}}};\n"
+        f"  \\draw[photoborder,line width=0.4pt] (0,0) rectangle ({_EU_PHOTO_WIDTH_CM:.2f}cm,{_EU_PHOTO_HEIGHT_CM:.2f}cm);\n"
+        "\\end{tikzpicture}"
+    )
 
 
 def _render_header(contact: dict, headline: str = "") -> str:
@@ -303,24 +393,25 @@ def _render_eu_header(contact: dict, headline: str = "", profile_image_path: str
         )
 
     has_image = bool(profile_image_path)
-    left_width = "0.70\\textwidth" if has_image else "\\textwidth"
+    left_width = "0.66\\textwidth" if has_image else "\\textwidth"
     header = (
         "% -- HEADER (EU template) --\n"
         "\\noindent\n"
         f"\\begin{{minipage}}[c]{{{left_width}}}\n"
-        f"  {{\\LARGE\\textbf{{{name}}}}}{headline_line}\\\\[4pt]\n"
+        f"  {{\\fontsize{{20}}{{23}}\\selectfont\\textbf{{{name}}}}}{headline_line}\\\\[5pt]\n"
         f"  {{\\small\n  {contact_block}\n  }}\n"
         "\\end{minipage}"
     )
     if has_image:
+        photo = _render_eu_photo(profile_image_path)
         header += (
             "\\hfill\n"
-            "\\begin{minipage}[c]{0.22\\textwidth}\n"
+            "\\begin{minipage}[c]{0.28\\textwidth}\n"
             "  \\raggedleft\n"
-            f"  \\includegraphics[width=2.8cm,height=3.2cm,keepaspectratio]{{{_latex_path_arg(profile_image_path)}}}\n"
+            f"  {photo}\n"
             "\\end{minipage}"
         )
-    return header + "\n\\vspace{0.35em}"
+    return header + "\n\\vspace{0.55em}"
 
 
 def _render_experience(exp: dict) -> str:
