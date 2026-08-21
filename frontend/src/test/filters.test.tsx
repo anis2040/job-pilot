@@ -44,6 +44,19 @@ describe('Loading and rendering jobs', () => {
     ]))
   })
 
+  it('shows the newest posted jobs first by default', async () => {
+    renderApp('/')
+    await waitFor(() => expect(document.querySelectorAll('.job-row')).toHaveLength(5))
+    expect(screen.getByLabelText('Sort jobs')).toHaveValue('posted')
+    expect(jobRowTitles()).toEqual([
+      'React Developer',
+      'DevOps Engineer',
+      'Vue Designer',
+      'Product Manager',
+      'Backend Engineer',
+    ])
+  })
+
   it('requests the correct status when a different tab is opened', async () => {
     // Seed an applied job; the applied tab must request ?status=applied
     db.jobs.push(buildJob({ job_id: 'a1', title: 'Applied Role', status: 'applied' }))

@@ -184,6 +184,8 @@ def _work_styles_for_search(search: dict) -> set[str]:
     styles = search.get("work_styles")
     if isinstance(styles, list):
         valid = {str(s) for s in styles if str(s) in RemoteType.ALL}
+        if not styles:
+            return set(RemoteType.ALL)
         if valid:
             return valid
     return {RemoteType.HYBRID, RemoteType.ONSITE} if search.get("remote") is False else set(_DEFAULT_WORK_STYLES)
@@ -240,8 +242,6 @@ def _config_fetch_required(old_config: dict, new_config: dict) -> bool:
     old_searches = old_config.get("searches") if isinstance(old_config.get("searches"), list) else []
     new_searches = new_config.get("searches") if isinstance(new_config.get("searches"), list) else []
     if not old_searches:
-        return True
-    if not _allowed_terms_covered(old_config.get("title_filter"), new_config.get("title_filter")):
         return True
     if not _exclusions_covered(old_config.get("blacklist"), new_config.get("blacklist")):
         return True

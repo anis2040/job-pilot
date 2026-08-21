@@ -31,7 +31,7 @@ export function useSavedSearches() {
   };
 
   const captureRecent = (f: Filters) => {
-    if (!f.search && !f.source && !f.posted && !f.cv && !f.remote.length) return;
+    if (!f.search && !f.source && !f.sources.length && !f.locations.length && !f.posted && !f.cv && !f.remote.length) return;
     const key = filtersToKey(f);
     const next = [f, ...recentSearches.filter(s => filtersToKey(s) !== key)].slice(0, 5);
     setRecentSearches(next);

@@ -31,6 +31,16 @@ describe('normalizeFilters', () => {
     expect(normalizeFilters({ remote: undefined }).remote).toEqual([])
     expect(normalizeFilters(null)).toEqual(DEFAULT_FILTERS)
   })
+
+  it('keeps an explicit sources array and recovers a missing one', () => {
+    expect(normalizeFilters({ sources: ['LinkedIn', 'Jobicy'] }).sources).toEqual(['LinkedIn', 'Jobicy'])
+    expect(normalizeFilters({ sources: undefined }).sources).toEqual([])
+  })
+
+  it('keeps an explicit locations array and recovers a missing one', () => {
+    expect(normalizeFilters({ locations: ['Germany', 'United States'] }).locations).toEqual(['Germany', 'United States'])
+    expect(normalizeFilters({ locations: undefined }).locations).toEqual([])
+  })
 })
 
 describe('searchLabel', () => {
@@ -42,7 +52,8 @@ describe('searchLabel', () => {
       remote: ['Remote', 'Hybrid'],
       posted: '7',
       cv: 'created',
-    })).toBe('React · LinkedIn · Remote+Hybrid · 7d · CV ready')
+      locations: ['Germany'],
+    })).toBe('React · LinkedIn · Germany · Remote+Hybrid · 7d · CV ready')
   })
 
   it('falls back to "Search" when nothing is set', () => {
@@ -51,24 +62,47 @@ describe('searchLabel', () => {
 })
 
 describe('deriveFiltersFromSearchRows', () => {
-  it('maps titles, work styles, and a single source into dashboard filters', () => {
+  it('maps work styles and a single source into dashboard filters without changing search text', () => {
     const next = deriveFiltersFromSearchRows(
       [row({ titles: ['React', 'Vue'], workStyles: ['Remote', 'Hybrid'], sources: ['LinkedIn'] })],
-      DEFAULT_FILTERS,
+      { ...DEFAULT_FILTERS, search: 'manual search' },
       ['LinkedIn', 'Jobicy'],
     )
-    expect(next.search).toBe('React, Vue')
+    expect(next.search).toBe('manual search')
     expect(next.remote).toEqual(['Remote', 'Hybrid'])
     expect(next.source).toBe('LinkedIn')
+    expect(next.locations).toEqual(['US'])
   })
 
-  it('clears source when multiple sources are configured', () => {
+  it('does not create a dashboard work-style filter when all styles are selected', () => {
+    const next = deriveFiltersFromSearchRows(
+      [row({ workStyles: ['Remote', 'Hybrid', 'On-site'] })],
+      DEFAULT_FILTERS,
+      ['LinkedIn'],
+    )
+    expect(next.remote).toEqual([])
+  })
+
+  it('dedupes locations case-insensitively', () => {
+    const next = deriveFiltersFromSearchRows(
+      [
+        row({ locations: ['Germany'] }),
+        row({ id: 'row-2', locations: ['germany', 'United States'] }),
+      ],
+      DEFAULT_FILTERS,
+      [],
+    )
+    expect(next.locations).toEqual(['Germany', 'United States'])
+  })
+
+  it('maps multiple configured sources into a multi-source dashboard filter', () => {
     const next = deriveFiltersFromSearchRows(
       [row({ sources: ['LinkedIn', 'Jobicy'] })],
       DEFAULT_FILTERS,
       ['LinkedIn', 'Jobicy'],
     )
     expect(next.source).toBe('')
+    expect(next.sources).toEqual(['LinkedIn', 'Jobicy'])
   })
 
   it('resolves source casing against known options', () => {
@@ -78,9 +112,10 @@ describe('deriveFiltersFromSearchRows', () => {
       ['LinkedIn'],
     )
     expect(next.source).toBe('LinkedIn')
+    expect(next.sources).toEqual([])
   })
 
-  it('dedupes titles case-insensitively', () => {
+  it('does not copy configured titles into an empty search input', () => {
     const next = deriveFiltersFromSearchRows(
       [
         row({ titles: ['React'] }),
@@ -89,6 +124,6 @@ describe('deriveFiltersFromSearchRows', () => {
       DEFAULT_FILTERS,
       [],
     )
-    expect(next.search).toBe('React, Go')
+    expect(next.search).toBe('')
   })
 })

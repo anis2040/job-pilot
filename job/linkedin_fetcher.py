@@ -95,7 +95,7 @@ def fetch_linkedin(search: SearchConfig) -> list[RawJob]:
     return results
 
 
-def fetch_description(job_url: str) -> str:
+def fetch_description(job_url: str, *, job_id: str | None = None) -> str:
     """Fetch the full job description from a LinkedIn job page."""
     try:
         resp = httpx.get(job_url, headers=_HEADERS, timeout=15, follow_redirects=True)
@@ -131,7 +131,6 @@ def _infer_remote_linkedin(location: str, card, search_is_remote: bool) -> str:
     LinkedIn's public search cards usually omit the workplace type, so a plain
     keyword check would mislabel everything 'On-site'. Instead:
       - if the card/location does state Remote/Hybrid, trust it;
-      - else if the search itself applied the remote filter (f_WT=2), it's Remote;
       - else Unknown (we genuinely don't know — the detail page backfills it
         from the full description when opened)."""
     badge = card.select_one("span.job-search-card__benefits-item, span[class*='remote']")
@@ -139,4 +138,4 @@ def _infer_remote_linkedin(location: str, card, search_is_remote: bool) -> str:
     explicit = infer_remote(location, badge_text, default=RemoteType.UNKNOWN)
     if explicit != RemoteType.UNKNOWN:
         return explicit
-    return RemoteType.REMOTE if search_is_remote else RemoteType.UNKNOWN
+    return RemoteType.UNKNOWN

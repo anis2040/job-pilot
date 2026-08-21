@@ -34,10 +34,14 @@ function addUniqueValue(list: string[], raw: string) {
 function normalizeWorkStyles(styles: unknown, remote?: boolean): WorkStyle[] {
   if (Array.isArray(styles)) {
     const valid = styles.filter((style): style is WorkStyle => WORK_STYLES.includes(style as WorkStyle));
-    if (valid.length) return Array.from(new Set(valid));
+    return valid.length ? Array.from(new Set(valid)) : [...WORK_STYLES];
   }
 
   return remote === false ? ['Hybrid', 'On-site'] : ['Remote', 'Hybrid'];
+}
+
+function isAllWorkStyles(styles: WorkStyle[]) {
+  return WORK_STYLES.every(style => styles.includes(style));
 }
 
 function workStyleKey(styles: WorkStyle[]) {
@@ -93,6 +97,7 @@ export function expandSearchRows(rows: SearchRowEntry[]): SearchEntry[] {
     const titles = row.titles.map(title => title.trim()).filter(Boolean);
     const workStyles = normalizeWorkStyles(row.workStyles, true);
     const remote = workStyles.includes('Remote') && !workStyles.includes('On-site');
+    const savedWorkStyles = isAllWorkStyles(workStyles) ? [] : workStyles;
     const groupId = row.id || `search-${rowIndex + 1}`;
     if (!titles.length || !row.sources.length || !row.locations.length) return;
     for (const title of titles) {
@@ -106,7 +111,7 @@ export function expandSearchRows(rows: SearchRowEntry[]): SearchEntry[] {
             location,
             max_pages: 3,
             remote,
-            work_styles: workStyles,
+            work_styles: savedWorkStyles,
           });
         }
       }

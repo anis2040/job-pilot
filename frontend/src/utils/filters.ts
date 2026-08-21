@@ -3,16 +3,48 @@ import type { Job } from '../api/types'
 export interface Filters {
   remote: string[];
   source: string;
+  sources: string[];
+  locations: string[];
   posted: string;
   cv: string;
   sort: string;
   search: string;
 }
 
-export const DEFAULT_FILTERS: Filters = { remote: [], source: '', posted: '', cv: '', sort: 'match', search: '' };
+export const DEFAULT_FILTERS: Filters = { remote: [], source: '', sources: [], locations: [], posted: '', cv: '', sort: 'posted', search: '' };
 
 export function filtersToKey(f: Filters): string {
-  return JSON.stringify({ r: f.remote, s: f.source, p: f.posted, cv: f.cv, so: f.sort, q: f.search });
+  return JSON.stringify({ r: f.remote, s: f.source, ss: f.sources, l: f.locations, p: f.posted, cv: f.cv, so: f.sort, q: f.search });
+}
+
+const COUNTRY_SIGNALS: Record<string, string[]> = {
+  'united states': ['united states', 'us', 'usa', ' us,', ', us', '(us)', 'u.s.', 'remote us', 'remote - us', 'us remote', 'new york', ', ny'],
+  germany: ['germany', 'deutschland', 'berlin', 'munich', 'muenchen', 'hamburg', 'frankfurt', 'cologne', 'koeln', 'dusseldorf', 'de,', ', de'],
+  'united kingdom': ['united kingdom', 'uk', 'england', 'london', 'manchester', 'birmingham', 'glasgow', 'edinburgh', 'great britain'],
+  france: ['france', 'paris', 'lyon', 'marseille', 'toulouse'],
+  canada: ['canada', 'ontario', 'toronto', 'vancouver', 'montreal', 'quebec', 'alberta', 'calgary'],
+  netherlands: ['netherlands', 'holland', 'amsterdam', 'rotterdam'],
+  spain: ['spain', 'madrid', 'barcelona'],
+  portugal: ['portugal', 'lisbon', 'porto'],
+  switzerland: ['switzerland', 'zurich', 'geneva'],
+  tunisia: ['tunisia', 'tunis'],
+  morocco: ['morocco', 'casablanca', 'rabat'],
+};
+
+function locationMatches(jobLocation: string, searchLocation: string) {
+  const wanted = searchLocation.trim().toLowerCase();
+  if (!wanted || ['anywhere', 'worldwide', 'remote'].includes(wanted)) return true;
+
+  const actual = (jobLocation || '').trim().toLowerCase();
+  if (!actual || ['remote', 'worldwide', 'anywhere', 'global'].includes(actual)) return true;
+
+  const targetKey = Object.keys(COUNTRY_SIGNALS).find(key => wanted === key || COUNTRY_SIGNALS[key].includes(wanted));
+  if (!targetKey) return actual.includes(wanted) || wanted.includes(actual);
+
+  for (const [otherKey, signals] of Object.entries(COUNTRY_SIGNALS)) {
+    if (otherKey !== targetKey && signals.some(signal => actual.includes(signal))) return false;
+  }
+  return COUNTRY_SIGNALS[targetKey].some(signal => actual.includes(signal));
 }
 
 export function applyFilters(jobs: Job[], filters: Filters): Job[] {
@@ -32,11 +64,15 @@ export function applyFilters(jobs: Job[], filters: Filters): Job[] {
     );
   }
   if (filters.remote.length) result = result.filter(j => filters.remote.includes(j.remote));
-  // Source dropdown carries lowercase source ids (from /api/sources) while each
-  // job's `source` is a display label (e.g. "LinkedIn"); compare case-insensitively.
-  if (filters.source) {
-    const want = filters.source.toLowerCase();
-    result = result.filter(j => (j.source ?? '').toLowerCase() === want);
+  if (filters.locations.length) {
+    result = result.filter(j => filters.locations.some(location => locationMatches(j.location, location)));
+  }
+  // Source dropdown/settings can carry source ids while each job's `source` is
+  // a display label (e.g. "LinkedIn"); compare case-insensitively.
+  const sourceFilters = filters.sources.length ? filters.sources : filters.source ? [filters.source] : [];
+  if (sourceFilters.length) {
+    const wants = sourceFilters.map(source => source.toLowerCase());
+    result = result.filter(j => wants.includes((j.source ?? '').toLowerCase()));
   }
   if (filters.posted) {
     const days = parseInt(filters.posted);
@@ -62,6 +98,6 @@ export function applyFilters(jobs: Job[], filters: Filters): Job[] {
     title:   (a, b) => a.title.localeCompare(b.title),
     company: (a, b) => a.company.localeCompare(b.company),
   };
-  sorted.sort(sortFns[filters.sort] ?? sortFns.match);
+  sorted.sort(sortFns[filters.sort] ?? sortFns.posted);
   return sorted;
 }

@@ -40,7 +40,7 @@ class Source:
     default_pages: int = 3
     # Optional: scrape a single job's full description on demand from its URL.
     # None means the source already stores full descriptions at fetch time.
-    describe: Callable[[str], str] | None = None
+    describe: Callable[..., str] | None = None
     # Fallback workplace type when no remote/hybrid keyword is found. Remote-only
     # boards default Remote; general boards default Unknown (don't guess On-site);
     # location-signal boards default On-site only when a location is present
@@ -145,7 +145,7 @@ def fetch_description(job_id: str, job_url: str) -> str:
     if not s or not s.describe:
         return ""
     try:
-        return s.describe(job_url) or ""
+        return s.describe(job_url, job_id=job_id) or ""
     except Exception:
         return ""
 

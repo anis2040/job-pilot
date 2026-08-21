@@ -6,6 +6,8 @@ export function normalizeFilters(value?: Partial<Filters> | null): Filters {
     ...DEFAULT_FILTERS,
     ...value,
     remote: Array.isArray(value?.remote) ? value.remote : DEFAULT_FILTERS.remote,
+    sources: Array.isArray(value?.sources) ? value.sources : DEFAULT_FILTERS.sources,
+    locations: Array.isArray(value?.locations) ? value.locations : DEFAULT_FILTERS.locations,
   };
 }
 
@@ -24,28 +26,31 @@ function resolveSourceValue(source: string, options: string[]) {
 }
 
 export function deriveFiltersFromSearchRows(rows: SearchRowEntry[], current: Filters, sourceOptions: string[]): Filters {
-  const titles = rows.reduce<string[]>((list, row) => {
-    let next = list;
-    for (const title of row.titles) next = addUniqueFilterValue(next, title);
-    return next;
-  }, []);
-  const remote = WORK_STYLES.filter(style => rows.some(row => row.workStyles.includes(style)));
+  const selectedWorkStyles = WORK_STYLES.filter(style => rows.some(row => row.workStyles.includes(style)));
+  const remote = selectedWorkStyles.length === WORK_STYLES.length ? [] : selectedWorkStyles;
   const sources = rows.reduce<string[]>((list, row) => {
     let next = list;
     for (const source of row.sources) next = addUniqueFilterValue(next, source);
     return next;
   }, []);
+  const locations = rows.reduce<string[]>((list, row) => {
+    let next = list;
+    for (const location of row.locations) next = addUniqueFilterValue(next, location);
+    return next;
+  }, []);
 
   return {
     ...current,
-    search: titles.join(', '),
     remote,
     source: sources.length === 1 ? resolveSourceValue(sources[0], sourceOptions) : '',
+    sources: sources.length > 1 ? sources.map(source => resolveSourceValue(source, sourceOptions)) : [],
+    locations,
   };
 }
 
 export function searchLabel(f: Filters) {
-  return [f.search, f.source, f.remote.join('+'), f.posted ? `${f.posted}d` : '', f.cv === 'created' ? 'CV ready' : '']
+  const sourceLabel = f.source || f.sources.join('+');
+  return [f.search, sourceLabel, f.locations.join('+'), f.remote.join('+'), f.posted ? `${f.posted}d` : '', f.cv === 'created' ? 'CV ready' : '']
     .filter(Boolean)
     .join(' · ') || 'Search';
 }

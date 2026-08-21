@@ -42,7 +42,7 @@ export function FilterBar({
       <div className="filter-group">
         <span className="filter-label">Source</span>
         <select className="filter-select" value={filters.source} aria-label="Filter by source"
-          onChange={e => { onFilterChange('source', e.target.value); onFilterCapture({ ...filters, source: e.target.value }); }}>
+          onChange={e => { onFilterChange('source', e.target.value); onFilterCapture({ ...filters, source: e.target.value, sources: [] }); }}>
           <option value="">All sources</option>
           {sourceOptions.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
@@ -72,8 +72,8 @@ export function FilterBar({
         <span className="filter-label">Sort</span>
         <select className="filter-select" value={filters.sort} aria-label="Sort jobs"
           onChange={e => onFilterChange('sort', e.target.value)}>
-          <option value="match">Best match</option>
           <option value="posted">Posted date</option>
+          <option value="match">Best match</option>
           <option value="newest">Recently fetched</option>
           <option value="oldest">Oldest fetched</option>
           <option value="title">Title A–Z</option>

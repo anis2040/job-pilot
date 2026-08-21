@@ -13,7 +13,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { SearchRow } from '@/components/ui/SearchRow'
-import type { SearchRowEntry } from '@/components/ui/searchRowModel'
+import { expandSearchRows, groupSearchEntries, type SearchRowEntry } from '@/components/ui/searchRowModel'
 
 const SOURCES = ['LinkedIn', 'Jobicy', 'Himalayas']
 
@@ -97,5 +97,18 @@ describe('SearchRow — user configuring a search', () => {
     render(<SearchRow entry={defaultEntry} sources={SOURCES} onChange={vi.fn()} onRemove={onRemove} />)
     await userEvent.click(screen.getByTitle('Remove'))
     expect(onRemove).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('Search row model', () => {
+  it('saves all work styles as an unrestricted work-style filter', () => {
+    const [entry] = expandSearchRows([{ ...defaultEntry, workStyles: ['Remote', 'Hybrid', 'On-site'] }])
+    expect(entry.remote).toBe(false)
+    expect(entry.work_styles).toEqual([])
+  })
+
+  it('loads an unrestricted work-style filter as all selected in the UI', () => {
+    const [row] = groupSearchEntries([{ ...expandSearchRows([defaultEntry])[0], remote: false, work_styles: [] }])
+    expect(row.workStyles).toEqual(['Remote', 'Hybrid', 'On-site'])
   })
 })

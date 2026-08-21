@@ -29,8 +29,6 @@ def _should_include_job(job, config) -> tuple[bool, str | None]:
     Pure — no I/O, no DB access."""
     if job.company and job.company.lower() in config.company_blacklist:
         return False, None
-    if config.title_filter and not any(kw in job.title.lower() for kw in config.title_filter):
-        return False, None
     kw = _blacklisted(job.title + " " + job.description, config.blacklist)
     if kw:
         return False, kw
@@ -40,6 +38,13 @@ def _should_include_job(job, config) -> tuple[bool, str | None]:
 def _matches_work_styles(job, search) -> bool:
     styles = getattr(search, "work_styles", None) or []
     if not styles:
+        return True
+    if (
+        getattr(search, "source", "") == "linkedin"
+        and getattr(search, "remote", False)
+        and (job.remote or "") == "Unknown"
+        and "Remote" in styles
+    ):
         return True
     return (job.remote or "") in styles
 
@@ -54,7 +59,11 @@ def _run_fetch() -> None:
         for search in config.searches:
             task_state.set_fetch_message(f"Fetching {search.name}…")
 
-            jobs = fetch_search(search)
+            try:
+                jobs = fetch_search(search)
+            except Exception as e:
+                print(f"  [{search.source}] fetch error — skipping: {e}")
+                continue
             seen_ids = existing_job_ids([job.job_id for job in jobs])
             filtered_logs: list[tuple[str, str, str]] = []
             new_rows: list[dict] = []

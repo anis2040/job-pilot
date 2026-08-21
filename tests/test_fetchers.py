@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 from job.config import SearchConfig
-from job.fetch_worker import _matches_work_styles
+from job.fetch_worker import _matches_work_styles, _should_include_job
 from job.fetcher import fetch_search, SOURCES
 from job.models import RemoteType, DEFAULT_BLACKLIST, JOB_STATUSES
 from job.fetcher_utils import infer_remote
@@ -69,6 +69,19 @@ def test_work_style_filter_is_disabled_for_old_configs():
     assert _matches_work_styles(SimpleNamespace(remote=RemoteType.ONSITE), SimpleNamespace()) is True
 
 
+def test_linkedin_remote_filter_allows_unknown_cards_without_mislabeling():
+    search = SimpleNamespace(source="linkedin", remote=True, work_styles=[RemoteType.REMOTE])
+    assert _matches_work_styles(SimpleNamespace(remote=RemoteType.UNKNOWN), search) is True
+
+
+def test_title_filter_does_not_exclude_provider_results():
+    config = SimpleNamespace(company_blacklist=[], title_filter=["senior frontend engineer"], blacklist=[])
+
+    assert _should_include_job(SimpleNamespace(
+        title="Backend Engineer", company="Acme", description=""
+    ), config) == (True, None)
+
+
 # ── infer_remote ──────────────────────────────────────────────────────────────
 
 def test_infer_remote_remote():
@@ -99,11 +112,12 @@ def test_infer_remote_no_signal_unknown_when_requested():
 def test_infer_remote_explicit_onsite_beats_unknown_default():
     assert infer_remote("On-site role", default=RemoteType.UNKNOWN) == RemoteType.ONSITE
 
-def test_linkedin_remote_search_marks_remote(monkeypatch, search):
-    # When the LinkedIn search applied the remote filter, cards with no signal are Remote
+def test_linkedin_remote_search_without_card_signal_stays_unknown(monkeypatch, search):
+    # LinkedIn's remote filter narrows search results, but public cards often
+    # omit workplace type. Store Unknown unless the card itself has a signal.
     import job.linkedin_fetcher as lf
     card = lf.BeautifulSoup('<div class="base-card"></div>', "lxml").select_one("div")
-    assert lf._infer_remote_linkedin("Berlin, Germany", card, True) == RemoteType.REMOTE
+    assert lf._infer_remote_linkedin("Berlin, Germany", card, True) == RemoteType.UNKNOWN
     assert lf._infer_remote_linkedin("Berlin, Germany", card, False) == RemoteType.UNKNOWN
 
 
@@ -191,8 +205,8 @@ def test_fetch_description_dispatches_by_prefix(monkeypatch):
     ss = ft._source_for_job_id("ss_1")
     original = ss.describe
     try:
-        object.__setattr__(ss, "describe", lambda url: f"SS:{url}")
-        assert ft.fetch_description("ss_1", "http://job") == "SS:http://job"
+        object.__setattr__(ss, "describe", lambda url, **kw: f"SS:{url}:{kw['job_id']}")
+        assert ft.fetch_description("ss_1", "http://job") == "SS:http://job:ss_1"
     finally:
         object.__setattr__(ss, "describe", original)
 
@@ -207,7 +221,7 @@ def test_fetch_description_empty_for_unsupported_source():
 
 def test_fetch_description_swallows_errors():
     import job.fetcher as ft
-    def boom(url): raise RuntimeError("scrape failed")
+    def boom(url, **kw): raise RuntimeError("scrape failed")
     ss = ft._source_for_job_id("ss_1")
     original = ss.describe
     try:
@@ -614,6 +628,26 @@ def test_greenhouse_describe_parses_api_content(monkeypatch):
     out = gf.fetch_description("https://boards.greenhouse.io/stripe/jobs/456")
     assert "Build" in out and "great" in out and "Python" in out
     assert "<p>" not in out and "&lt;" not in out  # unescaped + stripped
+
+
+def test_greenhouse_describe_uses_job_id_for_custom_career_urls(monkeypatch):
+    """Company careers URLs often hide the board token; stored gh_* ids keep it."""
+    import job.greenhouse_fetcher as gf
+    called = {}
+
+    def fake_get(url, **kwargs):
+        called["url"] = url
+        return FakeResponse(data={"content": "&lt;p&gt;Airbnb role details&lt;/p&gt;"})
+
+    monkeypatch.setattr(gf, "http_get", fake_get)
+
+    out = gf.fetch_description(
+        "https://careers.airbnb.com/positions/7662244?gh_jid=7662244",
+        job_id="gh_airbnb_7662244",
+    )
+
+    assert called["url"] == "https://boards-api.greenhouse.io/v1/boards/airbnb/jobs/7662244"
+    assert out == "Airbnb role details"
 
 
 def test_greenhouse_describe_bad_url_returns_empty():
