@@ -26,7 +26,11 @@ from job.profiles import (
     create_profile, delete_profile, has_any_profiles, slugify,
     get_profile_path, get_config_path, get_resumes_path, active_profile_dir,
     get_profile_json, safe_profile_dir, ensure_user_dir,
+    find_profile_image, clear_profile_images,
+    PROFILE_IMAGE_EXTENSIONS, PROFILE_IMAGE_STEM,
 )
+from job.latex_render import list_resume_templates, resume_template_ids
+from job.build_cv_config import BuildCvConfig
 from job.user_env import write_user_env_var, remove_user_env_var, mask_secret
 from job.auth import init_oauth, register_auth_routes
 from job.ai_providers import _env_get
@@ -167,6 +171,27 @@ def _write_config_yaml(path: Path, data: dict) -> None:
         yaml.dump(data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
 
+def _sanitize_build_cv_subtree(data: dict) -> None:
+    if "build_cv" in data:
+        data["build_cv"] = BuildCvConfig._coerce(data["build_cv"]).to_dict()
+
+
+def _validate_config_payload(data: dict):
+    if not isinstance(data, dict):
+        return jsonify({"error": "Invalid config payload"}), 400
+    if "searches" not in data:
+        return None if "build_cv" in data else (jsonify({"error": "At least one search entry required"}), 400)
+    if not isinstance(data.get("searches"), list):
+        return jsonify({"error": "At least one search entry required"}), 400
+    if not data["searches"] and "build_cv" not in data:
+        return jsonify({"error": "At least one search entry required"}), 400
+    required = {"name", "source", "query"}
+    for s in data["searches"]:
+        if not isinstance(s, dict) or not required.issubset(s.keys()):
+            return jsonify({"error": f"Search entry missing fields: {required - set(s.keys()) if isinstance(s, dict) else required}"}), 400
+    return None
+
+
 _DEFAULT_WORK_STYLES = (RemoteType.REMOTE, RemoteType.HYBRID)
 
 
@@ -281,6 +306,40 @@ def _require_profile_dir(slug: str):
     if not safe_profile_dir(slug):
         return jsonify({"error": "Profile not found"}), 404
     return None
+
+
+def _profile_image_url(slug: str) -> str | None:
+    profile_dir = safe_profile_dir(slug)
+    if not profile_dir:
+        return None
+    image = find_profile_image(profile_dir)
+    if not image:
+        return None
+    try:
+        version = int(image.stat().st_mtime)
+    except OSError:
+        version = 0
+    return f"/api/profiles/{slug}/image?v={version}"
+
+
+def _serialize_profile_info(profile) -> dict:
+    return {
+        "slug": profile.slug,
+        "name": profile.name,
+        "label": profile.label,
+        "initials": profile.initials,
+        "color": profile.color,
+        "active": profile.slug == get_active_slug(),
+        "image_url": _profile_image_url(profile.slug),
+    }
+
+
+def _looks_like_supported_image(header: bytes, ext: str) -> bool:
+    if ext == ".png":
+        return header.startswith(b"\x89PNG\r\n\x1a\n")
+    if ext in (".jpg", ".jpeg"):
+        return header.startswith(b"\xff\xd8\xff")
+    return False
 
 
 def _format_relative_age(dt_str: str | None, *, days_only: bool = False) -> str:
@@ -613,10 +672,7 @@ def api_profiles_list():
     profiles = list_profiles()
     active_slug = get_active_slug()
     return jsonify({
-        "profiles": [
-            {"slug": p.slug, "name": p.name, "label": p.label, "initials": p.initials, "color": p.color, "active": p.slug == active_slug}
-            for p in profiles
-        ],
+        "profiles": [_serialize_profile_info(p) for p in profiles],
         "active_slug": active_slug,
     })
 
@@ -626,7 +682,7 @@ def api_profiles_active():
     active = get_active_profile()
     if not active:
         return jsonify({"active": None})
-    return jsonify({"active": {"slug": active.slug, "name": active.name, "label": active.label, "initials": active.initials, "color": active.color}})
+    return jsonify({"active": _serialize_profile_info(active)})
 
 
 @app.route("/api/profiles/<slug>/label", methods=["POST"])
@@ -639,6 +695,48 @@ def api_set_profile_label(slug):
     if set_label(slug, label):
         return jsonify({"ok": True})
     return jsonify({"ok": False, "error": "Could not update label"}), 400
+
+
+@app.route("/api/profiles/<slug>/image", methods=["GET"])
+def api_profile_image_get(slug):
+    if err := _require_profile_dir(slug): return err
+    profile_dir = safe_profile_dir(slug)
+    image = find_profile_image(profile_dir)
+    if not image:
+        abort(404)
+    return send_file(str(image))
+
+
+@app.route("/api/profiles/<slug>/image", methods=["POST"])
+def api_profile_image_upload(slug):
+    if err := _require_profile_dir(slug): return err
+    f = request.files.get("file")
+    if not f or not f.filename:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    ext = Path(f.filename).suffix.lower()
+    if ext not in PROFILE_IMAGE_EXTENSIONS:
+        allowed = ", ".join(e.lstrip(".").upper() for e in PROFILE_IMAGE_EXTENSIONS)
+        return jsonify({"error": f"Unsupported image type. Upload {allowed}."}), 400
+
+    header = f.stream.read(16)
+    f.stream.seek(0)
+    if not _looks_like_supported_image(header, ext):
+        return jsonify({"error": "Uploaded file does not look like a supported image."}), 400
+
+    profile_dir = safe_profile_dir(slug)
+    clear_profile_images(profile_dir)
+    image_path = profile_dir / f"{PROFILE_IMAGE_STEM}{ext}"
+    f.save(str(image_path))
+    return jsonify({"ok": True, "image_url": _profile_image_url(slug)})
+
+
+@app.route("/api/profiles/<slug>/image", methods=["DELETE"])
+def api_profile_image_delete(slug):
+    if err := _require_profile_dir(slug): return err
+    profile_dir = safe_profile_dir(slug)
+    clear_profile_images(profile_dir)
+    return jsonify({"ok": True})
 
 
 @app.route("/api/profiles/new", methods=["POST"])
@@ -719,15 +817,12 @@ def api_profile_config_save(slug):
     if err := _require_profile_dir(slug): return err
     profile_dir = safe_profile_dir(slug)
     data = request.get_json() or {}
-    if not isinstance(data.get("searches"), list) or not data["searches"]:
-        return jsonify({"error": "At least one search entry required"}), 400
-    # Sanitize the optional build_cv positioning subtree server-side (validate the
-    # enum, clamp instructions length) so a bad client payload can't persist junk.
-    if "build_cv" in data:
-        from job.build_cv_config import BuildCvConfig
-        data["build_cv"] = BuildCvConfig._coerce(data["build_cv"]).to_dict()
+    if err := _validate_config_payload(data): return err
+    _sanitize_build_cv_subtree(data)
     config_p = profile_dir / "config.yaml"
     old_config = _read_config_yaml(config_p) if config_p.exists() else {}
+    if "searches" not in data:
+        data = {**old_config, **data}
     fetch_required = _config_fetch_required(old_config, data)
     _write_config_yaml(config_p, data)
     if slug == get_active_slug():
@@ -872,19 +967,39 @@ def api_job_counts():
     return jsonify({"pending": counts.get("pending", 0), "applied": counts.get("applied", 0), "skipped": counts.get("skipped", 0)})
 
 
+@app.route("/api/resume-templates")
+def api_resume_templates():
+    return jsonify({
+        "default_template_id": BuildCvConfig.load().resume_template_id,
+        "templates": [
+            {
+                "id": t.id,
+                "label": t.label,
+                "region": t.region,
+                "supports_profile_image": t.supports_profile_image,
+            }
+            for t in list_resume_templates()
+        ],
+    })
+
+
 @app.route("/api/resume/<job_id>", methods=["POST"])
 def api_build_resume(job_id):
     row = get_job(job_id)
     if not row:
         return jsonify({"error": "Job not found"}), 404
-    trigger_resume(job_id)
+    data = request.get_json(silent=True) or {}
+    template_id = str(data.get("template_id") or BuildCvConfig.load().resume_template_id).strip().lower()
+    if template_id not in resume_template_ids():
+        return jsonify({"error": "Unknown resume template"}), 400
+    trigger_resume(job_id, template_id=template_id)
     return jsonify({"status": "building"})
 
 
 @app.route("/api/resume-status/<job_id>")
 def api_resume_status(job_id):
     ts = get_task_status(job_id)
-    return jsonify({"status": ts.get("status", "idle"), "stage": ts.get("stage", ""), "pdf_url": _pdf_url(ts.get("pdf_path")), "error": ts.get("error"), "rate_limit": ts.get("rate_limit")})
+    return jsonify({"status": ts.get("status", "idle"), "stage": ts.get("stage", ""), "pdf_url": _pdf_url(ts.get("pdf_path")), "error": ts.get("error"), "rate_limit": ts.get("rate_limit"), "template_id": ts.get("template_id")})
 
 
 @app.route("/api/cover-letter/<job_id>", methods=["POST"])
@@ -923,15 +1038,13 @@ def api_config_save():
     data = request.get_json()
     if not data:
         return jsonify({"error": "No data"}), 400
-    if not isinstance(data.get("searches"), list) or not data["searches"]:
-        return jsonify({"error": "At least one search entry required"}), 400
-    required = {"name", "source", "query"}
-    for s in data["searches"]:
-        if not required.issubset(s.keys()):
-            return jsonify({"error": f"Search entry missing fields: {required - s.keys()}"}), 400
+    if err := _validate_config_payload(data): return err
+    _sanitize_build_cv_subtree(data)
     config_p = _config_path()
     config_p.parent.mkdir(parents=True, exist_ok=True)
     old_config = _read_config_yaml(config_p) if config_p.exists() else {}
+    if "searches" not in data:
+        data = {**old_config, **data}
     fetch_required = _config_fetch_required(old_config, data)
     _write_config_yaml(config_p, data)
     clear_task_state()

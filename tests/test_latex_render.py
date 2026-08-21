@@ -6,9 +6,20 @@ from job.latex_render import (
     _latex_escape_url,
     _parse_contact_from_profile,
     _parse_content_json,
+    list_resume_templates,
     render_resume_latex,
     ResumeParseError,
 )
+
+
+def _png_header(width: int, height: int) -> bytes:
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + (13).to_bytes(4, "big")
+        + b"IHDR"
+        + width.to_bytes(4, "big")
+        + height.to_bytes(4, "big")
+    )
 
 
 # ── _latex_escape ─────────────────────────────────────────────────────────────
@@ -190,6 +201,57 @@ def test_render_work_auth_line():
     assert "US citizen" in latex
 
 
+def test_resume_template_registry_exposes_us_and_eu():
+    templates = {t.id: t for t in list_resume_templates()}
+    assert set(templates) == {"us", "eu"}
+    assert templates["us"].supports_profile_image is False
+    assert templates["eu"].supports_profile_image is True
+
+
+def test_us_template_does_not_render_profile_image(tmp_path):
+    image = tmp_path / "profile-image.jpg"
+    image.write_bytes(b"fake")
+
+    latex = render_resume_latex(_VALID, _PROFILE, template_id="us", profile_image_path=str(image))
+
+    assert "letterpaper" in latex.splitlines()[0]
+    assert r"\includegraphics" not in latex
+
+
+def test_eu_template_renders_profile_image(tmp_path):
+    image = tmp_path / "profile-image.jpg"
+    image.write_bytes(b"fake")
+
+    latex = render_resume_latex(_VALID, _PROFILE, template_id="eu", profile_image_path=str(image))
+
+    assert "a4paper" in latex.splitlines()[0]
+    assert r"\includegraphics" in latex
+    assert str(image) in latex
+
+
+def test_eu_template_center_crops_profile_image_to_passport_frame(tmp_path):
+    image = tmp_path / "profile-image.png"
+    image.write_bytes(_png_header(1200, 800))
+
+    latex = render_resume_latex(_VALID, _PROFILE, template_id="eu", profile_image_path=str(image))
+
+    assert r"\usepackage{tikz}" in latex
+    assert r"\begin{tikzpicture}" in latex
+    assert "rectangle (2.55cm,3.25cm)" in latex
+    assert "height=3.25cm" in latex
+    assert "keepaspectratio" not in latex
+
+
+def test_eu_template_scales_portrait_photo_by_width(tmp_path):
+    image = tmp_path / "profile-image.png"
+    image.write_bytes(_png_header(800, 1200))
+
+    latex = render_resume_latex(_VALID, _PROFILE, template_id="eu", profile_image_path=str(image))
+
+    assert r"\includegraphics[width=2.55cm]" in latex
+    assert r"\includegraphics[height=3.25cm]" not in latex
+
+
 # ── validate_resume_content ───────────────────────────────────────────────────
 
 from job.latex_render import validate_resume_content
@@ -336,4 +398,3 @@ def test_clean_content_full():
     # metrics-first: the numbered bullet leads
     assert content["experiences"][0]["bullets"][0] == "Increased velocity by 30%"
     assert "—" not in content["experiences"][0]["projects"][0]["description"]
-

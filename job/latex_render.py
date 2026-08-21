@@ -10,14 +10,58 @@ Contact details and the candidate name are extracted from profile.md by code,
 never taken from the model, so they can't be fabricated.
 """
 from __future__ import annotations
+from dataclasses import dataclass
 import json as _json
 import re
+from pathlib import Path
 
 from .profiles import name_from_markdown
 
 
 class ResumeParseError(ValueError):
     """Raised when the model's JSON content is missing, malformed, or invalid."""
+
+
+@dataclass(frozen=True)
+class ResumeTemplate:
+    id: str
+    label: str
+    region: str
+    paper: str
+    supports_profile_image: bool = False
+
+
+DEFAULT_RESUME_TEMPLATE_ID = "us"
+
+_RESUME_TEMPLATES: dict[str, ResumeTemplate] = {
+    "us": ResumeTemplate(
+        id="us",
+        label="US",
+        region="US",
+        paper="letterpaper",
+        supports_profile_image=False,
+    ),
+    "eu": ResumeTemplate(
+        id="eu",
+        label="EU",
+        region="EU",
+        paper="a4paper",
+        supports_profile_image=True,
+    ),
+}
+
+
+def list_resume_templates() -> list[ResumeTemplate]:
+    """Return available resume templates in display order."""
+    return [_RESUME_TEMPLATES[tid] for tid in ("us", "eu")]
+
+
+def resume_template_ids() -> set[str]:
+    return set(_RESUME_TEMPLATES)
+
+
+def get_resume_template(template_id: str | None = None) -> ResumeTemplate:
+    return _RESUME_TEMPLATES.get(template_id or DEFAULT_RESUME_TEMPLATE_ID, _RESUME_TEMPLATES[DEFAULT_RESUME_TEMPLATE_ID])
 
 
 # ── Escaping ────────────────────────────────────────────────────────────────
@@ -161,13 +205,15 @@ def _validate_resume_content(data: dict) -> None:
 
 # ── Rendering ─────────────────────────────────────────────────────────────────
 
-_PREAMBLE = r"""\documentclass[11pt,a4paper]{{article}}
+_PREAMBLE = r"""\documentclass[11pt,{paper}]{{article}}
 
 \usepackage[margin={margin}]{{geometry}}
 \usepackage{{parskip}}
 \usepackage{{enumitem}}
 \usepackage{{titlesec}}
 \usepackage{{xcolor}}
+\usepackage{{graphicx}}
+\usepackage{{tikz}}
 \usepackage[hidelinks]{{hyperref}}
 \usepackage{{microtype}}
 \usepackage{{multicol}}
@@ -176,6 +222,7 @@ _PREAMBLE = r"""\documentclass[11pt,a4paper]{{article}}
 \linespread{{1.12}}
 
 \definecolor{{headerblue}}{{HTML}}{{4472C4}}
+\definecolor{{photoborder}}{{HTML}}{{CBD5E1}}
 
 \titleformat{{\section}}
   {{\bfseries\large\color{{headerblue}}}}
@@ -194,10 +241,12 @@ _PREAMBLE = r"""\documentclass[11pt,a4paper]{{article}}
 
 _ALLOWED_MARGINS = {"1in", "0.75in", "0.5in"}
 _ALLOWED_ITEMSEP = {"6pt", "5pt", "4pt", "3pt", "2pt"}
+_EU_PHOTO_WIDTH_CM = 2.55
+_EU_PHOTO_HEIGHT_CM = 3.25
+_EU_PHOTO_ASPECT = _EU_PHOTO_WIDTH_CM / _EU_PHOTO_HEIGHT_CM
 
 
-def _render_header(contact: dict, headline: str = "") -> str:
-    name = _latex_escape(contact.get("name") or "Candidate")
+def _contact_bits(contact: dict) -> list[str]:
     bits = []
     if contact.get("location"):
         bits.append(_latex_escape(contact["location"]))
@@ -208,8 +257,103 @@ def _render_header(contact: dict, headline: str = "") -> str:
         bits.append(rf"\href{{mailto:{_latex_escape_url(contact['email'])}}}{{\color{{headerblue}}{email}}}")
     if contact.get("linkedin_url"):
         bits.append(rf"\href{{{_latex_escape_url(contact['linkedin_url'])}}}{{\color{{headerblue}}LinkedIn}}")
+    return bits
+
+
+def _latex_path_arg(path: str) -> str:
+    cleaned = path.replace("\\", "/").replace("\n", "").replace("{", "").replace("}", "")
+    return rf"\detokenize{{{cleaned}}}"
+
+
+def _png_dimensions(path: Path) -> tuple[int, int] | None:
+    with path.open("rb") as f:
+        header = f.read(24)
+    if len(header) < 24 or not header.startswith(b"\x89PNG\r\n\x1a\n") or header[12:16] != b"IHDR":
+        return None
+    width = int.from_bytes(header[16:20], "big")
+    height = int.from_bytes(header[20:24], "big")
+    return (width, height) if width > 0 and height > 0 else None
+
+
+def _jpeg_dimensions(path: Path) -> tuple[int, int] | None:
+    sof_markers = {0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF}
+    with path.open("rb") as f:
+        if f.read(2) != b"\xff\xd8":
+            return None
+        while True:
+            prefix = f.read(1)
+            if not prefix:
+                return None
+            while prefix != b"\xff":
+                prefix = f.read(1)
+                if not prefix:
+                    return None
+            marker = f.read(1)
+            while marker == b"\xff":
+                marker = f.read(1)
+            if not marker:
+                return None
+            marker_code = marker[0]
+            if marker_code in (0xD8, 0xD9, 0x01) or 0xD0 <= marker_code <= 0xD7:
+                continue
+            length_bytes = f.read(2)
+            if len(length_bytes) != 2:
+                return None
+            length = int.from_bytes(length_bytes, "big")
+            if length < 2:
+                return None
+            if marker_code in sof_markers:
+                payload = f.read(5)
+                if len(payload) != 5:
+                    return None
+                height = int.from_bytes(payload[1:3], "big")
+                width = int.from_bytes(payload[3:5], "big")
+                return (width, height) if width > 0 and height > 0 else None
+            f.seek(length - 2, 1)
+
+
+def _image_dimensions(path: str) -> tuple[int, int] | None:
+    p = Path(path)
+    try:
+        if p.suffix.lower() == ".png":
+            return _png_dimensions(p)
+        if p.suffix.lower() in (".jpg", ".jpeg"):
+            return _jpeg_dimensions(p)
+    except OSError:
+        return None
+    return None
+
+
+def _eu_photo_include_size(path: str) -> str:
+    dims = _image_dimensions(path)
+    if not dims:
+        return f"width={_EU_PHOTO_WIDTH_CM:.2f}cm"
+
+    width, height = dims
+    source_aspect = width / height
+    if source_aspect > _EU_PHOTO_ASPECT:
+        return f"height={_EU_PHOTO_HEIGHT_CM:.2f}cm"
+    return f"width={_EU_PHOTO_WIDTH_CM:.2f}cm"
+
+
+def _render_eu_photo(path: str) -> str:
+    include_size = _eu_photo_include_size(path)
+    x_mid = _EU_PHOTO_WIDTH_CM / 2
+    y_mid = _EU_PHOTO_HEIGHT_CM / 2
+    return (
+        "\\begin{tikzpicture}\n"
+        f"  \\clip (0,0) rectangle ({_EU_PHOTO_WIDTH_CM:.2f}cm,{_EU_PHOTO_HEIGHT_CM:.2f}cm);\n"
+        f"  \\node[anchor=center,inner sep=0pt] at ({x_mid:.3f}cm,{y_mid:.3f}cm) "
+        f"{{\\includegraphics[{include_size}]{{{_latex_path_arg(path)}}}}};\n"
+        f"  \\draw[photoborder,line width=0.4pt] (0,0) rectangle ({_EU_PHOTO_WIDTH_CM:.2f}cm,{_EU_PHOTO_HEIGHT_CM:.2f}cm);\n"
+        "\\end{tikzpicture}"
+    )
+
+
+def _render_header(contact: dict, headline: str = "") -> str:
+    name = _latex_escape(contact.get("name") or "Candidate")
     sep = r"\ $\cdot$\ "
-    contact_line = sep.join(bits)
+    contact_line = sep.join(_contact_bits(contact))
     # Optional headline (professional title) directly under the name — a strong
     # ATS title-match signal and standard resume practice. Rendered only if set.
     headline_line = ""
@@ -231,6 +375,43 @@ def _render_header(contact: dict, headline: str = "") -> str:
             "\\end{center}"
         )
     return header
+
+
+def _render_eu_header(contact: dict, headline: str = "", profile_image_path: str | None = None) -> str:
+    name = _latex_escape(contact.get("name") or "Candidate")
+    sep = r"\ $\cdot$\ "
+    contact_line = sep.join(_contact_bits(contact))
+    rows = [contact_line] if contact_line else []
+    if contact.get("work_auth"):
+        rows.append(_latex_escape(contact["work_auth"]))
+    contact_block = "\\\\[2pt]\n  ".join(rows)
+
+    headline_line = ""
+    if headline and headline.strip():
+        headline_line = (
+            f"\\\\[3pt]\n  {{\\normalsize\\color{{headerblue}}\\textbf{{{_latex_escape(headline.strip())}}}}}"
+        )
+
+    has_image = bool(profile_image_path)
+    left_width = "0.66\\textwidth" if has_image else "\\textwidth"
+    header = (
+        "% -- HEADER (EU template) --\n"
+        "\\noindent\n"
+        f"\\begin{{minipage}}[c]{{{left_width}}}\n"
+        f"  {{\\fontsize{{20}}{{23}}\\selectfont\\textbf{{{name}}}}}{headline_line}\\\\[5pt]\n"
+        f"  {{\\small\n  {contact_block}\n  }}\n"
+        "\\end{minipage}"
+    )
+    if has_image:
+        photo = _render_eu_photo(profile_image_path)
+        header += (
+            "\\hfill\n"
+            "\\begin{minipage}[c]{0.28\\textwidth}\n"
+            "  \\raggedleft\n"
+            f"  {photo}\n"
+            "\\end{minipage}"
+        )
+    return header + "\n\\vspace{0.55em}"
 
 
 def _render_experience(exp: dict) -> str:
@@ -646,15 +827,31 @@ def validate_resume_content(content: dict, profile_text: str, jd_keywords: list[
     return warnings
 
 
-def render_resume_latex(content: dict, profile_text: str) -> str:
+def render_resume_latex(
+    content: dict,
+    profile_text: str,
+    template_id: str | None = None,
+    profile_image_path: str | None = None,
+) -> str:
     """Assemble a complete, compilable .tex document from validated content."""
     contact = _parse_contact_from_profile(profile_text)
+    template = get_resume_template(template_id)
 
     margin = content.get("margin") if content.get("margin") in _ALLOWED_MARGINS else "0.75in"
     itemsep = content.get("itemsep") if content.get("itemsep") in _ALLOWED_ITEMSEP else "4pt"
 
-    parts = [_PREAMBLE.format(margin=margin, itemsep=itemsep)]
-    parts.append(_render_header(contact, headline=content.get("headline", "")))
+    parts = [_PREAMBLE.format(paper=template.paper, margin=margin, itemsep=itemsep)]
+    image_path = None
+    if template.supports_profile_image and profile_image_path:
+        try:
+            if Path(profile_image_path).is_file():
+                image_path = str(profile_image_path)
+        except OSError:
+            image_path = None
+    if template.id == "eu":
+        parts.append(_render_eu_header(contact, headline=content.get("headline", ""), profile_image_path=image_path))
+    else:
+        parts.append(_render_header(contact, headline=content.get("headline", "")))
 
     parts.append("\\section{Professional Summary}\n\n" + _latex_escape(content["summary"]))
 

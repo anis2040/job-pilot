@@ -45,18 +45,22 @@ def get_fetch_status(user_id: str | None = None) -> dict:
         return dict(_fetch_status.get(uid, _IDLE_FETCH))
 
 
-def trigger_resume(job_id: str, user_id: str | None = None) -> None:
+def trigger_resume(job_id: str, user_id: str | None = None, template_id: str | None = None) -> None:
+    from .build_cv_config import BuildCvConfig
     from .documents import _build_resume
     uid = user_id or get_current_user_id()
+    if template_id is None:
+        with user_context(uid):
+            template_id = BuildCvConfig.load().resume_template_id
     with _lock:
         m = _job_map(_task_status, uid)
         if m.get(job_id, {}).get("status") == "building":
             return
-        m[job_id] = {"status": "building", "pdf_path": None, "error": None, "stage": "Starting…"}
+        m[job_id] = {"status": "building", "pdf_path": None, "error": None, "stage": "Starting…", "template_id": template_id}
 
     def run():
         with user_context(uid):
-            _build_resume(job_id)
+            _build_resume(job_id, template_id=template_id)
 
     threading.Thread(target=run, daemon=True).start()
 

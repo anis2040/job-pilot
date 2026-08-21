@@ -48,6 +48,28 @@ describe('Building a resume', () => {
     expect(db.resumeStatus['jd1']?.status).toBe('building')
   })
 
+  it('posts the selected resume template when building', async () => {
+    let postedTemplate = ''
+    server.use(
+      http.post('/api/resume/:jobId', async ({ params, request }) => {
+        const jobId = params.jobId as string
+        const body = await request.json() as { template_id?: string }
+        postedTemplate = body.template_id || ''
+        db.resumeStatus[jobId] = { status: 'building', stage: 'Starting…', pdf_url: null, error: null, rate_limit: null }
+        return HttpResponse.json({ status: 'building' })
+      })
+    )
+
+    openJob()
+    await waitFor(() => heroTitle('Platform Engineer'))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'EU' })).not.toBeDisabled())
+
+    fireEvent.click(screen.getByRole('button', { name: 'EU' }))
+    fireEvent.click(screen.getByRole('button', { name: /Build CV/i }))
+
+    await waitFor(() => expect(postedTemplate).toBe('eu'))
+  })
+
   it('shows Open CV link once the build completes', async () => {
     openJob()
     await waitFor(() => heroTitle('Platform Engineer'))
