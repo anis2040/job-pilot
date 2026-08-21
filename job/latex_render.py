@@ -330,6 +330,48 @@ def _strip_ai_tells(text: str) -> str:
     return out.strip()
 
 
+def _strip_cover_letter_dashes(text: str) -> str:
+    """Remove stylized dash punctuation from cover-letter prose.
+
+    Cover letters are read as natural prose, so a stray em dash or en dash is
+    more conspicuous than in a resume bullet. Keep numeric ranges readable by
+    converting date-like en dashes to a plain hyphen, and convert sentence-level
+    dash punctuation to a comma.
+    """
+    if not text:
+        return text
+    out = re.sub(r"(?<=\d)[—–](?=\d)", "-", text)
+    out = re.sub(r"\s*—\s*", ", ", out)
+    out = re.sub(r"\s+–\s+", ", ", out)
+    out = out.replace("–", "-")
+    out = re.sub(r"\s+--+\s+", ", ", out)
+    out = re.sub(r",\s*,", ", ", out)
+    out = re.sub(r"\s{2,}", " ", out)
+    out = re.sub(r"\s+([,.])", r"\1", out)
+    return out.strip()
+
+
+def clean_cover_letter_content(content: dict) -> dict:
+    """Apply deterministic cleanup to cover-letter prose, in place.
+
+    The system prompt asks the model to avoid em/en dashes, but weak models can
+    still leak them. This cleanup keeps that punctuation rule reliable without
+    rewriting the model's wording or changing paragraph order.
+    """
+    paragraphs = []
+    for paragraph in content.get("paragraphs", []) or []:
+        if isinstance(paragraph, str) and paragraph.strip():
+            cleaned = _strip_cover_letter_dashes(paragraph.strip())
+            if cleaned:
+                paragraphs.append(cleaned)
+    content["paragraphs"] = paragraphs
+
+    for field in ("greeting", "closing"):
+        if isinstance(content.get(field), str) and content[field].strip():
+            content[field] = _strip_cover_letter_dashes(content[field].strip())
+    return content
+
+
 def _sort_bullets_metrics_first(bullets: list) -> list:
     """Stable-partition bullets so those containing a number lead.
 

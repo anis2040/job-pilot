@@ -228,6 +228,28 @@ _CL_CONTENT = {
 }
 
 
+def test_cover_letter_prompt_prioritizes_recruiter_call(tmp_path, monkeypatch):
+    prof = tmp_path / "profile.md"
+    prof.write_text(_PROFILE)
+    monkeypatch.setattr(documents, "get_profile_path", lambda: prof)
+
+    skill_text, _ = documents._build_cover_letter_prompt(
+        {"description": "Build a practical product with Angular and strong collaboration.", "location": "Berlin"},
+        "Acme",
+        "Staff Engineer",
+        "Anis_Helaoui",
+        documents._cl_skill_path(),
+    )
+
+    assert "designed to get a recruiter to pick up the phone" in skill_text
+    assert "Make the candidate look like a clear, high-fit choice" in skill_text
+    assert "Use 2-4 short paragraphs" in skill_text
+    assert "do not force the same structure every time" in skill_text
+    assert "Do not use em dashes or en dashes" in skill_text
+    assert "Source-backed claims" in skill_text
+    assert "the 3 body paragraphs" not in skill_text
+
+
 @pytest.fixture
 def cl_wired(tmp_path, monkeypatch):
     db_file = tmp_path / "state.db"
