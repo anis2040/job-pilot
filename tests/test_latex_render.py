@@ -12,6 +12,16 @@ from job.latex_render import (
 )
 
 
+def _png_header(width: int, height: int) -> bytes:
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + (13).to_bytes(4, "big")
+        + b"IHDR"
+        + width.to_bytes(4, "big")
+        + height.to_bytes(4, "big")
+    )
+
+
 # ── _latex_escape ─────────────────────────────────────────────────────────────
 
 @pytest.mark.parametrize("raw,expected", [
@@ -217,6 +227,29 @@ def test_eu_template_renders_profile_image(tmp_path):
     assert "a4paper" in latex.splitlines()[0]
     assert r"\includegraphics" in latex
     assert str(image) in latex
+
+
+def test_eu_template_center_crops_profile_image_to_passport_frame(tmp_path):
+    image = tmp_path / "profile-image.png"
+    image.write_bytes(_png_header(1200, 800))
+
+    latex = render_resume_latex(_VALID, _PROFILE, template_id="eu", profile_image_path=str(image))
+
+    assert r"\usepackage{tikz}" in latex
+    assert r"\begin{tikzpicture}" in latex
+    assert "rectangle (2.55cm,3.25cm)" in latex
+    assert "height=3.25cm" in latex
+    assert "keepaspectratio" not in latex
+
+
+def test_eu_template_scales_portrait_photo_by_width(tmp_path):
+    image = tmp_path / "profile-image.png"
+    image.write_bytes(_png_header(800, 1200))
+
+    latex = render_resume_latex(_VALID, _PROFILE, template_id="eu", profile_image_path=str(image))
+
+    assert r"\includegraphics[width=2.55cm]" in latex
+    assert r"\includegraphics[height=3.25cm]" not in latex
 
 
 # ── validate_resume_content ───────────────────────────────────────────────────
