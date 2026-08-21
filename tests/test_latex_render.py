@@ -6,6 +6,7 @@ from job.latex_render import (
     _latex_escape_url,
     _parse_contact_from_profile,
     _parse_content_json,
+    clean_cover_letter_content,
     render_resume_latex,
     ResumeParseError,
 )
@@ -337,3 +338,20 @@ def test_clean_content_full():
     assert content["experiences"][0]["bullets"][0] == "Increased velocity by 30%"
     assert "—" not in content["experiences"][0]["projects"][0]["description"]
 
+
+def test_clean_cover_letter_content_strips_stylized_dashes():
+    content = {
+        "paragraphs": [
+            "I worked on the reporting flow — then simplified the release path.",
+            "Across 2020–2024 roles, I kept the product work grounded.",
+            "The team needs practical delivery -- that is where I can help.",
+        ],
+        "greeting": "Dear Hiring Team —",
+        "closing": "Best regards –",
+    }
+    clean_cover_letter_content(content)
+    body = " ".join(content["paragraphs"] + [content["greeting"], content["closing"]])
+    assert "—" not in body
+    assert "–" not in body
+    assert content["paragraphs"][0] == "I worked on the reporting flow, then simplified the release path."
+    assert "2020-2024" in content["paragraphs"][1]

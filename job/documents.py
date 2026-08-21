@@ -12,7 +12,8 @@ from .ai_providers import (_get_anthropic_client, _get_gemini_client, _get_groq_
                            _get_model, _generate_content, call_ai, extract_json_from_llm)
 from .latex import _compile_latex, _parse_latex_response
 from .latex_render import (_parse_content_json, render_resume_latex, ResumeParseError,
-                           _parse_cover_letter_json, render_cover_letter_latex)
+                           _parse_cover_letter_json, render_cover_letter_latex,
+                           clean_cover_letter_content)
 from . import task_state
 
 
@@ -76,20 +77,20 @@ _CL_JSON_OUTPUT_FORMAT = r"""
 
 ## Output Format (CRITICAL)
 
-Return ONLY a JSON object with this exact structure — no explanation, no markdown fences, nothing but the JSON:
+Return ONLY a JSON object with this exact structure; no explanation, no markdown fences, nothing but the JSON:
 
 {
   "company": "Company name from the job description",
-  "paragraphs": ["Paragraph 1 text", "Paragraph 2 text", "Paragraph 3 text"],
+  "paragraphs": ["Opening paragraph text", "Evidence or closing paragraph text"],
   "greeting": "Dear Hiring Manager,",
   "closing": "Best regards,"
 }
 
 Rules:
-- "paragraphs": the 3 body paragraphs as plain-text strings (no LaTeX, no markdown). Follow the three-paragraph structure above.
-- Write special characters (& % # $) literally — the application escapes them.
+- "paragraphs": 2-4 short body paragraphs as plain-text strings (no LaTeX, no markdown). Choose the count that fits the role instead of forcing the same structure every time.
+- Write special characters (& % # $) literally; the application escapes them.
 - "greeting"/"closing" are optional (sensible defaults are used if omitted).
-- The candidate's name and contact details are added by the application from the profile — do NOT include a signature.
+- The candidate's name and contact details are added by the application from the profile; do NOT include a signature.
 - Output ONLY the JSON object.
 """
 
@@ -695,6 +696,7 @@ def _build_document(job_id: str, doc_type: str) -> None:
             stage_fn(job_id, "Checking accuracy…")
             if _verify_cover_letter(content, profile_text):
                 print(f"[cl-check] {job_id}: paragraph(s) rewritten (fabrication guard)")
+            clean_cover_letter_content(content)
 
             stage_fn(job_id, "Rendering document…")
             latex_content = render_cover_letter_latex(content, profile_text)
