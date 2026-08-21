@@ -7,9 +7,12 @@ import { Topbar } from '../../components/layout/Topbar';
 import { TagInput } from '../../components/ui/TagInput';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { SearchRow } from '../../components/ui/SearchRow';
+import { Icon } from '../../components/ui/Icon';
+import { ResumeTemplatePicker } from '../../components/ui/ResumeTemplatePicker';
 import { createSearchRow, deriveTitleFilters, groupSearchEntries, expandSearchRows, type SearchRowEntry } from '../../components/ui/searchRowModel';
 import type { SearchConfig, BuildCvConfig } from '../../api/types';
 import { BUILD_CV_INSTRUCTIONS_MAX_LENGTH, useBuildCvPositioning } from '../../hooks/useBuildCvPositioning';
+import { useResumeTemplates } from '../../hooks/useResumeTemplates';
 import { buildProfileMd, parseProfileMd, DEFAULT_FORM, EMPTY_EXP, EMPTY_EDU } from '../../utils/profileForm';
 import type { ProfileFormData, ExpEntry, EduEntry } from '../../utils/profileForm';
 
@@ -107,12 +110,19 @@ function AutoConfigCard({ slug }: { slug: string }) {
     try {
       const res = await setup.suggestConfig() as { ok: boolean; searches: unknown[]; title_filter: string[]; location: string; error?: string };
       if (!res.ok) { setResult(`⚠ ${res.error || 'Failed'}`); return; }
-      // Save the suggested config to this profile
-      await profilesApi.saveConfig(slug, {
-        searches: res.searches as never,
-        title_filter: res.title_filter,
+      const current = await profilesApi.getConfig(slug).catch(() => ({
+        searches: [],
+        title_filter: [],
         blacklist: [],
         company_blacklist: [],
+      }));
+      // Save the suggested config to this profile
+      await profilesApi.saveConfig(slug, {
+        ...current,
+        searches: res.searches as never,
+        title_filter: res.title_filter,
+        blacklist: current.blacklist || [],
+        company_blacklist: current.company_blacklist || [],
       });
       setResult(`✓ Configured ${res.searches.length} searches for ${res.location || 'your location'}`);
       showToast('Search config updated from profile');
@@ -144,7 +154,77 @@ function AutoConfigCard({ slug }: { slug: string }) {
   );
 }
 
-function ProfileFormSection({ slug }: { slug: string }) {
+function ProfileImageControl({ slug, initialUrl, onChanged }: {
+  slug: string;
+  initialUrl?: string | null;
+  onChanged: () => Promise<void>;
+}) {
+  const { showToast } = useToast();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [imageUrl, setImageUrl] = useState(initialUrl || null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    setImageUrl(initialUrl || null);
+  }, [initialUrl]);
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBusy(true);
+    try {
+      const res = await profilesApi.uploadImage(slug, file);
+      setImageUrl(res.image_url);
+      await onChanged();
+      showToast('Profile image updated');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Image upload failed', 'err');
+    } finally {
+      setBusy(false);
+      if (inputRef.current) inputRef.current.value = '';
+    }
+  };
+
+  const handleRemove = async () => {
+    setBusy(true);
+    try {
+      await profilesApi.deleteImage(slug);
+      setImageUrl(null);
+      await onChanged();
+      showToast('Profile image removed');
+    } catch {
+      showToast('Could not remove image', 'err');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="profile-image-row">
+      <div className="profile-image-preview">
+        {imageUrl ? <img src={imageUrl} alt="Profile" /> : <Icon name="user" size={22} />}
+      </div>
+      <div className="profile-image-actions">
+        <div className="profile-image-title">Profile image</div>
+        <div className="profile-image-buttons">
+          <button className="btn btn-ghost btn-sm" type="button" disabled={busy} onClick={() => inputRef.current?.click()}>
+            {imageUrl ? 'Replace' : 'Upload image'}
+          </button>
+          {imageUrl && (
+            <button className="btn btn-ghost btn-sm" type="button" disabled={busy} onClick={handleRemove}>Remove</button>
+          )}
+        </div>
+        <input ref={inputRef} type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" style={{ display: 'none' }} onChange={handleUpload} />
+      </div>
+    </div>
+  );
+}
+
+function ProfileFormSection({ slug, profileImageUrl, onProfileChanged }: {
+  slug: string;
+  profileImageUrl?: string | null;
+  onProfileChanged: () => Promise<void>;
+}) {
   const { showToast } = useToast();
   const [form, setForm] = useState<ProfileFormData>(DEFAULT_FORM());
   const [autofillStatus, setAutofillStatus] = useState('');
@@ -220,6 +300,7 @@ function ProfileFormSection({ slug }: { slug: string }) {
 
       <div className="settings-card">
         <div className="settings-card-body is-expanded">
+          <ProfileImageControl slug={slug} initialUrl={profileImageUrl} onChanged={onProfileChanged} />
           <div className="field-row cols-2">
             <div className="field"><label>Full Name *</label><input id="p-name" placeholder="Jane Smith" value={form.name} onChange={e => set('name', e.target.value)} /></div>
             <div className="field"><label>Location</label><input placeholder="City, Country" value={form.location} onChange={e => set('location', e.target.value)} /></div>
@@ -281,6 +362,7 @@ function ProfileFormSection({ slug }: { slug: string }) {
 
 function SearchSection({ slug }: { slug: string }) {
   const { showToast } = useToast();
+  const [loadedConfig, setLoadedConfig] = useState<SearchConfig | null>(null);
   const [allSources, setAllSources] = useState<string[]>([]);
   const [rows, setRows] = useState<SearchRowEntry[]>([]);
   const [blacklist, setBlacklist] = useState<string[]>([]);
@@ -289,6 +371,7 @@ function SearchSection({ slug }: { slug: string }) {
   useEffect(() => {
     constants.sources().then(setAllSources);
     profilesApi.getConfig(slug).then((cfg: SearchConfig) => {
+      setLoadedConfig(cfg);
       setRows(groupSearchEntries(cfg.searches || []));
       setBlacklist(cfg.blacklist || []);
       setCompanyBlacklist(cfg.company_blacklist || []);
@@ -297,12 +380,14 @@ function SearchSection({ slug }: { slug: string }) {
 
   const handleSave = async () => {
     const cfg: SearchConfig = {
+      ...(loadedConfig || {}),
       searches: expandSearchRows(rows),
       title_filter: deriveTitleFilters(rows),
       blacklist,
       company_blacklist: companyBlacklist,
     };
     const res = await profilesApi.saveConfig(slug, cfg);
+    if (res.ok) setLoadedConfig(cfg);
     if (res.ok) showToast('Search settings saved');
     else showToast('Failed to save', 'err');
   };
@@ -360,13 +445,16 @@ const POSITIONING_OPTIONS: { value: BuildCvConfig['experience_positioning']; lab
 
 function PositioningSection({ slug }: { slug: string }) {
   const { showToast } = useToast();
+  const { templates } = useResumeTemplates();
   const {
     positioning,
     instructions,
+    resumeTemplateId,
     saving,
     ready,
     setInstructions,
     savePositioning,
+    saveResumeTemplate,
     saveInstructions,
   } = useBuildCvPositioning(slug);
 
@@ -383,6 +471,11 @@ function PositioningSection({ slug }: { slug: string }) {
     showToast(ok ? 'Instructions saved' : 'Failed to save', ok ? undefined : 'err');
   };
 
+  const handleTemplateSelect = async (templateId: string) => {
+    const ok = await saveResumeTemplate(templateId);
+    showToast(ok ? 'Resume template saved' : 'Failed to save', ok ? undefined : 'err');
+  };
+
   return (
     <div className="section active" id="section-positioning">
       <div className="section-title page-title">Resume Positioning</div>
@@ -390,6 +483,21 @@ function PositioningSection({ slug }: { slug: string }) {
 
       <div className="settings-card">
         <div className="settings-card-body is-expanded">
+          {templates.length > 1 && (
+            <div className="resume-template-settings">
+              <div className="resume-template-settings-copy">
+                <span className="resume-template-settings-title">Resume template</span>
+                <span className="resume-template-settings-sub">Default for this profile</span>
+              </div>
+              <ResumeTemplatePicker
+                templates={templates}
+                value={resumeTemplateId}
+                onChange={templateId => { void handleTemplateSelect(templateId); }}
+                disabled={saving || !ready}
+              />
+            </div>
+          )}
+
           <div className="positioning-cards" role="radiogroup" aria-label="Resume positioning stance">
             {POSITIONING_OPTIONS.map(opt => {
               const active = positioning === opt.value;
@@ -487,6 +595,7 @@ export default function ProfileSettingsPage() {
         title={profile?.label || profile?.name || slug}
         avatarColor={profile?.color}
         avatarInitials={profile?.initials}
+        avatarImageUrl={profile?.image_url}
       />
       <div className="layout page-enter">
         <nav className="sidenav">
@@ -503,7 +612,7 @@ export default function ProfileSettingsPage() {
         </nav>
 
         <div className="main">
-          {section === 'profile' && <ProfileFormSection slug={slug} />}
+          {section === 'profile' && <ProfileFormSection slug={slug} profileImageUrl={profile?.image_url} onProfileChanged={refetch} />}
           {section === 'search'  && <SearchSection slug={slug} />}
           {section === 'positioning' && <PositioningSection slug={slug} />}
           {section === 'danger'  && (

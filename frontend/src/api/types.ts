@@ -53,6 +53,19 @@ export interface Profile {
   initials: string;
   color: string;
   active: boolean;
+  image_url?: string | null;
+}
+
+export interface ResumeTemplate {
+  id: string;
+  label: string;
+  region: string;
+  supports_profile_image: boolean;
+}
+
+export interface ResumeTemplatesResponse {
+  default_template_id: string;
+  templates: ResumeTemplate[];
 }
 
 export interface SearchEntry {
@@ -69,6 +82,7 @@ export interface SearchEntry {
 export interface BuildCvConfig {
   experience_positioning: 'conservative' | 'balanced' | 'aggressive';
   additional_instructions: string;
+  resume_template_id?: string;
 }
 
 export interface SearchConfig {
@@ -143,6 +157,7 @@ export interface DocumentStatus {
   error: string | null;
   rate_limit: RateLimitInfo | null;
   preview?: string;
+  template_id?: string | null;
 }
 
 export interface FetchStatus {

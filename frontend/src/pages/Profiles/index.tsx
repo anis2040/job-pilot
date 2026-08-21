@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProfile } from '../../hooks/useProfile';
 import { profiles as profilesApi } from '../../api/client';
+import { ProfileAvatar } from '../../components/ui/ProfileAvatar';
 
 export default function ProfilesPage() {
   const { profiles, switchProfile, loading, refetch } = useProfile();
@@ -33,9 +34,7 @@ export default function ProfilesPage() {
             className={`profile-card${p.active ? ' active' : ''}`}
             onClick={() => handleSelect(p.slug)}
           >
-            <span className="profile-card-avatar" style={{ background: p.color }}>
-              {p.initials}
-            </span>
+            <ProfileAvatar profile={p} size="card" />
             <span className="profile-card-label">{p.label || p.name}</span>
           </button>
         ))}

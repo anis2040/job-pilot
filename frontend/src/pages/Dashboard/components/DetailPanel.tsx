@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { jobs as jobsApi, documents } from '../../../api/client';
 import { useDocumentStatus } from '../../../hooks/useDocumentStatus';
 import { useStance } from '../../../hooks/useStance';
+import { useResumeTemplates } from '../../../hooks/useResumeTemplates';
 import { useToast } from '../../../components/ui/useToast';
 import { Icon } from '../../../components/ui/Icon';
 import { CvActionBlock } from '../../../components/ui/CvActionBlock';
+import { ResumeTemplatePicker } from '../../../components/ui/ResumeTemplatePicker';
 import { formatDescription, isLongDescription } from '../../../utils/descriptionRenderer';
 import { shouldFetchFullDescription } from '../../../utils/jobDescription';
 import { safeUrl } from '../../../utils/format';
@@ -26,7 +28,8 @@ export function DetailPanel({ jobId, initialJob, onClose, onJobUpdated }: Detail
   const [buildingResume, setBuildingResume] = useState(false);
   const { showToast } = useToast();
   const navigate = useNavigate();
-  const { stance, saveStance, ready: stanceReady } = useStance();
+  const { stance, saveStance, resumeTemplateId, saveResumeTemplate, ready: stanceReady } = useStance();
+  const { templates } = useResumeTemplates();
   const resumeDoc = useDocumentStatus(jobId, 'resume', buildingResume || job.resume_status === 'building');
 
   useEffect(() => {
@@ -56,7 +59,7 @@ export function DetailPanel({ jobId, initialJob, onClose, onJobUpdated }: Detail
     setBuildingResume(true);
     setJob(current => ({ ...current, resume_status: 'building', resume_error: null }));
     try {
-      await documents.buildResume(jobId);
+      await documents.buildResume(jobId, resumeTemplateId || undefined);
       showToast('Building CV…');
     } catch {
       setJob(current => ({ ...current, resume_status: 'idle' }));
@@ -136,6 +139,12 @@ export function DetailPanel({ jobId, initialJob, onClose, onJobUpdated }: Detail
       {/* Unified CV action block — always visible above the description */}
       <div className="panel-cv-bar">
         <CvActionBlock stance={stance} onStanceChange={saveStance} disabled={!stanceReady || isBuilding}>
+          <ResumeTemplatePicker
+            templates={templates}
+            value={resumeTemplateId}
+            onChange={templateId => { void saveResumeTemplate(templateId); }}
+            disabled={!stanceReady || isBuilding || buildingResume}
+          />
           {isIdle && (
             <button className="btn btn-ai btn-sm" onClick={handleBuildResume} disabled={buildingResume || !stanceReady}>
               ✦ Build CV

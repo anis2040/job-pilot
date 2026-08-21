@@ -8,6 +8,7 @@ The web_client fixture creates an isolated profile + SQLite database and stubs
 every AI client and external tool the same way test_routes_ai.py does.
 """
 import sqlite3
+import io
 import pytest
 
 import web
@@ -439,6 +440,132 @@ class TestApiConstants:
         from job.models import DEFAULT_BLACKLIST
         data = web_client.get("/api/constants").get_json()
         assert set(data["default_blacklist"]) == set(DEFAULT_BLACKLIST)
+
+
+class TestResumeTemplates:
+    def test_lists_available_templates(self, web_client):
+        r = web_client.get("/api/resume-templates")
+        assert r.status_code == 200
+        data = r.get_json()
+        ids = {t["id"] for t in data["templates"]}
+        assert data["default_template_id"] == "us"
+        assert ids == {"us", "eu"}
+        assert any(t["id"] == "eu" and t["supports_profile_image"] for t in data["templates"])
+
+    def test_lists_profile_default_template(self, web_client):
+        from job.user_context import LOCAL_USER_ID
+        cfg = profs.PROFILES_DIR / LOCAL_USER_ID / "test-user" / "config.yaml"
+        cfg.write_text(
+            "searches: []\n"
+            "blacklist: []\n"
+            "company_blacklist: []\n"
+            "title_filter: []\n"
+            "build_cv:\n"
+            "  experience_positioning: balanced\n"
+            "  additional_instructions: ''\n"
+            "  resume_template_id: eu\n"
+        )
+
+        r = web_client.get("/api/resume-templates")
+
+        assert r.status_code == 200
+        assert r.get_json()["default_template_id"] == "eu"
+
+    def test_build_resume_passes_selected_template(self, web_client, monkeypatch):
+        _insert_job("j-template")
+        calls = []
+        monkeypatch.setattr(web, "trigger_resume", lambda job_id, user_id=None, template_id=None: calls.append((job_id, template_id)))
+
+        r = web_client.post("/api/resume/j-template", json={"template_id": "eu"})
+
+        assert r.status_code == 200
+        assert calls == [("j-template", "eu")]
+
+    def test_build_resume_defaults_to_profile_template(self, web_client, monkeypatch):
+        from job.user_context import LOCAL_USER_ID
+        cfg = profs.PROFILES_DIR / LOCAL_USER_ID / "test-user" / "config.yaml"
+        cfg.write_text(
+            "searches: []\n"
+            "blacklist: []\n"
+            "company_blacklist: []\n"
+            "title_filter: []\n"
+            "build_cv:\n"
+            "  experience_positioning: balanced\n"
+            "  additional_instructions: ''\n"
+            "  resume_template_id: eu\n"
+        )
+        _insert_job("j-template-default")
+        calls = []
+        monkeypatch.setattr(web, "trigger_resume", lambda job_id, user_id=None, template_id=None: calls.append((job_id, template_id)))
+
+        r = web_client.post("/api/resume/j-template-default", json={})
+
+        assert r.status_code == 200
+        assert calls == [("j-template-default", "eu")]
+
+    def test_build_resume_rejects_unknown_template(self, web_client):
+        _insert_job("j-template-bad")
+
+        r = web_client.post("/api/resume/j-template-bad", json={"template_id": "moon"})
+
+        assert r.status_code == 400
+        assert "template" in r.get_json()["error"].lower()
+
+    def test_profile_config_accepts_template_without_searches(self, web_client):
+        payload = {
+            "searches": [],
+            "title_filter": [],
+            "blacklist": [],
+            "company_blacklist": [],
+            "build_cv": {
+                "experience_positioning": "balanced",
+                "additional_instructions": "",
+                "resume_template_id": "eu",
+            },
+        }
+
+        r = web_client.post("/api/profiles/test-user/config", json=payload)
+
+        assert r.status_code == 200
+        assert r.get_json()["ok"] is True
+
+
+class TestProfileImage:
+    def test_upload_serve_and_delete_profile_image(self, web_client):
+        png = b"\x89PNG\r\n\x1a\n" + b"0" * 12
+
+        r = web_client.post(
+            "/api/profiles/test-user/image",
+            data={"file": (io.BytesIO(png), "headshot.png")},
+            content_type="multipart/form-data",
+        )
+
+        assert r.status_code == 200
+        assert r.get_json()["image_url"].startswith("/api/profiles/test-user/image")
+        from job.user_context import LOCAL_USER_ID
+        saved = profs.PROFILES_DIR / LOCAL_USER_ID / "test-user" / "profile-image.png"
+        assert saved.exists()
+
+        r = web_client.get("/api/profiles")
+        profile = r.get_json()["profiles"][0]
+        assert profile["image_url"].startswith("/api/profiles/test-user/image")
+
+        r = web_client.get("/api/profiles/test-user/image")
+        assert r.status_code == 200
+        assert r.data.startswith(b"\x89PNG")
+
+        r = web_client.delete("/api/profiles/test-user/image")
+        assert r.status_code == 200
+        assert not saved.exists()
+
+    def test_upload_rejects_unsupported_image_type(self, web_client):
+        r = web_client.post(
+            "/api/profiles/test-user/image",
+            data={"file": (io.BytesIO(b"GIF89a"), "headshot.gif")},
+            content_type="multipart/form-data",
+        )
+
+        assert r.status_code == 400
 
 
 

@@ -17,6 +17,7 @@ from pathlib import Path
 
 import yaml
 
+from .latex_render import DEFAULT_RESUME_TEMPLATE_ID, resume_template_ids
 from .profiles import get_config_path, safe_profile_dir
 
 # Internal enum — the stable code/config contract. The user-facing labels
@@ -75,6 +76,7 @@ _INSTRUCTIONS_PREFIX = (
 class BuildCvConfig:
     experience_positioning: str = DEFAULT_POSITIONING
     additional_instructions: str = ""
+    resume_template_id: str = DEFAULT_RESUME_TEMPLATE_ID
 
     @classmethod
     def _config_path(cls, slug: str | None = None) -> Path | None:
@@ -99,7 +101,14 @@ class BuildCvConfig:
         import re as _re
         instructions = _re.sub(r"<[^>]{0,100}>", "", instructions)
         instructions = instructions.strip()[:MAX_INSTRUCTIONS_LEN]
-        return cls(experience_positioning=positioning, additional_instructions=instructions)
+        template_id = str(raw.get("resume_template_id") or raw.get("template_id") or DEFAULT_RESUME_TEMPLATE_ID).strip().lower()
+        if template_id not in resume_template_ids():
+            template_id = DEFAULT_RESUME_TEMPLATE_ID
+        return cls(
+            experience_positioning=positioning,
+            additional_instructions=instructions,
+            resume_template_id=template_id,
+        )
 
     @classmethod
     def load(cls, slug: str | None = None) -> "BuildCvConfig":
@@ -142,6 +151,7 @@ class BuildCvConfig:
         return {
             "experience_positioning": self.experience_positioning,
             "additional_instructions": self.additional_instructions,
+            "resume_template_id": self.resume_template_id,
         }
 
     def to_stance_block(self) -> str:

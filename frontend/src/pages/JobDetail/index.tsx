@@ -4,10 +4,12 @@ import { jobs as jobsApi, documents } from '../../api/client';
 import { useToast } from '../../components/ui/useToast';
 import { useDocumentStatus } from '../../hooks/useDocumentStatus';
 import { useStance } from '../../hooks/useStance';
+import { useResumeTemplates } from '../../hooks/useResumeTemplates';
 import { SourceBadge } from '../../components/ui/SourceBadge';
 import { Icon } from '../../components/ui/Icon';
 import { Spinner } from '../../components/ui/Spinner';
 import { CvActionBlock } from '../../components/ui/CvActionBlock';
+import { ResumeTemplatePicker } from '../../components/ui/ResumeTemplatePicker';
 import { AppShell } from '../../components/layout/AppShell';
 import { BackButton } from '../../components/layout/BackButton';
 import { safeUrl, fmtDate } from '../../utils/format';
@@ -40,10 +42,24 @@ function JobDescription({ text }: { text: string }) {
 
 // ── Document slot (resume / cover letter) ─────────────────────────────────────
 
-function DocSlot({ jobId, type, job, onRefresh, stanceValue, onStanceChange, stanceReady }: {
+function DocSlot({
+  jobId,
+  type,
+  job,
+  onRefresh,
+  stanceValue,
+  onStanceChange,
+  resumeTemplateId,
+  onResumeTemplateChange,
+  resumeTemplates,
+  stanceReady,
+}: {
   jobId: string; type: 'resume' | 'cover-letter'; job: JobDetail; onRefresh: () => void;
   stanceValue?: ReturnType<typeof useStance>['stance'];
   onStanceChange?: ReturnType<typeof useStance>['saveStance'];
+  resumeTemplateId?: ReturnType<typeof useStance>['resumeTemplateId'];
+  onResumeTemplateChange?: ReturnType<typeof useStance>['saveResumeTemplate'];
+  resumeTemplates?: ReturnType<typeof useResumeTemplates>['templates'];
   stanceReady?: boolean;
 }) {
   const { showToast } = useToast();
@@ -70,7 +86,7 @@ function DocSlot({ jobId, type, job, onRefresh, stanceValue, onStanceChange, sta
     if (submitting || building) return;   // guard against duplicate submission
     setSubmitting(true);
     try {
-      if (isResume) await documents.buildResume(jobId);
+      if (isResume) await documents.buildResume(jobId, resumeTemplateId || undefined);
       else await documents.buildCoverLetter(jobId);
       setBuilding(true);
     } catch {
@@ -84,6 +100,15 @@ function DocSlot({ jobId, type, job, onRefresh, stanceValue, onStanceChange, sta
   const effectiveStage = building ? docStatus.stage || stage : stage;
   const effectivePdfUrl = building ? docStatus.pdfUrl || pdfUrl : pdfUrl;
   const rateLimit = docStatus.rateLimit;
+
+  const templatePicker = isResume && resumeTemplates && onResumeTemplateChange ? (
+    <ResumeTemplatePicker
+      templates={resumeTemplates}
+      value={resumeTemplateId || ''}
+      onChange={templateId => { void onResumeTemplateChange(templateId); }}
+      disabled={submitting || building || effectiveStatus === 'building' || !stanceReady}
+    />
+  ) : null;
 
   // While a build is in flight (POST sent, or backend reports building) show the
   // building state immediately so the user gets feedback and can't re-submit.
@@ -100,6 +125,7 @@ function DocSlot({ jobId, type, job, onRefresh, stanceValue, onStanceChange, sta
       <div className="doc-slot-done">
         {isResume && stanceValue && onStanceChange && (
           <CvActionBlock stance={stanceValue} onStanceChange={onStanceChange} disabled={!stanceReady}>
+            {templatePicker}
             <div style={{ display: 'flex', gap: 6 }}>
               <a href={safeUrl(effectivePdfUrl)} target="_blank" rel="noreferrer" className="btn btn-success btn-sm">
                 {isResume ? '📄 Open CV' : '✉ Open Letter'}
@@ -126,6 +152,7 @@ function DocSlot({ jobId, type, job, onRefresh, stanceValue, onStanceChange, sta
         : '';
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
+          {templatePicker}
           <div className="doc-error-msg">
             ⚠ {provider} {scope} limit reached
             {typeof rateLimit.used === 'number' && typeof rateLimit.limit === 'number' && ` — ${rateLimit.used} / ${rateLimit.limit} tokens`}
@@ -140,6 +167,7 @@ function DocSlot({ jobId, type, job, onRefresh, stanceValue, onStanceChange, sta
     }
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
+        {templatePicker}
         <div className="doc-error-msg">{err ? err.slice(0, 80) : 'Build failed'}</div>
         <button className="btn btn-ghost btn-sm" onClick={handleBuild}>Retry</button>
       </div>
@@ -151,10 +179,16 @@ function DocSlot({ jobId, type, job, onRefresh, stanceValue, onStanceChange, sta
   }
   return isResume && stanceValue && onStanceChange ? (
     <CvActionBlock stance={stanceValue} onStanceChange={onStanceChange} disabled={!stanceReady}>
-      <button className="btn btn-ai btn-sm" onClick={handleBuild}>✦ Build CV</button>
+      {templatePicker}
+      <button className="btn btn-ai btn-sm" onClick={handleBuild} disabled={submitting}>✦ Build CV</button>
     </CvActionBlock>
   ) : (
-    <button className="btn btn-ai btn-sm" onClick={handleBuild}>✦ Write Cover Letter</button>
+    <>
+      {templatePicker}
+      <button className="btn btn-ai btn-sm" onClick={handleBuild} disabled={submitting}>
+        {isResume ? '✦ Build CV' : '✦ Write Cover Letter'}
+      </button>
+    </>
   );
 }
 
@@ -327,7 +361,8 @@ export default function JobDetailPage() {
   const [job, setJob] = useState<JobDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
-  const { stance, saveStance, ready: stanceReady } = useStance();
+  const { stance, saveStance, resumeTemplateId, saveResumeTemplate, ready: stanceReady } = useStance();
+  const { templates } = useResumeTemplates();
 
   const loadJob = useCallback(async () => {
     if (!jobId) return;
@@ -457,6 +492,7 @@ export default function JobDetailPage() {
                 <DocSlot
                   jobId={job.job_id} type="resume" job={job} onRefresh={loadJob}
                   stanceValue={stance} onStanceChange={saveStance} stanceReady={stanceReady}
+                  resumeTemplateId={resumeTemplateId} onResumeTemplateChange={saveResumeTemplate} resumeTemplates={templates}
                 />
               </div>
             </div>

@@ -5,7 +5,7 @@ from pathlib import Path
 from . import paths
 from .db import get_job, update_description, init_db
 from .fetcher import fetch_description as fetch_job_description, should_fetch_description
-from .profiles import get_profile_path, get_resumes_path
+from .profiles import get_profile_image_path, get_profile_path, get_resumes_path
 from .build_cv_config import BuildCvConfig
 from .ai_providers import (_get_anthropic_client, _get_gemini_client, _get_groq_client,
                            _get_openrouter_client,
@@ -174,7 +174,14 @@ def _prewarm_cache() -> None:
         pass  # pre-warm is best-effort, never block startup
 
 
-def _build_resume_prompt(row: dict, company: str, title: str, name_slug: str, skill_dir) -> tuple[str, str]:
+def _build_resume_prompt(
+    row: dict,
+    company: str,
+    title: str,
+    name_slug: str,
+    skill_dir,
+    build_cv_config: BuildCvConfig | None = None,
+) -> tuple[str, str]:
     """Build system skill_text and user_prompt for a resume. Returns (skill_text, user_prompt).
 
     The model returns structured JSON content (see _JSON_OUTPUT_FORMAT); Python
@@ -185,7 +192,7 @@ def _build_resume_prompt(row: dict, company: str, title: str, name_slug: str, sk
     skill_text = _inject_name(skill_text, name_slug)
     # Positioning stance — the ONE user-controlled variable layer (per-profile
     # config.yaml build_cv:). Sits between the profile and the output contract.
-    skill_text += "\n\n" + BuildCvConfig.load().to_stance_block()
+    skill_text += "\n\n" + (build_cv_config or BuildCvConfig.load()).to_stance_block()
     skill_text += _JSON_OUTPUT_FORMAT
 
     desc = row.get("description") or ""
@@ -550,13 +557,15 @@ def _verify_cover_letter(content: dict, profile_text: str) -> bool:
     return changed
 
 
-def _build_document(job_id: str, doc_type: str) -> None:
+def _build_document(job_id: str, doc_type: str, template_id: str | None = None) -> None:
     """Shared document builder for resumes and cover letters."""
     is_resume = doc_type == "resume"
     stage_fn = task_state._set_stage if is_resume else task_state._set_cl_stage
     skill_dir = _skill_path() if is_resume else _cl_skill_path()
     tex_suffix = "Resume" if is_resume else "Cover_Letter"
     folder_fallback = "Resume" if is_resume else "CoverLetter"
+    build_cv_config = BuildCvConfig.load() if is_resume else None
+    selected_template_id = template_id or (build_cv_config.resume_template_id if build_cv_config else None)
 
     try:
         _validate_profile()
@@ -594,7 +603,14 @@ def _build_document(job_id: str, doc_type: str) -> None:
 
         if is_resume:
             stage_fn(job_id, "Generating resume…")
-            skill_text, user_prompt = _build_resume_prompt(row, company, title, name_slug, skill_dir)
+            skill_text, user_prompt = _build_resume_prompt(
+                row,
+                company,
+                title,
+                name_slug,
+                skill_dir,
+                build_cv_config=build_cv_config,
+            )
         else:
             stage_fn(job_id, "Generating cover letter…")
             skill_text, user_prompt = _build_cover_letter_prompt(row, company, title, name_slug, skill_dir)
@@ -654,7 +670,7 @@ def _build_document(job_id: str, doc_type: str) -> None:
             # (summary + bullets) — the fabrication regex can't judge.
             stage_fn(job_id, "Checking accuracy…")
             fixed = _verify_content(content, profile_text,
-                                    positioning=BuildCvConfig.load().experience_positioning)
+                                    positioning=build_cv_config.experience_positioning if build_cv_config else "balanced")
             if fixed:
                 print(f"[resume-check] {job_id}: rewritten by fabrication guard: {', '.join(fixed)}")
 
@@ -664,7 +680,13 @@ def _build_document(job_id: str, doc_type: str) -> None:
             from .latex_render import clean_content
             clean_content(content, profile=pj)
 
-            latex_content = render_resume_latex(content, profile_text)
+            profile_image = get_profile_image_path()
+            latex_content = render_resume_latex(
+                content,
+                profile_text,
+                template_id=selected_template_id,
+                profile_image_path=str(profile_image) if profile_image else None,
+            )
             company_folder = _sanitize_folder_name(company, folder_fallback)
 
             # Deterministic quality check (non-fatal): flag likely fabrication
@@ -712,20 +734,27 @@ def _build_document(job_id: str, doc_type: str) -> None:
         pdf_path = _compile_latex(tex_path)
 
         task_state.set_job_result(
-            job_id, {"status": "done", "pdf_path": str(pdf_path), "error": None},
+            job_id, {
+                "status": "done",
+                "pdf_path": str(pdf_path),
+                "error": None,
+                **({"template_id": selected_template_id} if is_resume else {}),
+            },
             is_resume=is_resume,
         )
 
     except Exception as e:
         from .ai_providers import RateLimitError
         entry = {"status": "error", "pdf_path": None, "error": str(e)}
+        if is_resume:
+            entry["template_id"] = selected_template_id
         if isinstance(e, RateLimitError):
             entry["rate_limit"] = e.as_dict()
         task_state.set_job_result(job_id, entry, is_resume=is_resume)
 
 
-def _build_resume(job_id: str) -> None:
-    _build_document(job_id, "resume")
+def _build_resume(job_id: str, template_id: str | None = None) -> None:
+    _build_document(job_id, "resume", template_id=template_id)
 
 
 def _build_cover_letter(job_id: str) -> None:

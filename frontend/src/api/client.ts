@@ -1,6 +1,7 @@
 import type {
   Job, JobCounts, JobDetail, MatchInfo, Profile, SearchConfig, AiSettings,
   SetupStatus, DocumentStatus, FetchStatus, AppConstants, SaveConfigResult,
+  ResumeTemplatesResponse,
 } from './types';
 import type { AuthUser } from '../hooks/authContext';
 
@@ -32,6 +33,30 @@ async function post<T>(url: string, body?: unknown): Promise<T> {
     throw new Error(`POST ${url} → ${res.status}`);
   }
   return res.json();
+}
+
+async function postForm<T>(url: string, body: FormData): Promise<T> {
+  const res = await fetch(url, {
+    method: 'POST',
+    credentials: 'include',
+    body,
+  });
+  const payload = await res.json().catch(() => null) as T & { error?: string } | null;
+  if (!res.ok) {
+    handleUnauthorized(url, res.status);
+    throw new Error(payload?.error || `POST ${url} → ${res.status}`);
+  }
+  return payload as T;
+}
+
+async function del<T>(url: string): Promise<T> {
+  const res = await fetch(url, { method: 'DELETE', credentials: 'include' });
+  const payload = await res.json().catch(() => null) as T & { error?: string } | null;
+  if (!res.ok) {
+    handleUnauthorized(url, res.status);
+    throw new Error(payload?.error || `DELETE ${url} → ${res.status}`);
+  }
+  return payload as T;
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -69,7 +94,11 @@ export const jobs = {
 // ── Documents ─────────────────────────────────────────────────────────────────
 
 export const documents = {
-  buildResume: (jobId: string) => post<{ status: string }>(`/api/resume/${jobId}`),
+  templates: () => get<ResumeTemplatesResponse>('/api/resume-templates'),
+  buildResume: (jobId: string, templateId?: string) => post<{ status: string }>(
+    `/api/resume/${jobId}`,
+    templateId ? { template_id: templateId } : undefined,
+  ),
   resumeStatus: (jobId: string) => get<DocumentStatus>(`/api/resume-status/${jobId}`),
   buildCoverLetter: (jobId: string) => post<{ status: string }>(`/api/cover-letter/${jobId}`),
   coverLetterStatus: (jobId: string) => get<DocumentStatus>(`/api/cover-letter-status/${jobId}`),
@@ -109,6 +138,12 @@ export const profiles = {
   setLabel: (slug: string, label: string) => post<{ ok: boolean }>(`/api/profiles/${slug}/label`, { label }),
   getMarkdown: (slug: string) => get<{ content: string }>(`/api/profiles/${slug}/profile-md`),
   saveMarkdown: (slug: string, content: string) => post<{ ok: boolean }>(`/api/profiles/${slug}/profile-md`, { content }),
+  uploadImage: (slug: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return postForm<{ ok: boolean; image_url: string | null }>(`/api/profiles/${slug}/image`, form);
+  },
+  deleteImage: (slug: string) => del<{ ok: boolean }>(`/api/profiles/${slug}/image`),
   getConfig: (slug: string) => get<SearchConfig>(`/api/profiles/${slug}/config`),
   saveConfig: (slug: string, config: SearchConfig) => post<SaveConfigResult>(`/api/profiles/${slug}/config`, config),
   clearJobs: (slug: string) => post<{ ok: boolean }>(`/api/profiles/${slug}/clear-jobs`),

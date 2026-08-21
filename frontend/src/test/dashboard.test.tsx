@@ -510,6 +510,28 @@ describe('Inline stance picker in detail panel', () => {
       expect((savedConfig as { build_cv?: { experience_positioning?: string } })?.build_cv?.experience_positioning).toBe('conservative')
     })
   })
+
+  it('posts the selected resume template from the quick detail panel', async () => {
+    seedIdleJob()
+    let postedTemplate = ''
+    server.use(
+      http.post('/api/resume/:jobId', async ({ params, request }) => {
+        const jobId = params.jobId as string
+        const body = await request.json() as { template_id?: string }
+        postedTemplate = body.template_id || ''
+        db.resumeStatus[jobId] = { status: 'building', stage: 'Starting...', pdf_url: null, error: null, rate_limit: null }
+        return HttpResponse.json({ status: 'building' })
+      }),
+    )
+    const user = await openPanel()
+    const panel = screen.getByTestId('detail-panel')
+    await waitFor(() => expect(within(panel).getByRole('button', { name: 'EU' })).not.toBeDisabled())
+
+    await user.click(within(panel).getByRole('button', { name: 'EU' }))
+    await user.click(within(panel).getByRole('button', { name: /Build CV/i }))
+
+    await waitFor(() => expect(postedTemplate).toBe('eu'))
+  })
 })
 
 describe('Fetch from the toolbar', () => {
