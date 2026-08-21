@@ -134,6 +134,35 @@ describe('Fetch jobs with progress (regression: field mismatch + leak)', () => {
 })
 
 describe('Settings save refresh strategy', () => {
+  it('applies current profile search settings to the listing on page load', async () => {
+    db.config = buildSearchConfig({
+      searches: [{
+        group_id: 'search-1',
+        name: 'linkedin - Senior Frontend Engineer',
+        source: 'linkedin',
+        query: 'Senior Frontend Engineer',
+        location: 'Switzerland',
+        max_pages: 3,
+        remote: false,
+        work_styles: ['Remote', 'Hybrid', 'On-site'],
+      }],
+    })
+    seedJobs([
+      buildJob({ job_id: 'ch1', title: 'Swiss Engineer', source: 'LinkedIn', location: 'Zurich, Switzerland', remote: 'Remote', status: 'pending' }),
+      buildJob({ job_id: 'de1', title: 'Germany Engineer', source: 'LinkedIn', location: 'Berlin, Germany', remote: 'Remote', status: 'pending' }),
+      buildJob({ job_id: 'uk1', title: 'UK Engineer', source: 'LinkedIn', location: 'London, United Kingdom', remote: 'Remote', status: 'pending' }),
+    ])
+
+    renderApp('/')
+
+    await waitFor(() => {
+      expect(screen.getByText('Swiss Engineer')).toBeInTheDocument()
+      expect(screen.queryByText('Germany Engineer')).toBeNull()
+      expect(screen.queryByText('UK Engineer')).toBeNull()
+    })
+    expect(screen.getByLabelText('Search jobs')).toHaveValue('')
+  })
+
   it('narrowing work styles updates local filters without clearing or fetching', async () => {
     let cleared = false
     let fetchTriggered = false
@@ -216,7 +245,7 @@ describe('Settings save refresh strategy', () => {
     expect(screen.getByRole('button', { name: /Save settings/i })).toBeInTheDocument()
   })
 
-  it('syncs the filter bar from the saved fetch settings', async () => {
+  it('syncs filter chips from saved fetch settings without filling the search input', async () => {
     server.use(
       http.post('/api/fetch', () => { db.fetchStatus = { status: 'done', message: '' }; return HttpResponse.json({ status: 'running' }) }),
     )
@@ -232,7 +261,7 @@ describe('Settings save refresh strategy', () => {
         work_styles: ['Hybrid'],
       }],
     })
-    seedJobs([buildJob({ job_id: 'pm1', title: 'Product Manager', source: 'LinkedIn', remote: 'Hybrid', status: 'pending' })])
+    seedJobs([buildJob({ job_id: 'pm1', title: 'Product Manager', source: 'LinkedIn', remote: 'Hybrid', location: 'Berlin, Germany', status: 'pending' })])
 
     renderApp('/')
     await waitFor(() => expect(screen.getByText('Product Manager')).toBeInTheDocument())
@@ -242,9 +271,91 @@ describe('Settings save refresh strategy', () => {
     fireEvent.click(screen.getByRole('button', { name: /Save settings/i }))
 
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
-    expect(screen.getByLabelText('Search jobs')).toHaveValue('Product Manager')
+    expect(screen.getByLabelText('Search jobs')).toHaveValue('')
     expect(screen.getAllByRole('button', { name: /Hybrid/i }).find(el => el.classList.contains('filter-chip'))).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getAllByRole('button', { name: /Remote/i }).find(el => el.classList.contains('filter-chip'))).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByLabelText('Filter by source')).toHaveValue('LinkedIn')
+  })
+
+  it('filters the listing to all sources selected in fetch settings', async () => {
+    db.config = buildSearchConfig({
+      searches: [
+        {
+          group_id: 'search-1',
+          name: 'LinkedIn - Engineer',
+          source: 'LinkedIn',
+          query: 'Engineer',
+          location: 'US',
+          max_pages: 3,
+          remote: true,
+          work_styles: ['Remote', 'Hybrid'],
+        },
+        {
+          group_id: 'search-1',
+          name: 'Jobicy - Engineer',
+          source: 'Jobicy',
+          query: 'Engineer',
+          location: 'US',
+          max_pages: 3,
+          remote: true,
+          work_styles: ['Remote', 'Hybrid'],
+        },
+      ],
+    })
+    seedJobs([
+      buildJob({ job_id: 'li1', title: 'LinkedIn Engineer', source: 'LinkedIn', remote: 'Remote', status: 'pending' }),
+      buildJob({ job_id: 'jo1', title: 'Jobicy Engineer', source: 'Jobicy', remote: 'Remote', status: 'pending' }),
+      buildJob({ job_id: 'hi1', title: 'Himalayas Engineer', source: 'Himalayas', remote: 'Remote', status: 'pending' }),
+    ])
+
+    renderApp('/')
+    await waitFor(() => expect(screen.getByText('Himalayas Engineer')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: /Search settings/i }))
+    await waitFor(() => expect(screen.getByRole('button', { name: /Save settings/i })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: /Save settings/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('LinkedIn Engineer')).toBeInTheDocument()
+      expect(screen.getByText('Jobicy Engineer')).toBeInTheDocument()
+      expect(screen.queryByText('Himalayas Engineer')).toBeNull()
+    })
+    expect(screen.getByLabelText('Search jobs')).toHaveValue('')
+    expect(screen.getByLabelText('Filter by source')).toHaveValue('')
+  })
+
+  it('filters the listing to locations selected in fetch settings', async () => {
+    db.config = buildSearchConfig({
+      searches: [{
+        group_id: 'search-1',
+        name: 'LinkedIn - Engineer',
+        source: 'LinkedIn',
+        query: 'Engineer',
+        location: 'Germany',
+        max_pages: 3,
+        remote: true,
+        work_styles: ['Remote', 'Hybrid'],
+      }],
+    })
+    seedJobs([
+      buildJob({ job_id: 'de1', title: 'Germany Engineer', source: 'LinkedIn', location: 'Berlin, Germany', remote: 'Remote', status: 'pending' }),
+      buildJob({ job_id: 'us1', title: 'US Engineer', source: 'LinkedIn', location: 'New York, NY', remote: 'Remote', status: 'pending' }),
+      buildJob({ job_id: 'fr1', title: 'France Engineer', source: 'LinkedIn', location: 'Paris, France', remote: 'Remote', status: 'pending' }),
+    ])
+
+    renderApp('/')
+    await waitFor(() => expect(screen.getByText('US Engineer')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: /Search settings/i }))
+    await waitFor(() => expect(screen.getByRole('button', { name: /Save settings/i })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: /Save settings/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Germany Engineer')).toBeInTheDocument()
+      expect(screen.queryByText('US Engineer')).toBeNull()
+      expect(screen.queryByText('France Engineer')).toBeNull()
+    })
+    expect(screen.getByLabelText('Search jobs')).toHaveValue('')
     expect(screen.getByLabelText('Filter by source')).toHaveValue('LinkedIn')
   })
 })
@@ -270,9 +381,11 @@ describe('Dashboard row skill details (regression guard)', () => {
 describe('Pagination scroll behavior (regression guard)', () => {
   it('changes pages without forcing the window back to the top', async () => {
     const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined)
+    const baseTime = Date.now()
     seedJobs(Array.from({ length: 26 }, (_, i) => buildJob({
       job_id: `paged-${i + 1}`,
       title: `Paged Job ${i + 1}`,
+      posted_at: new Date(baseTime - i * 60000).toISOString(),
       status: 'pending',
     })))
 

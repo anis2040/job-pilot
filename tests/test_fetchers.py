@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 from job.config import SearchConfig
-from job.fetch_worker import _matches_work_styles
+from job.fetch_worker import _matches_work_styles, _should_include_job
 from job.fetcher import fetch_search, SOURCES
 from job.models import RemoteType, DEFAULT_BLACKLIST, JOB_STATUSES
 from job.fetcher_utils import infer_remote
@@ -67,6 +67,14 @@ def test_work_style_filter_allows_selected_styles():
 
 def test_work_style_filter_is_disabled_for_old_configs():
     assert _matches_work_styles(SimpleNamespace(remote=RemoteType.ONSITE), SimpleNamespace()) is True
+
+
+def test_title_filter_does_not_exclude_provider_results():
+    config = SimpleNamespace(company_blacklist=[], title_filter=["senior frontend engineer"], blacklist=[])
+
+    assert _should_include_job(SimpleNamespace(
+        title="Backend Engineer", company="Acme", description=""
+    ), config) == (True, None)
 
 
 # ── infer_remote ──────────────────────────────────────────────────────────────

@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { jobs as jobsApi, constants } from '../../api/client';
+import { jobs as jobsApi, constants, config as configApi } from '../../api/client';
 import { useProfile } from '../../hooks/useProfile';
 import { consumeProfileFetchSignal } from '../../hooks/profileFetchSignal';
 import { useToast } from '../../components/ui/useToast';
 import { AppShell } from '../../components/layout/AppShell';
-import { type SearchRowEntry } from '../../components/ui/searchRowModel';
+import { groupSearchEntries, type SearchRowEntry } from '../../components/ui/searchRowModel';
 import { applyFilters, DEFAULT_FILTERS } from '../../utils/filters';
 import type { Filters } from '../../utils/filters';
 import type { Job, JobDetail, AppConstants, SaveConfigResult } from '../../api/types';
@@ -118,10 +118,26 @@ export default function DashboardPage() {
 
   useEffect(() => { constants.get().then(setAppConstants); }, []);
 
+  useEffect(() => {
+    if (!appConstants) return;
+    let cancelled = false;
+    configApi.get()
+      .then(data => {
+        if (cancelled) return;
+        const rows = groupSearchEntries(data.searches || []);
+        if (!rows.length) return;
+        const sources = [...(appConstants.sources || [])];
+        setFilters(current => deriveFiltersFromSearchRows(rows, current, sources));
+        setPage(1);
+      })
+      .catch(() => { /* Config filters are best-effort; settings modal can still load errors explicitly. */ });
+    return () => { cancelled = true; };
+  }, [activeProfile?.slug, appConstants]);
+
   const filteredJobs = useMemo(() => applyFilters(allJobs, filters), [allJobs, filters]);
   const pagedJobs = filteredJobs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const hasFilters = Boolean(
-    filters.remote.length > 0 || filters.source || filters.posted || filters.cv || filters.search
+    filters.remote.length > 0 || filters.source || filters.sources.length > 0 || filters.locations.length > 0 || filters.posted || filters.cv || filters.search
   );
   const selectedJob = useMemo(
     () => (selectedJobId ? allJobs.find(job => job.job_id === selectedJobId) ?? null : null),
@@ -133,8 +149,9 @@ export default function DashboardPage() {
       ...allJobs.map(j => j.source).filter(Boolean),
       ...(appConstants?.sources ?? []),
       filters.source,
+      ...filters.sources,
     ].filter(Boolean))].sort(),
-    [allJobs, appConstants?.sources, filters.source]
+    [allJobs, appConstants?.sources, filters.source, filters.sources]
   );
 
   const syncFiltersWithSearchRows = useCallback((rows: SearchRowEntry[]) => {
@@ -224,7 +241,7 @@ export default function DashboardPage() {
   };
 
   const setFilter = (k: keyof Filters, v: unknown) => {
-    setFilters(f => ({ ...f, [k]: v }));
+    setFilters(f => k === 'source' ? { ...f, source: String(v), sources: [] } : { ...f, [k]: v });
     setPage(1);
   };
 

@@ -359,6 +359,48 @@ class TestApiConfig:
         assert r.status_code == 200
         assert r.get_json()["fetch_required"] is True
 
+    def test_all_work_styles_can_be_narrowed_locally(self, web_client):
+        all_styles = {
+            "searches": [
+                {"name": "gh-eng", "source": "greenhouse", "query": "engineer",
+                 "location": "United States", "max_pages": 3, "remote": False, "work_styles": []}
+            ],
+            "title_filter": ["engineer"],
+            "blacklist": [],
+            "company_blacklist": [],
+        }
+        remote_only = {
+            **all_styles,
+            "searches": [{**all_styles["searches"][0], "remote": True, "work_styles": ["Remote"]}],
+        }
+        assert web_client.post("/api/config", json=all_styles).status_code == 200
+
+        r = web_client.post("/api/config", json=remote_only)
+
+        assert r.status_code == 200
+        assert r.get_json()["fetch_required"] is False
+
+    def test_changing_location_requires_fetch(self, web_client):
+        us_search = {
+            "searches": [
+                {"name": "gh-eng", "source": "greenhouse", "query": "engineer",
+                 "location": "United States", "max_pages": 3, "work_styles": ["Remote"]}
+            ],
+            "title_filter": ["engineer"],
+            "blacklist": [],
+            "company_blacklist": [],
+        }
+        germany_search = {
+            **us_search,
+            "searches": [{**us_search["searches"][0], "location": "Germany"}],
+        }
+        assert web_client.post("/api/config", json=us_search).status_code == 200
+
+        r = web_client.post("/api/config", json=germany_search)
+
+        assert r.status_code == 200
+        assert r.get_json()["fetch_required"] is True
+
 
 # ── /api/sources ──────────────────────────────────────────────────────────────
 

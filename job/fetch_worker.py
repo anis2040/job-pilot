@@ -29,8 +29,6 @@ def _should_include_job(job, config) -> tuple[bool, str | None]:
     Pure — no I/O, no DB access."""
     if job.company and job.company.lower() in config.company_blacklist:
         return False, None
-    if config.title_filter and not any(kw in job.title.lower() for kw in config.title_filter):
-        return False, None
     kw = _blacklisted(job.title + " " + job.description, config.blacklist)
     if kw:
         return False, kw
