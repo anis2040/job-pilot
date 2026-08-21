@@ -95,7 +95,7 @@ def fetch_linkedin(search: SearchConfig) -> list[RawJob]:
     return results
 
 
-def fetch_description(job_url: str) -> str:
+def fetch_description(job_url: str, *, job_id: str | None = None) -> str:
     """Fetch the full job description from a LinkedIn job page."""
     try:
         resp = httpx.get(job_url, headers=_HEADERS, timeout=15, follow_redirects=True)

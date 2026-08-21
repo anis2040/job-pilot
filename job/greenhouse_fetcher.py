@@ -89,7 +89,7 @@ def fetch_greenhouse(search: SearchConfig) -> list[RawJob]:
     return results
 
 
-def fetch_description(job_url: str) -> str:
+def fetch_description(job_url: str, *, job_id: str | None = None) -> str:
     """Fetch a Greenhouse job's full description on demand via its JSON API.
 
     The board API returns clean structured content, so we derive the board token
@@ -99,12 +99,20 @@ def fetch_description(job_url: str) -> str:
     """
     if not job_url:
         return ""
-    m = re.search(r"greenhouse\.io/(?:embed/job_app\?for=|)?([\w-]+)/jobs/(\d+)", job_url)
+    m = re.match(r"^gh_(.+)_(\d+)$", job_id or "")
+    if m:
+        token, job_id = m.group(1), m.group(2)
+    else:
+        token = None
+
+    m = None if token else re.search(r"greenhouse\.io/(?:embed/job_app\?for=|)?([\w-]+)/jobs/(\d+)", job_url)
     if not m:
-        m = re.search(r"greenhouse\.io/([\w-]+).*?[?&]gh_jid=(\d+)", job_url)
+        m = None if token else re.search(r"greenhouse\.io/([\w-]+).*?[?&]gh_jid=(\d+)", job_url)
     if not m:
-        return ""
-    token, job_id = m.group(1), m.group(2)
+        if not token:
+            return ""
+    if m:
+        token, job_id = m.group(1), m.group(2)
     try:
         resp = http_get(f"{_BASE}/{token}/jobs/{job_id}", headers=SHARED_HEADERS, timeout=10)
         resp.raise_for_status()

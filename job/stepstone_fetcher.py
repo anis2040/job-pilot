@@ -123,7 +123,7 @@ def fetch_stepstone(search: SearchConfig) -> list[RawJob]:
     return results
 
 
-def fetch_description(job_url: str) -> str:
+def fetch_description(job_url: str, *, job_id: str | None = None) -> str:
     """Fetch the full description from a StepStone detail page.
 
     StepStone often embeds the full posting as schema.org JobPosting JSON-LD,

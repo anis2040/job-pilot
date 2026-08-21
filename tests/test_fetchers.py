@@ -199,8 +199,8 @@ def test_fetch_description_dispatches_by_prefix(monkeypatch):
     ss = ft._source_for_job_id("ss_1")
     original = ss.describe
     try:
-        object.__setattr__(ss, "describe", lambda url: f"SS:{url}")
-        assert ft.fetch_description("ss_1", "http://job") == "SS:http://job"
+        object.__setattr__(ss, "describe", lambda url, **kw: f"SS:{url}:{kw['job_id']}")
+        assert ft.fetch_description("ss_1", "http://job") == "SS:http://job:ss_1"
     finally:
         object.__setattr__(ss, "describe", original)
 
@@ -215,7 +215,7 @@ def test_fetch_description_empty_for_unsupported_source():
 
 def test_fetch_description_swallows_errors():
     import job.fetcher as ft
-    def boom(url): raise RuntimeError("scrape failed")
+    def boom(url, **kw): raise RuntimeError("scrape failed")
     ss = ft._source_for_job_id("ss_1")
     original = ss.describe
     try:
@@ -622,6 +622,26 @@ def test_greenhouse_describe_parses_api_content(monkeypatch):
     out = gf.fetch_description("https://boards.greenhouse.io/stripe/jobs/456")
     assert "Build" in out and "great" in out and "Python" in out
     assert "<p>" not in out and "&lt;" not in out  # unescaped + stripped
+
+
+def test_greenhouse_describe_uses_job_id_for_custom_career_urls(monkeypatch):
+    """Company careers URLs often hide the board token; stored gh_* ids keep it."""
+    import job.greenhouse_fetcher as gf
+    called = {}
+
+    def fake_get(url, **kwargs):
+        called["url"] = url
+        return FakeResponse(data={"content": "&lt;p&gt;Airbnb role details&lt;/p&gt;"})
+
+    monkeypatch.setattr(gf, "http_get", fake_get)
+
+    out = gf.fetch_description(
+        "https://careers.airbnb.com/positions/7662244?gh_jid=7662244",
+        job_id="gh_airbnb_7662244",
+    )
+
+    assert called["url"] == "https://boards-api.greenhouse.io/v1/boards/airbnb/jobs/7662244"
+    assert out == "Airbnb role details"
 
 
 def test_greenhouse_describe_bad_url_returns_empty():
