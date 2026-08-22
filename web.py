@@ -342,6 +342,34 @@ def _looks_like_supported_image(header: bytes, ext: str) -> bool:
     return False
 
 
+def _save_normalized_profile_image(upload, image_path: Path, ext: str) -> None:
+    """Save a profile image with EXIF orientation baked into the pixels.
+
+    Phone cameras often store sideways JPEG pixels plus an EXIF orientation tag.
+    Browsers usually honor that tag, but LaTeX/PDF rendering does not, so the CV
+    can show a rotated image. Normalize once at upload and save without relying
+    on EXIF metadata downstream.
+    """
+    try:
+        from PIL import Image, ImageOps, UnidentifiedImageError
+    except ImportError:
+        upload.save(str(image_path))
+        return
+
+    upload.stream.seek(0)
+    try:
+        with Image.open(upload.stream) as img:
+            img = ImageOps.exif_transpose(img)
+            if ext in (".jpg", ".jpeg"):
+                if img.mode not in ("RGB", "L"):
+                    img = img.convert("RGB")
+                img.save(str(image_path), format="JPEG", quality=95, optimize=True)
+            else:
+                img.save(str(image_path), format="PNG", optimize=True)
+    except (UnidentifiedImageError, OSError, ValueError) as e:
+        raise ValueError("Uploaded file is not a valid image.") from e
+
+
 def _format_relative_age(dt_str: str | None, *, days_only: bool = False) -> str:
     """Return a human age string ('5m', '3h', '2d ago') from an ISO datetime string."""
     if not dt_str:
@@ -725,9 +753,18 @@ def api_profile_image_upload(slug):
         return jsonify({"error": "Uploaded file does not look like a supported image."}), 400
 
     profile_dir = safe_profile_dir(slug)
-    clear_profile_images(profile_dir)
     image_path = profile_dir / f"{PROFILE_IMAGE_STEM}{ext}"
-    f.save(str(image_path))
+    tmp_path = profile_dir / f".{PROFILE_IMAGE_STEM}{ext}.tmp"
+    if tmp_path.exists():
+        tmp_path.unlink()
+    try:
+        _save_normalized_profile_image(f, tmp_path, ext)
+    except ValueError as e:
+        if tmp_path.exists():
+            tmp_path.unlink()
+        return jsonify({"error": str(e)}), 400
+    clear_profile_images(profile_dir)
+    tmp_path.replace(image_path)
     return jsonify({"ok": True, "image_url": _profile_image_url(slug)})
 
 

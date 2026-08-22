@@ -9,6 +9,7 @@ every AI client and external tool the same way test_routes_ai.py does.
 """
 import sqlite3
 import io
+import base64
 import pytest
 
 import web
@@ -490,7 +491,9 @@ class TestResumeTemplates:
 
 class TestProfileImage:
     def test_upload_serve_and_delete_profile_image(self, web_client):
-        png = b"\x89PNG\r\n\x1a\n" + b"0" * 12
+        png = base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
+        )
 
         r = web_client.post(
             "/api/profiles/test-user/image",
@@ -515,6 +518,29 @@ class TestProfileImage:
         r = web_client.delete("/api/profiles/test-user/image")
         assert r.status_code == 200
         assert not saved.exists()
+
+    def test_upload_normalizes_jpeg_exif_orientation(self, web_client):
+        Image = pytest.importorskip("PIL.Image")
+        from job.user_context import LOCAL_USER_ID
+
+        original = Image.new("RGB", (8, 4), "white")
+        exif = Image.Exif()
+        exif[274] = 6  # rotate 90 degrees clockwise for display
+        raw = io.BytesIO()
+        original.save(raw, format="JPEG", exif=exif)
+        raw.seek(0)
+
+        r = web_client.post(
+            "/api/profiles/test-user/image",
+            data={"file": (raw, "headshot.jpg")},
+            content_type="multipart/form-data",
+        )
+
+        assert r.status_code == 200
+        saved = profs.PROFILES_DIR / LOCAL_USER_ID / "test-user" / "profile-image.jpg"
+        with Image.open(saved) as img:
+            assert img.size == (4, 8)
+            assert img.getexif().get(274) in (None, 1)
 
     def test_upload_rejects_unsupported_image_type(self, web_client):
         r = web_client.post(
